@@ -304,6 +304,56 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     };
 
+    /* ── 10. SIDEBAR COLLAPSE / EXPAND SYSTEM ─────────────── */
+    function triggerChartResize() {
+        setTimeout(() => {
+            if (window.renderCharts) {
+                window.renderCharts();
+            }
+            if ($.fn.DataTable) {
+                $($.fn.dataTable.tables(true)).DataTable().columns.adjust();
+            }
+        }, 310);
+    }
+
+    function collapseSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const btnExpand = document.getElementById('btn-expand');
+        if (sidebar) sidebar.classList.add('collapsed');
+        if (btnExpand) btnExpand.classList.remove('hidden');
+        localStorage.setItem('sidebar_collapsed', 'true');
+        triggerChartResize();
+    }
+
+    function expandSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const btnExpand = document.getElementById('btn-expand');
+        if (sidebar) sidebar.classList.remove('collapsed');
+        if (btnExpand) btnExpand.classList.add('hidden');
+        localStorage.setItem('sidebar_collapsed', 'false');
+        triggerChartResize();
+    }
+
+    const btnMinimize = document.getElementById('btn-minimize');
+    if (btnMinimize) btnMinimize.addEventListener('click', collapseSidebar);
+
+    const btnExpand = document.getElementById('btn-expand');
+    if (btnExpand) btnExpand.addEventListener('click', expandSidebar);
+
+    // Restore sidebar state from localStorage on load without flicker
+    const isCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+    if (isCollapsed) {
+        const sidebar = document.getElementById('sidebar');
+        const btnExpandEl = document.getElementById('btn-expand');
+        if (sidebar) {
+            sidebar.style.transition = 'none';
+            sidebar.classList.add('collapsed');
+            sidebar.offsetHeight; // force layout reflow
+            sidebar.style.transition = '';
+        }
+        if (btnExpandEl) btnExpandEl.classList.remove('hidden');
+    }
+
     // Auto-skip login if already logged in
     const savedUser = localStorage.getItem('ds_user_name');
     const overlay = document.getElementById('app-overlay');
@@ -315,3 +365,5 @@ document.addEventListener("DOMContentLoaded", function () {
         if (onboardingScreen) { onboardingScreen.style.display = 'flex'; showSlide(1); }
     }
 });
+
+

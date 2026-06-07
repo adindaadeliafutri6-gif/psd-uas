@@ -29,104 +29,186 @@
     <!-- ═══════════════════════════════════════════
          SIDEBAR
     ════════════════════════════════════════════ -->
-    <aside class="sidebar">
+    <aside id="sidebar" class="sidebar">
         <div class="sidebar-brand">
+            <div class="brand-logo-wrapper" style="display: flex; align-items: center; gap: 12px;">
+                <!-- ╔══════════════════════════════════════╗
+                     ║  LOGO ITSB                           ║
+                     ║  Ganti URL di bawah dengan link foto ║
+                     ║  logo ITSB yang kamu inginkan        ║
+                     ╚══════════════════════════════════════╝ -->
+                <div class="brand-logo">
+                    <img src="MASUKKAN_URL_LOGO_ITSB_DI_SINI"
+                         alt="ITSB Logo"
+                         class="logo-img"
+                         onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
+                    <div id="logo-fallback" class="brand-icon" style="display:none;">
+                        <i class="fas fa-chart-simple"></i>
+                    </div>
+                </div>
+                <!-- ════════════════════════════════════ -->
 
-            <!-- ╔══════════════════════════════════════╗
-                 ║  LOGO ITSB                           ║
-                 ║  Ganti URL di bawah dengan link foto ║
-                 ║  logo ITSB yang kamu inginkan        ║
-                 ╚══════════════════════════════════════╝ -->
-            <div class="brand-logo">
-                <img src="MASUKKAN_URL_LOGO_ITSB_DI_SINI"
-                     alt="ITSB Logo"
-                     class="logo-img"
-                     onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
-                <div id="logo-fallback" class="brand-icon" style="display:none;">
-                    <i class="fas fa-chart-simple"></i>
+                <div class="brand-text">
+                    <h2>DS Generator</h2>
+                    <p data-translate="subtitle">Descriptive Statistics</p>
                 </div>
             </div>
-            <!-- ════════════════════════════════════ -->
-
-            <div class="brand-text">
-                <h2>DS Generator</h2>
-                <p data-translate="subtitle">Descriptive Statistics</p>
-            </div>
+            
+            <button id="btn-minimize" class="btn-toggle" title="Sembunyikan Sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
         </div>
 
-        <ul class="nav-menu">
-            <li class="nav-item active" id="menu-overview">
-                <a href="{% if filename %}#overview{% else %}javascript:void(0);{% endif %}"
-                   onclick="{% if filename %}switchTab('overview'){% endif %}">
-                    <i class="fas fa-home"></i>
-                    <span data-translate="nav_home">Dashboard</span>
-                </a>
-            </li>
-            <li class="nav-item" id="menu-upload">
-                <a href="{{ url_for('upload_file') }}">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <span data-translate="nav_upload">Upload Data</span>
-                </a>
-            </li>
+        <div class="sidebar-menu-wrapper">
+            <ul class="nav-menu">
+                <li class="nav-item active" id="menu-overview">
+                    <a href="{% if filename %}#overview{% else %}javascript:void(0);{% endif %}"
+                       onclick="{% if filename %}switchTab('overview'){% endif %}">
+                        <i class="fas fa-home"></i>
+                        <span data-translate="nav_home">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="menu-upload">
+                    <a href="{{ url_for('upload_file') }}">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span data-translate="nav_upload">Upload Data</span>
+                    </a>
+                </li>
 
-            {% if filename %}
-            <li class="nav-header" data-translate="nav_analytics">ANALYTICS</li>
+                {% if filename %}
+                <li class="nav-header" data-translate="nav_analytics">ANALYTICS</li>
 
-            <li class="nav-item" id="menu-preview">
-                <a href="#preview" onclick="switchTab('preview')">
-                    <i class="fas fa-table"></i>
-                    <span data-translate="nav_preview">Data Preview</span>
-                </a>
-            </li>
+                <li class="nav-item" id="menu-preview">
+                    <a href="#preview" onclick="switchTab('preview')">
+                        <i class="fas fa-table"></i>
+                        <span data-translate="nav_preview">Data Preview</span>
+                    </a>
+                </li>
 
-            <li class="nav-item nav-parent">
-                <a style="pointer-events:none; opacity:0.6; cursor:default;">
-                    <i class="fas fa-calculator"></i>
-                    <span data-translate="nav_stats">Descriptive Stats</span>
-                </a>
-            </li>
-            <li class="nav-item sub-menu" id="menu-numerical">
-                <a href="#numerical" onclick="switchTab('numerical')">
-                    <i class="fas fa-hashtag"></i> Numerical
-                </a>
-            </li>
-            <li class="nav-item sub-menu" id="menu-categorical">
-                <a href="#categorical" onclick="switchTab('categorical')">
-                    <i class="fas fa-font"></i> Categorical
-                </a>
-            </li>
+                <!-- ── Accordion: Descriptive Statistics ── -->
+                <li class="nav-accordion-item" id="acc-stats">
+                    <button class="nav-accordion-header" onclick="toggleAccordion('acc-stats')">
+                        <i class="fas fa-calculator"></i>
+                        <span>Descriptive Statistics</span>
+                        <i class="fas fa-chevron-right acc-arrow"></i>
+                    </button>
+                    <div class="nav-accordion-body">
+                        <ul class="nav-sub-menu">
+                            <li class="nav-item" id="menu-numerical">
+                                <a href="#numerical" onclick="switchTab('numerical')">
+                                    <i class="fas fa-hashtag"></i> Numeric Analysis
+                                </a>
+                            </li>
+                            <li class="nav-item" id="menu-categorical">
+                                <a href="#categorical" onclick="switchTab('categorical')">
+                                    <i class="fas fa-font"></i> Categorical Analysis
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
 
-            <li class="nav-header mt-3" data-translate="nav_advanced">ADVANCED ANALYTICS</li>
+                <li class="nav-header mt-3" data-translate="nav_advanced">ADVANCED ANALYTICS</li>
 
-            <li class="nav-item" id="menu-advanced">
-                <a href="#advanced" onclick="switchTab('advanced')">
-                    <i class="fas fa-flask"></i> Advanced Stats
-                    <span class="badge-new">W15</span>
-                </a>
-            </li>
-            <li class="nav-item" id="menu-visualizations">
-                <a href="#visualizations" onclick="switchTab('visualizations'); if(window.renderCharts) setTimeout(window.renderCharts, 200);">
-                    <i class="fas fa-chart-pie"></i> Visualizations
-                    <span class="badge-new" style="background:#ee5d50;">NEW</span>
-                </a>
-            </li>
-            <li class="nav-item" id="menu-insights">
-                <a href="#insights" onclick="switchTab('insights')">
-                    <i class="fas fa-lightbulb"></i> Smart Insights
-                </a>
-            </li>
+                <li class="nav-item" id="menu-advanced">
+                    <a href="#advanced" onclick="switchTab('advanced')">
+                        <i class="fas fa-flask"></i> Advanced Stats
+                        <span class="badge-new">W15</span>
+                    </a>
+                </li>
 
-            <!-- ── OPTIONAL AI CHAT ── -->
-            <li class="nav-header mt-3">AI ASSISTANT</li>
-            <li class="nav-item" id="menu-ai">
-                <a href="#ai" onclick="switchTab('ai')">
-                    <i class="fas fa-robot"></i> DataBot AI
-                    <span class="badge-new" style="background:#05cd99;">AI</span>
-                </a>
-            </li>
-            {% endif %}
-        </ul>
+                <!-- ── Accordion: Visualizations ── -->
+                <li class="nav-accordion-item" id="acc-viz">
+                    <button class="nav-accordion-header" onclick="toggleAccordion('acc-viz')">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Visualizations <span class="badge-new" style="background:#ee5d50;">NEW</span></span>
+                        <i class="fas fa-chevron-right acc-arrow"></i>
+                    </button>
+                    <div class="nav-accordion-body">
+                        <ul class="nav-sub-menu">
+                            <li class="nav-item" id="menu-viz-univariate">
+                                <a href="#viz-univariate" onclick="switchTab('viz-univariate')">
+                                    <i class="fas fa-chart-bar"></i> Univariate
+                                </a>
+                            </li>
+                            <li class="nav-item" id="menu-viz-bivariate">
+                                <a href="#viz-bivariate" onclick="switchTab('viz-bivariate')">
+                                    <i class="fas fa-braille"></i> Bivariate
+                                </a>
+                            </li>
+                            <li class="nav-item" id="menu-viz-multivariate">
+                                <a href="#viz-multivariate" onclick="switchTab('viz-multivariate')">
+                                    <i class="fas fa-project-diagram"></i> Multivariate
+                                </a>
+                            </li>
+                            <li class="nav-item" id="menu-viz-timeseries">
+                                <a href="#viz-timeseries" onclick="switchTab('viz-timeseries')">
+                                    <i class="fas fa-chart-line"></i> Time Series
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item" id="menu-insights">
+                    <a href="#insights" onclick="switchTab('insights')">
+                        <i class="fas fa-lightbulb"></i> Smart Insights
+                    </a>
+                </li>
+
+                <!-- ── OPTIONAL AI CHAT ── -->
+                <li class="nav-header mt-3">AI ASSISTANT</li>
+                <li class="nav-item" id="menu-ai">
+                    <a href="#ai" onclick="switchTab('ai')">
+                        <i class="fas fa-robot"></i> DataBot AI
+                        <span class="badge-new" style="background:#05cd99;">AI</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+
+        {% if dataset_info %}
+        <div class="sidebar-footer">
+            <div id="dataset-card" class="dataset-card">
+                <div class="dataset-card-header">
+                    <div class="dataset-icon">
+                        <i class="fas fa-file-csv" style="font-size: 1.1rem; color: #10b981;"></i>
+                    </div>
+                    <span id="ds-file-name-header" class="dataset-filename" title="{{ dataset_info.name }}">{{ dataset_info.name }}</span>
+                    <span class="status-badge">Ready</span>
+                </div>
+                
+                <div class="dataset-stats">
+                    <div class="stat-row">
+                        <span class="stat-label">File Name:</span>
+                        <span id="ds-file-name" class="stat-value text-truncate" title="{{ dataset_info.name }}">{{ dataset_info.name }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Rows:</span>
+                        <span id="ds-rows" class="stat-value text-blue">{{ dataset_info.rows }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Columns:</span>
+                        <span id="ds-columns" class="stat-value text-green">{{ dataset_info.cols }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">File Size:</span>
+                        <span id="ds-size" class="stat-value text-orange">{{ dataset_info.size }}</span>
+                    </div>
+                    <div class="stat-row border-top">
+                        <span id="ds-time" class="stat-value font-mono">{{ dataset_info.time }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </aside>
+
+    <!-- Floating Expand Button -->
+    <button id="btn-expand" class="btn-expand hidden" title="Tampilkan Sidebar">
+        <i class="fas fa-chevron-right"></i>
+    </button>
 
     <!-- ═══════════════════════════════════════════
          MAIN AREA
@@ -255,8 +337,13 @@
         {% endfor %}
     });
     </script>
+
+
+
     {% endif %}
 {% endwith %}
+
+
 
 </body>
 </html>

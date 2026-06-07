@@ -93,6 +93,42 @@ def dashboard(filename):
     plots_json = generate_plots(df, num_cols, cat_cols)
     auto_insights = generate_auto_insights(df, num_cols, cat_cols)
 
+    # ─── DATASET INFO FOR SIDEBAR CARD ───
+    import datetime
+    file_size_kb = 0.0
+    if os.path.exists(filepath):
+        file_size_kb = os.path.getsize(filepath) / 1024.0
+    file_size_str = f"{file_size_kb:,.2f} KB"
+
+    dt = datetime.datetime.fromtimestamp(os.path.getmtime(filepath))
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    month_str = months[dt.month - 1]
+    upload_time_str = f"{dt.day:02d} {month_str} {dt.year} {dt.hour:02d}:{dt.minute:02d}"
+
+    dataset_info = {
+        'name': filename,
+        'rows': metrics['total_rows'],
+        'cols': metrics['total_columns'],
+        'size': file_size_str,
+        'time': upload_time_str
+    }
+
+    # ─── INTERACTIVE CHART DATA (sampled) ───
+    col_data = {}
+    for col in num_cols:
+        series = df[col].dropna()
+        if len(series) > 2000:
+            series = series.sample(2000, random_state=42)
+        col_data[col] = {'type': 'numeric', 'values': [round(float(v), 4) for v in series.tolist()]}
+    for col in cat_cols:
+        vc = df[col].value_counts().head(20)
+        col_data[col] = {'type': 'categorical',
+                         'labels': vc.index.astype(str).tolist(),
+                         'counts': [int(v) for v in vc.values.tolist()]}
+
+    # Detect datetime columns for time series
+    dt_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
+
     return render_template('dashboard.html',
                            filename=filename,
                            preview=preview_html,
@@ -103,7 +139,10 @@ def dashboard(filename):
                            insights=auto_insights,
                            advanced=advanced,
                            num_cols=num_cols,
-                           cat_cols=cat_cols)
+                           cat_cols=cat_cols,
+                           dt_cols=dt_cols,
+                           col_data=col_data,
+                           dataset_info=dataset_info)
 
 # ─── OPTIONAL AI CHAT ENDPOINT ───
 @app.route('/api/ai-chat', methods=['POST'])
