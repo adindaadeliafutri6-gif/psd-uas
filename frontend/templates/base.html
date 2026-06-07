@@ -31,32 +31,20 @@
     ════════════════════════════════════════════ -->
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-brand">
-            <div class="brand-logo-wrapper" style="display: flex; align-items: center; gap: 12px;">
-                <!-- ╔══════════════════════════════════════╗
-                     ║  LOGO ITSB                           ║
-                     ║  Ganti URL di bawah dengan link foto ║
-                     ║  logo ITSB yang kamu inginkan        ║
-                     ╚══════════════════════════════════════╝ -->
-                <div class="brand-logo">
-                    <img src="MASUKKAN_URL_LOGO_ITSB_DI_SINI"
-                         alt="ITSB Logo"
-                         class="logo-img"
-                         onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
-                    <div id="logo-fallback" class="brand-icon" style="display:none;">
-                        <i class="fas fa-chart-simple"></i>
-                    </div>
-                </div>
-                <!-- ════════════════════════════════════ -->
-
-                <div class="brand-text">
-                    <h2>DS Generator</h2>
-                    <p data-translate="subtitle">Descriptive Statistics</p>
+            <div class="brand-logo">
+                <img src="MASUKKAN_URL_LOGO_ITSB_DI_SINI"
+                     alt="ITSB Logo"
+                     class="logo-img"
+                     onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
+                <div id="logo-fallback" class="brand-icon" style="display:none;">
+                    <i class="fas fa-chart-simple"></i>
                 </div>
             </div>
-            
-            <button id="btn-minimize" class="btn-toggle" title="Sembunyikan Sidebar">
-                <i class="fas fa-chevron-left"></i>
-            </button>
+
+            <div class="brand-text">
+                <h2>DS Generator</h2>
+                <p data-translate="subtitle">Descriptive Statistics</p>
+            </div>
         </div>
 
         <div class="sidebar-menu-wrapper">
@@ -68,6 +56,7 @@
                         <span data-translate="nav_home">Dashboard</span>
                     </a>
                 </li>
+
                 <li class="nav-item" id="menu-upload">
                     <a href="{{ url_for('upload_file') }}">
                         <i class="fas fa-cloud-upload-alt"></i>
@@ -85,27 +74,17 @@
                     </a>
                 </li>
 
-                <!-- ── Accordion: Descriptive Statistics ── -->
-                <li class="nav-accordion-item" id="acc-stats">
-                    <button class="nav-accordion-header" onclick="toggleAccordion('acc-stats')">
-                        <i class="fas fa-calculator"></i>
-                        <span>Descriptive Statistics</span>
-                        <i class="fas fa-chevron-right acc-arrow"></i>
-                    </button>
-                    <div class="nav-accordion-body">
-                        <ul class="nav-sub-menu">
-                            <li class="nav-item" id="menu-numerical">
-                                <a href="#numerical" onclick="switchTab('numerical')">
-                                    <i class="fas fa-hashtag"></i> Numeric Analysis
-                                </a>
-                            </li>
-                            <li class="nav-item" id="menu-categorical">
-                                <a href="#categorical" onclick="switchTab('categorical')">
-                                    <i class="fas fa-font"></i> Categorical Analysis
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
+<li class="nav-header mt-3">Descriptive Statistics</li>
+
+                <li class="nav-item sub-menu" id="menu-numerical">
+                    <a href="#numerical" onclick="switchTab('numerical')">
+                        <i class="fas fa-hashtag"></i> Numeric Analysis
+                    </a>
+                </li>
+                <li class="nav-item sub-menu" id="menu-categorical">
+                    <a href="#categorical" onclick="switchTab('categorical')">
+                        <i class="fas fa-font"></i> Categorical Analysis
+                    </a>
                 </li>
 
                 <li class="nav-header mt-3" data-translate="nav_advanced">ADVANCED ANALYTICS</li>
@@ -117,37 +96,28 @@
                     </a>
                 </li>
 
-                <!-- ── Accordion: Visualizations ── -->
-                <li class="nav-accordion-item" id="acc-viz">
-                    <button class="nav-accordion-header" onclick="toggleAccordion('acc-viz')">
-                        <i class="fas fa-chart-pie"></i>
-                        <span>Visualizations <span class="badge-new" style="background:#ee5d50;">NEW</span></span>
-                        <i class="fas fa-chevron-right acc-arrow"></i>
-                    </button>
-                    <div class="nav-accordion-body">
-                        <ul class="nav-sub-menu">
-                            <li class="nav-item" id="menu-viz-univariate">
-                                <a href="#viz-univariate" onclick="switchTab('viz-univariate')">
-                                    <i class="fas fa-chart-bar"></i> Univariate
-                                </a>
-                            </li>
-                            <li class="nav-item" id="menu-viz-bivariate">
-                                <a href="#viz-bivariate" onclick="switchTab('viz-bivariate')">
-                                    <i class="fas fa-braille"></i> Bivariate
-                                </a>
-                            </li>
-                            <li class="nav-item" id="menu-viz-multivariate">
-                                <a href="#viz-multivariate" onclick="switchTab('viz-multivariate')">
-                                    <i class="fas fa-project-diagram"></i> Multivariate
-                                </a>
-                            </li>
-                            <li class="nav-item" id="menu-viz-timeseries">
-                                <a href="#viz-timeseries" onclick="switchTab('viz-timeseries')">
-                                    <i class="fas fa-chart-line"></i> Time Series
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
+<!-- ── Visualizations (submenu langsung) ── -->
+<li class="nav-header mt-3">Visualizations</li>
+
+                <li class="nav-item sub-menu" id="menu-viz-univariate">
+                    <a href="#viz-univariate" onclick="switchTab('viz-univariate'); if(window.renderCharts) setTimeout(window.renderCharts, 200);">
+                        <i class="fas fa-chart-bar"></i> Univariate
+                    </a>
+                </li>
+                <li class="nav-item sub-menu" id="menu-viz-bivariate">
+                    <a href="#viz-bivariate" onclick="switchTab('viz-bivariate'); if(window.renderCharts) setTimeout(window.renderCharts, 200);">
+                        <i class="fas fa-braille"></i> Bivariate
+                    </a>
+                </li>
+                <li class="nav-item sub-menu" id="menu-viz-multivariate">
+                    <a href="#viz-multivariate" onclick="switchTab('viz-multivariate'); if(window.renderCharts) setTimeout(window.renderCharts, 200);">
+                        <i class="fas fa-project-diagram"></i> Multivariate
+                    </a>
+                </li>
+                <li class="nav-item sub-menu" id="menu-viz-timeseries">
+                    <a href="#viz-timeseries" onclick="switchTab('viz-timeseries'); if(window.renderCharts) setTimeout(window.renderCharts, 200);">
+                        <i class="fas fa-chart-line"></i> Time Series
+                    </a>
                 </li>
 
                 <li class="nav-item" id="menu-insights">
@@ -178,7 +148,7 @@
                     <span id="ds-file-name-header" class="dataset-filename" title="{{ dataset_info.name }}">{{ dataset_info.name }}</span>
                     <span class="status-badge">Ready</span>
                 </div>
-                
+
                 <div class="dataset-stats">
                     <div class="stat-row">
                         <span class="stat-label">File Name:</span>
@@ -318,7 +288,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
 
+
+<script src="{{ url_for('static', filename='js/sidebarAccordionFix.js') }}"></script>
+
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+
+
 
 <!-- Flash Notifications via SweetAlert2 -->
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -337,13 +313,9 @@
         {% endfor %}
     });
     </script>
-
-
-
     {% endif %}
 {% endwith %}
 
-
-
 </body>
 </html>
+

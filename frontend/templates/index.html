@@ -137,4 +137,108 @@
     </div>
 </div>
 
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisis Pemrograman Data Science - Kelompok 2</title>
+    <!-- Tailwind CSS CDN untuk styling modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN untuk grafik interaktif instant -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <span class="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                Kelompok 2 ITSB — Data Science
+            </span>
+            <h1 class="text-3xl font-extrabold mt-3 tracking-tight">Dashboard Analisis Deskriptif</h1>
+            <p class="text-slate-400 text-sm mt-1">Unggah berkas .csv Anda untuk melakukan komputasi statistik dan pembuatan visualisasi instan.</p>
+        </div>
+
+        <!-- Area Upload Fleksibel -->
+        <div class="bg-slate-800 border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center hover:border-blue-500/50 transition-all cursor-pointer mb-8" id="dropzone">
+            <input type="file" id="csvFileInput" accept=".csv, .txt" class="hidden">
+            <div class="mx-auto w-12 h-12 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center mb-3">
+                📂
+            </div>
+            <p class="text-base font-semibold">Tarik & Lepas File CSV Anda Di Sini</p>
+            <p class="text-xs text-slate-500 mt-1">Atau klik area ini untuk memilih file dari komputer Anda</p>
+        </div>
+
+        <!-- Hasil Ringkasan Dataset (Disembunyikan sebelum upload) -->
+        <div id="analysisSection" class="hidden space-y-8">
+            
+            <!-- Grid Indikator Ringkasan -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Baris</p>
+                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statRows">0</h3>
+                </div>
+                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Kolom</p>
+                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statCols">0</h3>
+                </div>
+                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Kolom Numerik</p>
+                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statNumeric">0</h3>
+                </div>
+                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Kolom Kategori</p>
+                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statCategorical">0</h3>
+                </div>
+            </div>
+
+            <!-- Panel Grafik Visualisasi -->
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Grafik Histogram -->
+                <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                    <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full bg-blue-500"></span>
+                        Distribusi Frekuensi (Histogram)
+                    </h4>
+                    <select id="numColSelect" class="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-1.5 mb-4 text-white hover:border-slate-500 outline-none w-full"></select>
+                    <div class="h-64">
+                        <canvas id="histogramChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Grafik Bar Chart Kategori -->
+                <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                    <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                        Sebaran Distribusi Kategori (Bar Chart)
+                    </h4>
+                    <select id="catColSelect" class="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-1.5 mb-4 text-white hover:border-slate-500 outline-none w-full"></select>
+                    <div class="h-64">
+                        <canvas id="barCategoricalChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabel Pratinjau Baris Data -->
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-5 overflow-hidden">
+                <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                    Pratinjau Data (Maks. 10 Baris Pertama)
+                </h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs border-collapse" id="previewTable">
+                        <!-- Header & body akan diisi otomatis melalui Javascript -->
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Integrasi Javascript ada di bawah ini -->
+    <script src="app.js"></script>
+</body>
+</html>
+
 {% endblock %}
