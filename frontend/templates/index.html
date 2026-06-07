@@ -1,244 +1,601 @@
-{% extends "base.html" %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analytics Engine — Group 2</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-<!-- ========================================== -->
-<!-- FULL-SCREEN ONBOARDING & LOGIN OVERLAY     -->
-<!-- ========================================== -->
-<div id="app-overlay" class="fullscreen-overlay">
-    
-    <!-- ANIMASI DATA NETWORK GLOBAL (Sekarang menyala dari awal!) -->
-    <canvas id="data-network-canvas"></canvas>
-    
-    <!-- 1. LAYAR LOGIN -->
-    <div id="login-screen" class="overlay-section active-section fade-in">
-        <div class="login-card glass-premium premium-shadow">
-            <div class="login-header">
-                <i class="fas fa-fingerprint fa-3x text-blue mb-3 pulse-glow"></i>
-                <h2>Secure Workspace</h2>
-                <p>Enter your credentials to access the analytics engine</p>
-            </div>
-            <form id="login-form" onsubmit="return false;"> <!-- Kuncian Anti-Reload -->
-                <div class="input-group">
-                    <i class="fas fa-user"></i>
-                    <input type="text" id="user-name" placeholder="Full Name" required autocomplete="off">
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-envelope"></i>
-                    <input type="email" id="user-email" placeholder="Work Email" required autocomplete="off">
-                </div>
-                <button type="submit" class="btn-premium w-100 mt-3" onclick="processLogin()">
-                    Authenticate <i class="fas fa-chevron-right arrow-anim"></i>
-                </button>
-            </form>
+    :root {
+      --blue:       #378ADD;
+      --blue-dark:  #185FA5;
+      --blue-light: #85B7EB;
+      --bg-dark:    #060e1a;
+      --glass-bg:   rgba(255,255,255,0.05);
+      --glass-bd:   rgba(133,183,235,0.2);
+      --text-main:  #e8f3fc;
+      --text-muted: #7eacd0;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      overflow-x: hidden;
+    }
+
+    /* ─── Network Canvas ─── */
+    #data-network-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.18;
+    }
+
+    /* ─── Overlay ─── */
+    #app-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4,14,26,0.85);
+      backdrop-filter: blur(8px);
+      transition: opacity 0.7s ease;
+    }
+    #app-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ─── Slides ─── */
+    .overlay-section { display: none; }
+    .overlay-section.active-section { display: flex; justify-content: center; align-items: center; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.78); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes floatAnim {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-7px); }
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(55,138,221,0.45); }
+      50%       { box-shadow: 0 0 0 10px rgba(55,138,221,0); }
+    }
+
+    .fade-in { animation: fadeUp 0.6s ease both; }
+
+    /* ─── Glass Card ─── */
+    .glass-card {
+      background: var(--glass-bg);
+      border: 0.5px solid var(--glass-bd);
+      border-radius: 20px;
+      padding: 48px 52px;
+      max-width: 900px;
+      width: 92vw;
+    }
+
+    .slide-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .slide-title span { color: var(--blue-light); }
+    .slide-sub  { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 36px; }
+
+    /* ─── Team Grid ─── */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+    @media (max-width: 680px) { .team-grid { grid-template-columns: repeat(3, 1fr); } }
+
+    .id-card-small {
+      background: rgba(255,255,255,0.07);
+      border: 0.5px solid rgba(133,183,235,0.22);
+      border-radius: 14px;
+      padding: 18px 8px 14px;
+      text-align: center;
+      animation: floatAnim 3.5s ease-in-out infinite;
+    }
+    .id-card-small img {
+      width: 54px; height: 54px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(133,183,235,0.35);
+      background: rgba(55,138,221,0.18);
+      margin-bottom: 10px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .id-card-small h4 { font-size: 0.72rem; font-weight: 600; color: #deeefe; margin-bottom: 3px; }
+    .id-card-small p  { font-size: 0.62rem; color: var(--text-muted); }
+
+    /* ─── Tutorial Timeline ─── */
+    .tutorial-timeline {
+      display: flex;
+      gap: 22px;
+      margin-bottom: 36px;
+      position: relative;
+    }
+    .tutorial-timeline::before {
+      content: '';
+      position: absolute;
+      top: 38px; left: 40px; right: 40px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--blue-light), transparent);
+    }
+    .step-card {
+      flex: 1;
+      background: rgba(55,138,221,0.09);
+      border: 0.5px solid rgba(133,183,235,0.25);
+      border-radius: 16px;
+      padding: 22px 16px 18px;
+      text-align: center;
+    }
+    .step-card:nth-child(2) { animation-delay: 0.6s; }
+    .step-card:nth-child(3) { animation-delay: 1.2s; }
+    .step-icon-circle {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: rgba(55,138,221,0.22);
+      border: 1px solid rgba(133,183,235,0.4);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+      font-size: 22px;
+      color: var(--blue-light);
+    }
+    .step-card h3 { font-size: 0.92rem; font-weight: 600; color: #e0eeff; margin-bottom: 8px; }
+    .step-card p  { font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; }
+
+    /* ─── Welcome Slide ─── */
+    .welcome-glass {
+      background: var(--glass-bg);
+      border: 0.5px solid var(--glass-bd);
+      border-radius: 20px;
+      padding: 52px 44px;
+      max-width: 500px;
+      width: 92vw;
+      text-align: center;
+    }
+    .icon-pulse {
+      font-size: 3rem;
+      color: var(--blue-light);
+      margin-bottom: 20px;
+      animation: floatAnim 3s ease-in-out infinite;
+      display: block;
+    }
+    .welcome-glass h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+    .welcome-glass h1 span { color: var(--blue-light); }
+    .welcome-glass p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 28px; }
+
+    /* ─── Dot nav ─── */
+    .dot-nav { display: flex; gap: 8px; justify-content: center; margin-top: 28px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(133,183,235,0.28); cursor: pointer; transition: background 0.25s; }
+    .dot.active { background: var(--blue-light); }
+
+    /* ─── Button ─── */
+    .btn-premium {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 26px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      transition: background 0.2s, transform 0.15s;
+      text-decoration: none;
+    }
+    .btn-premium:hover { background: var(--blue-dark); transform: scale(1.03); }
+    .btn-premium.w-100 { width: 100%; justify-content: center; }
+    .pulse-glow { animation: pulseGlow 2.5s ease infinite; }
+
+    /* ─── Dashboard ─── */
+    #main-dashboard {
+      position: relative;
+      z-index: 1;
+      padding: 32px 32px 48px;
+      min-height: 100vh;
+    }
+
+    .dashboard-header-flex {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .dashboard-header-flex h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .dashboard-header-flex h2 .fa-chart-pie { color: var(--blue); margin-right: 8px; }
+
+    /* ─── KPI Row ─── */
+    .kpi-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    @media (max-width: 600px) { .kpi-container { grid-template-columns: 1fr; } }
+
+    .kpi-card {
+      background: rgba(255,255,255,0.05);
+      border: 0.5px solid var(--glass-bd);
+      border-radius: 16px;
+      padding: 20px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .kpi-card .icon {
+      width: 46px; height: 46px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .kpi-card .data p { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+    .skeleton-text {
+      height: 18px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.08);
+      width: 55%;
+      animation: blink 1.8s ease-in-out infinite;
+    }
+
+    /* ─── Chart Row ─── */
+    .stats-row-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    @media (max-width: 600px) { .stats-row-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: rgba(255,255,255,0.04);
+      border: 0.5px solid var(--glass-bd);
+      border-radius: 16px;
+      padding: 28px;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .chart-card h4 { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .chart-card p  { font-size: 0.72rem; color: rgba(126,172,208,0.6); }
+
+    .skeleton-chart-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 90px;
+      margin-bottom: 18px;
+    }
+    .bar {
+      width: 20px;
+      border-radius: 4px 4px 0 0;
+      background: rgba(255,255,255,0.08);
+      animation: blink 1.8s ease-in-out infinite;
+    }
+
+    .skeleton-table {
+      width: 100%;
+      margin-bottom: 18px;
+    }
+    .skel-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .skel-cell {
+      height: 12px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.08);
+      flex: 1;
+      animation: blink 1.8s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.35; }
+      50%       { opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Network Canvas -->
+  <canvas id="data-network-canvas"></canvas>
+
+  <!-- =============================== -->
+  <!--  ONBOARDING OVERLAY (no login)  -->
+  <!-- =============================== -->
+  <div id="app-overlay">
+
+    <!-- SLIDE 1: Team -->
+    <div id="slide-1" class="overlay-section active-section">
+      <div class="glass-card fade-in">
+        <h1 class="slide-title">The <span>Architects</span></h1>
+        <p class="slide-sub">Group 2 — Data Science Programming Final Project</p>
+
+        <div class="team-grid">
+          <div class="id-card-small" style="animation-delay:0.1s">
+            <img src="https://raw.githubusercontent.com/caroldupinopereira-cmyk/carol/main/carol_1-removebg-preview.png" onerror="this.style.display='none'" alt="Carol">
+            <h4>Carol D.P.</h4><p>Data Science</p>
+          </div>
+          <div class="id-card-small" style="animation-delay:0.22s">
+            <img src="https://github.com/refantanjung23-wq.png" onerror="this.style.display='none'" alt="Refantanur">
+            <h4>Refantanur</h4><p>Data Science</p>
+          </div>
+          <div class="id-card-small" style="animation-delay:0.34s">
+            <img src="https://raw.githubusercontent.com/cahayasemidang-max/foto/cfc8d91ef344fb1beba4eadb93e4be67168bc2b8/FotoCahaya.png" onerror="this.style.display='none'" alt="Cahaya">
+            <h4>Cahaya M.S.</h4><p>Data Science</p>
+          </div>
+          <div class="id-card-small" style="animation-delay:0.46s">
+            <img src="https://raw.githubusercontent.com/raihaniasyahputri/Foto_lulu/696dc3e134536210f870e9d5230b8fbeaad40e0d/IMG-20251129-WA0001.png" onerror="this.style.display='none'" alt="Raihania">
+            <h4>Raihania S.P.</h4><p>Data Science</p>
+          </div>
+          <div class="id-card-small" style="animation-delay:0.58s">
+            <img src="https://raw.githubusercontent.com/cahayasemidang-max/foto/b7534990c32ff093c6cb2faefc6282f5f6079296/FotoCloise.png" onerror="this.style.display='none'" alt="Cloise">
+            <h4>Cloise S.</h4><p>Data Science</p>
+          </div>
+          <div class="id-card-small" style="animation-delay:0.7s">
+            <img src="https://raw.githubusercontent.com/caroldupinopereira-cmyk/adinda/main/adinda_baru-removebg-preview.png" onerror="this.style.display='none'" alt="Adinda">
+            <h4>Adinda A.F.</h4><p>Student Admin</p>
+          </div>
         </div>
+
+        <button class="btn-premium" onclick="goSlide(2)">
+          Explore Platform <i class="fas fa-chevron-right"></i>
+        </button>
+
+        <div class="dot-nav">
+          <div class="dot active" onclick="goSlide(1)"></div>
+          <div class="dot" onclick="goSlide(2)"></div>
+          <div class="dot" onclick="goSlide(3)"></div>
+        </div>
+      </div>
     </div>
 
-    <!-- 2. LAYAR ONBOARDING SLIDER -->
-    <div id="onboarding-screen" class="overlay-section" style="display: none;">
-        
-        <!-- SLIDE 1: IDENTITAS TIM (Diperlebar dan Diperbesar) -->
-        <div class="onboarding-slide active" id="slide-1">
-            <!-- Tambahan style max-width: 900px agar kotaknya sangat luas -->
-            <div class="slide-content w-100 fade-in glass-premium premium-shadow" style="max-width: 900px; padding: 50px;">
-                <h1 class="mb-2" style="font-size: 2.5rem;">The <span class="text-gradient">Architects</span></h1>
-                <p class="mb-5 text-muted" style="font-size: 1.1rem;">Group 2 - Data Science Programming Final Project</p>
-                
-                <div class="team-grid-fit">
-                    <div class="id-card-small float-anim" style="animation-delay: 0.1s;"><img src="https://raw.githubusercontent.com/caroldupinopereira-cmyk/carol/main/carol_1-removebg-preview.png"><h4>Carol D.P.</h4><p>Data Science</p></div>
-                    <div class="id-card-small float-anim" style="animation-delay: 0.2s;"><img src="https://github.com/refantanjung23-wq.png"><h4>Refantanur</h4><p>Data Science</p></div>
-                    <div class="id-card-small float-anim" style="animation-delay: 0.3s;"><img src="https://raw.githubusercontent.com/cahayasemidang-max/foto/cfc8d91ef344fb1beba4eadb93e4be67168bc2b8/FotoCahaya.png"><h4>Cahaya M.S.</h4><p>Data Science</p></div>
-                    <div class="id-card-small float-anim" style="animation-delay: 0.4s;"><img src="https://raw.githubusercontent.com/raihaniasyahputri/Foto_lulu/696dc3e134536210f870e9d5230b8fbeaad40e0d/IMG-20251129-WA0001.png"><h4>Raihania S.P.</h4><p>Data Science</p></div>
-                    <div class="id-card-small float-anim" style="animation-delay: 0.5s;"><img src="https://raw.githubusercontent.com/cahayasemidang-max/foto/b7534990c32ff093c6cb2faefc6282f5f6079296/FotoCloise.png"><h4>Cloise S.</h4><p>Data Science</p></div>
-                    <div class="id-card-small float-anim" style="animation-delay: 0.6s;"><img src="https://raw.githubusercontent.com/caroldupinopereira-cmyk/adinda/main/adinda_baru-removebg-preview.png"><h4>Adinda A.F.</h4><p>Student Admin</p></div>
-                </div>
-                
-                <button class="btn-premium mt-4" onclick="nextSlide(2)">Explore Platform <i class="fas fa-chevron-right arrow-anim"></i></button>
-            </div>
+    <!-- SLIDE 2: Workflow -->
+    <div id="slide-2" class="overlay-section">
+      <div class="glass-card fade-in">
+        <h1 class="slide-title">Platform <span>Workflow</span></h1>
+        <p class="slide-sub">From raw data to actionable insights in three simple steps.</p>
+
+        <div class="tutorial-timeline">
+          <div class="step-card">
+            <div class="step-icon-circle"><i class="fas fa-cloud-upload-alt"></i></div>
+            <h3>1. Ingestion</h3>
+            <p>Upload your dataset securely into our server.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-icon-circle"><i class="fas fa-microchip"></i></div>
+            <h3>2. Processing</h3>
+            <p>AI Engine detects types and calculates statistics.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-icon-circle"><i class="fas fa-chart-pie"></i></div>
+            <h3>3. Insights</h3>
+            <p>Explore interactive dashboard and summary.</p>
+          </div>
         </div>
 
-        <!-- SLIDE 2: TUTORIAL (Gaya Timeline Mewah) -->
-        <div class="onboarding-slide" id="slide-2">
-            <div class="slide-content w-100 fade-in glass-premium premium-shadow" style="max-width: 900px; padding: 50px;">
-                <h1 class="mb-4" style="font-size: 2.5rem;">Platform <span class="text-gradient">Workflow</span></h1>
-                <p class="text-muted mb-5">From raw data to actionable insights in three simple steps.</p>
-                
-                <div class="tutorial-timeline">
-                    <!-- Garis penghubung di belakang -->
-                    <div class="timeline-line"></div>
-                    
-                    <div class="step-card glow-card" style="animation: popIn 0.5s ease forwards 0.2s; opacity: 0;">
-                        <div class="step-icon-circle"><i class="fas fa-cloud-upload-alt"></i></div>
-                        <h3>1. Ingestion</h3><p>Upload your dataset securely into our server.</p>
-                    </div>
-                    
-                    <div class="step-card glow-card" style="animation: popIn 0.5s ease forwards 0.8s; opacity: 0;">
-                        <div class="step-icon-circle"><i class="fas fa-microchip"></i></div>
-                        <h3>2. Processing</h3><p>AI Engine detects types and calculates statistics.</p>
-                    </div>
-                    
-                    <div class="step-card glow-card" style="animation: popIn 0.5s ease forwards 1.4s; opacity: 0;">
-                        <div class="step-icon-circle"><i class="fas fa-chart-pie"></i></div>
-                        <h3>3. Insights</h3><p>Explore interactive dashboard and summary.</p>
-                    </div>
-                </div>
-                
-                <button class="btn-premium mt-5" onclick="nextSlide(3)">Initialize Engine <i class="fas fa-power-off arrow-anim"></i></button>
-            </div>
-        </div>
+        <button class="btn-premium" onclick="goSlide(3)">
+          Initialize Engine <i class="fas fa-power-off"></i>
+        </button>
 
-        <!-- SLIDE 3: WELCOME BACK -->
-        <div class="onboarding-slide" id="slide-3">
-            <div class="slide-content fade-in glass-premium premium-shadow" style="max-width: 500px;">
-                <div class="icon-pulse"><i class="fas fa-project-diagram fa-3x text-blue mb-4"></i></div>
-                <h1><span id="welcome-greeting">Welcome</span>,<br><span class="text-gradient" id="welcome-name">User</span></h1>
-                <p class="mb-4">Analytics Engine is online and ready.</p>
-                <button class="btn-premium hero-btn w-100" onclick="enterDashboard()">
-                    Access Dashboard <i class="fas fa-sign-in-alt arrow-anim"></i>
-                </button>
-            </div>
+        <div class="dot-nav">
+          <div class="dot" onclick="goSlide(1)"></div>
+          <div class="dot active" onclick="goSlide(2)"></div>
+          <div class="dot" onclick="goSlide(3)"></div>
         </div>
-
+      </div>
     </div>
-</div>
 
-<!-- ========================================== -->
-<!-- DUMMY DASHBOARD (PERBAIKAN LAYOUT OVERLAP) -->
-<!-- ========================================== -->
-<div class="dummy-dashboard fade-in">
-    <!-- Diperbaiki: Menggunakan flex agar tombol di kanan dan judul di kiri -->
+    <!-- SLIDE 3: Ready -->
+    <div id="slide-3" class="overlay-section">
+      <div class="welcome-glass fade-in">
+        <i class="fas fa-project-diagram icon-pulse"></i>
+        <h1>Analytics Engine<br><span>Online &amp; Ready</span></h1>
+        <p>Your workspace is initialized and ready. Upload a dataset to begin analysis.</p>
+        <button class="btn-premium pulse-glow w-100" onclick="enterDashboard()">
+          Access Dashboard <i class="fas fa-sign-in-alt"></i>
+        </button>
+        <div class="dot-nav">
+          <div class="dot" onclick="goSlide(1)"></div>
+          <div class="dot" onclick="goSlide(2)"></div>
+          <div class="dot active" onclick="goSlide(3)"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end #app-overlay -->
+
+
+  <!-- =============================== -->
+  <!--  DASHBOARD (behind overlay)     -->
+  <!-- =============================== -->
+  <div id="main-dashboard">
     <div class="dashboard-header-flex mb-4">
-        <h2><i class="fas fa-chart-pie text-blue"></i> Workspace Overview</h2>
-        <a href="{{ url_for('upload_file') }}" class="btn-premium pulse-glow" style="padding: 10px 20px; font-size: 0.9rem;">
-            Upload Data Now <i class="fas fa-cloud-upload-alt"></i>
-        </a>
+      <h2><i class="fas fa-chart-pie"></i> Workspace Overview</h2>
+      <!-- Replace href with your Flask route: url_for('upload_file') -->
+      <a href="/upload" class="btn-premium pulse-glow">
+        Upload Data Now <i class="fas fa-cloud-upload-alt"></i>
+      </a>
     </div>
 
     <!-- Skeleton KPI -->
-    <div class="top-row-grid" style="opacity: 0.7; pointer-events: none;">
-        <div class="kpi-container w-100">
-            <div class="card kpi-card"><div class="icon bg-light"><i class="fas fa-table text-muted"></i></div><div class="data"><h3 class="skeleton-text w-50"></h3><p>Total Rows</p></div></div>
-            <div class="card kpi-card"><div class="icon bg-light"><i class="fas fa-columns text-muted"></i></div><div class="data"><h3 class="skeleton-text w-50"></h3><p>Total Columns</p></div></div>
-            <div class="card kpi-card"><div class="icon bg-light"><i class="fas fa-chart-bar text-muted"></i></div><div class="data"><h3 class="skeleton-text w-50"></h3><p>Statistics</p></div></div>
-        </div>
+    <div class="kpi-container">
+      <div class="kpi-card">
+        <div class="icon"><i class="fas fa-table"></i></div>
+        <div class="data"><div class="skeleton-text"></div><p>Total Rows</p></div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon"><i class="fas fa-columns"></i></div>
+        <div class="data"><div class="skeleton-text"></div><p>Total Columns</p></div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon"><i class="fas fa-chart-bar"></i></div>
+        <div class="data"><div class="skeleton-text"></div><p>Statistics</p></div>
+      </div>
     </div>
 
     <!-- Skeleton Charts -->
-    <div class="stats-row-grid mt-4" style="opacity: 0.7; pointer-events: none;">
-        <div class="card p-4 text-center d-flex flex-column justify-content-center align-items-center" style="height: 300px;">
-            <div class="skeleton-chart-bar mb-3"></div>
-            <h4 class="text-muted">Data Distribution Preview</h4>
-            <p class="text-muted" style="font-size: 0.8rem;">Upload dataset to unlock visualization</p>
+    <div class="stats-row-grid">
+      <div class="chart-card">
+        <div class="skeleton-chart-bar">
+          <div class="bar" style="height:38px;animation-delay:0s"></div>
+          <div class="bar" style="height:62px;animation-delay:0.2s"></div>
+          <div class="bar" style="height:48px;animation-delay:0.4s"></div>
+          <div class="bar" style="height:80px;animation-delay:0.6s"></div>
+          <div class="bar" style="height:55px;animation-delay:0.8s"></div>
+          <div class="bar" style="height:68px;animation-delay:1s"></div>
         </div>
-        <div class="card p-4 text-center d-flex flex-column justify-content-center align-items-center" style="height: 300px;">
-            <div class="skeleton-table mb-3"></div>
-            <h4 class="text-muted">Descriptive Statistics Table</h4>
-            <p class="text-muted" style="font-size: 0.8rem;">Awaiting data processing...</p>
+        <h4>Data Distribution Preview</h4>
+        <p>Upload dataset to unlock visualization</p>
+      </div>
+      <div class="chart-card">
+        <div class="skeleton-table">
+          <div class="skel-row">
+            <div class="skel-cell" style="animation-delay:0s"></div>
+            <div class="skel-cell" style="animation-delay:0.15s"></div>
+            <div class="skel-cell" style="animation-delay:0.3s"></div>
+          </div>
+          <div class="skel-row">
+            <div class="skel-cell" style="animation-delay:0.1s"></div>
+            <div class="skel-cell" style="animation-delay:0.25s"></div>
+            <div class="skel-cell" style="animation-delay:0.4s"></div>
+          </div>
+          <div class="skel-row">
+            <div class="skel-cell" style="animation-delay:0.2s"></div>
+            <div class="skel-cell" style="animation-delay:0.35s"></div>
+            <div class="skel-cell" style="animation-delay:0.5s"></div>
+          </div>
+          <div class="skel-row">
+            <div class="skel-cell" style="animation-delay:0.3s"></div>
+            <div class="skel-cell" style="animation-delay:0.45s"></div>
+            <div class="skel-cell" style="animation-delay:0.6s"></div>
+          </div>
         </div>
+        <h4>Descriptive Statistics Table</h4>
+        <p>Awaiting data processing...</p>
+      </div>
     </div>
-</div>
+  </div>
 
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analisis Pemrograman Data Science - Kelompok 2</title>
-    <!-- Tailwind CSS CDN untuk styling modern -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js CDN untuk grafik interaktif instant -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
 
-    <div class="max-w-6xl mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <span class="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                Kelompok 2 ITSB — Data Science
-            </span>
-            <h1 class="text-3xl font-extrabold mt-3 tracking-tight">Dashboard Analisis Deskriptif</h1>
-            <p class="text-slate-400 text-sm mt-1">Unggah berkas .csv Anda untuk melakukan komputasi statistik dan pembuatan visualisasi instan.</p>
-        </div>
+  <script>
+    /* ─── Slide navigation ─── */
+    let current = 1;
 
-        <!-- Area Upload Fleksibel -->
-        <div class="bg-slate-800 border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center hover:border-blue-500/50 transition-all cursor-pointer mb-8" id="dropzone">
-            <input type="file" id="csvFileInput" accept=".csv, .txt" class="hidden">
-            <div class="mx-auto w-12 h-12 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center mb-3">
-                📂
-            </div>
-            <p class="text-base font-semibold">Tarik & Lepas File CSV Anda Di Sini</p>
-            <p class="text-xs text-slate-500 mt-1">Atau klik area ini untuk memilih file dari komputer Anda</p>
-        </div>
+    function goSlide(n) {
+      document.getElementById('slide-' + current).classList.remove('active-section');
+      document.getElementById('slide-' + current).style.display = '';
+      current = n;
+      const next = document.getElementById('slide-' + current);
+      next.style.display = 'flex';
+      next.classList.add('active-section');
+      document.querySelectorAll('.dot-nav .dot').forEach((d, i) => {
+        d.classList.toggle('active', i === n - 1);
+      });
+    }
 
-        <!-- Hasil Ringkasan Dataset (Disembunyikan sebelum upload) -->
-        <div id="analysisSection" class="hidden space-y-8">
-            
-            <!-- Grid Indikator Ringkasan -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
-                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Baris</p>
-                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statRows">0</h3>
-                </div>
-                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
-                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Kolom</p>
-                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statCols">0</h3>
-                </div>
-                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
-                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Kolom Numerik</p>
-                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statNumeric">0</h3>
-                </div>
-                <div class="bg-slate-805 bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50">
-                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Kolom Kategori</p>
-                    <h3 class="text-2xl font-extrabold mt-1 text-white" id="statCategorical">0</h3>
-                </div>
-            </div>
+    function enterDashboard() {
+      const overlay = document.getElementById('app-overlay');
+      overlay.classList.add('hidden');
+      setTimeout(() => overlay.style.display = 'none', 750);
+    }
 
-            <!-- Panel Grafik Visualisasi -->
-            <div class="grid md:grid-cols-2 gap-6">
-                <!-- Grafik Histogram -->
-                <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                    <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <span class="h-2 w-2 rounded-full bg-blue-500"></span>
-                        Distribusi Frekuensi (Histogram)
-                    </h4>
-                    <select id="numColSelect" class="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-1.5 mb-4 text-white hover:border-slate-500 outline-none w-full"></select>
-                    <div class="h-64">
-                        <canvas id="histogramChart"></canvas>
-                    </div>
-                </div>
+    /* ─── Data Network Canvas ─── */
+    const canvas = document.getElementById('data-network-canvas');
+    const ctx    = canvas.getContext('2d');
+    let W, H, pts = [];
 
-                <!-- Grafik Bar Chart Kategori -->
-                <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                    <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                        Sebaran Distribusi Kategori (Bar Chart)
-                    </h4>
-                    <select id="catColSelect" class="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-1.5 mb-4 text-white hover:border-slate-500 outline-none w-full"></select>
-                    <div class="h-64">
-                        <canvas id="barCategoricalChart"></canvas>
-                    </div>
-                </div>
-            </div>
+    function resize() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
 
-            <!-- Tabel Pratinjau Baris Data -->
-            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-5 overflow-hidden">
-                <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                    <span class="h-2 w-2 rounded-full bg-amber-400"></span>
-                    Pratinjau Data (Maks. 10 Baris Pertama)
-                </h4>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs border-collapse" id="previewTable">
-                        <!-- Header & body akan diisi otomatis melalui Javascript -->
-                    </table>
-                </div>
-            </div>
+    function initPoints() {
+      pts = Array.from({ length: 70 }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.65,
+        vy: (Math.random() - 0.5) * 0.65
+      }));
+    }
 
-        </div>
-    </div>
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
 
-    <!-- Integrasi Javascript ada di bawah ini -->
-    <script src="app.js"></script>
+      for (const p of pts) {
+        p.x += p.vx;  p.y += p.vy;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#378ADD';
+        ctx.fill();
+      }
+
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[i].x - pts[j].x;
+          const dy = pts[i].y - pts[j].y;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (d < 130) {
+            ctx.beginPath();
+            ctx.moveTo(pts[i].x, pts[i].y);
+            ctx.lineTo(pts[j].x, pts[j].y);
+            ctx.strokeStyle = `rgba(55,138,221,${1 - d / 130})`;
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    resize(); initPoints(); draw();
+    window.addEventListener('resize', () => { resize(); initPoints(); });
+  </script>
 </body>
 </html>
-
-{% endblock %}

@@ -1,369 +1,139 @@
-/* ============================================================
-   DS Generator — Kelompok 2 ITSB
-   script.js — Week 15 Full Upgrade
-   ============================================================ */
+/**
+ * render_plots.js
+ * Taruh di dalam <script> tag di template hasil.html / dashboard.html
+ * Dipanggil setelah Plotly CDN dimuat.
+ *
+ * Cara pakai di Jinja2:
+ *   <script>
+ *     const PLOTS = {{ plots | tojson }};
+ *   </script>
+ *   <script src="{{ url_for('static', filename='js/render_plots.js') }}"></script>
+ */
 
-document.addEventListener("DOMContentLoaded", function () {
+(function () {
+  'use strict';
 
-    /* ── 1. FILE INPUT & ENABLE ANALYZE BUTTON ─────────────── */
-    const fileInput = document.getElementById('file-input');
-    const fileDisplay = document.getElementById('file-name-display');
-    const btnSubmit = document.getElementById('btn-submit');
+  /* ── Config default interaktif ────────────────────────────────────────── */
+  const DEFAULT_CONFIG = {
+    responsive: true,
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
+    displaylogo: false,
+    scrollZoom: false,
+    toImageButtonOptions: { format: 'png', scale: 2 },
+  };
 
-    if (fileInput) {
-        fileInput.addEventListener('change', function () {
-            if (fileInput.files.length > 0) {
-                fileDisplay.textContent = "📄 Selected: " + fileInput.files[0].name;
-                btnSubmit.disabled = false;
-            }
+  /* ── Map: plot key → element id di HTML ───────────────────────────────── */
+  const PLOT_MAP = {
+    // Grafik standar
+    hist_num:        'chart-hist',
+    bar_cat:         'chart-bar',
+    box_cat_num:     'chart-box',
+    heatmap:         'chart-heatmap',
+    scatter_matrix:  'chart-scatter',
+    pie_cat:         'chart-pie',
+    // Grafik komparasi
+    violin_compare:       'chart-violin',
+    grouped_bar_compare:  'chart-grouped-bar',
+    parallel_coords:      'chart-parallel',
+  };
+
+  /* ── Tab labels untuk section komparasi ───────────────────────────────── */
+  const COMPARE_KEYS  = ['violin_compare', 'grouped_bar_compare', 'parallel_coords'];
+  const COMPARE_LABELS = {
+    violin_compare:      '🎻 Violin',
+    grouped_bar_compare: '📊 Grouped Bar',
+    parallel_coords:     '🔗 Parallel Coords',
+  };
+
+  /* ── Render satu plot ─────────────────────────────────────────────────── */
+  function renderPlot(key, plotData) {
+    const elId = PLOT_MAP[key];
+    if (!elId) return;
+
+    const el = document.getElementById(elId);
+    if (!el) return;
+
+    // Config: ambil dari data (diset di Python) atau fallback default
+    const config = plotData._config || DEFAULT_CONFIG;
+    delete plotData._config;  // jangan dikirim ke Plotly sebagai layout/data
+
+    Plotly.newPlot(el, plotData.data, plotData.layout, config);
+
+    /* ── Smooth hover: paksa unified hovermode & style via relayout ─────── */
+    Plotly.relayout(el, {
+      hovermode: 'x unified',
+      hoverlabel: {
+        bgcolor: 'rgba(10,20,50,0.92)',
+        bordercolor: 'rgba(133,183,235,0.4)',
+        font: { color: '#e8f3fc', size: 13, family: 'DM Sans, sans-serif' },
+        namelength: -1,
+      },
+    });
+
+    /* ── Animasi fade-in card parent ─────────────────────────────────────── */
+    const card = el.closest('.viz-card');
+    if (card) {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(16px)';
+      requestAnimationFrame(() => {
+        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+      });
+    }
+  }
+
+  /* ── Render semua grafik ─────────────────────────────────────────────── */
+  function renderAll(plots) {
+    if (!plots || typeof plots !== 'object') return;
+    Object.entries(plots).forEach(([key, data]) => {
+      try { renderPlot(key, JSON.parse(JSON.stringify(data))); }
+      catch (e) { console.warn(`[render_plots] ${key}:`, e); }
+    });
+  }
+
+  /* ── Tab switching untuk section komparasi ───────────────────────────── */
+  function initCompareTabs() {
+    const tabBar = document.getElementById('compare-tab-bar');
+    if (!tabBar) return;
+
+    COMPARE_KEYS.forEach((key, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'compare-tab' + (i === 0 ? ' active' : '');
+      btn.textContent = COMPARE_LABELS[key];
+      btn.dataset.key = key;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.compare-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        COMPARE_KEYS.forEach(k => {
+          const el = document.getElementById(PLOT_MAP[k]);
+          if (el) el.closest('.viz-card').style.display = (k === key ? 'block' : 'none');
         });
+        // Paksa Plotly resize setelah tab switch
+        const active = document.getElementById(PLOT_MAP[key]);
+        if (active) Plotly.Plots.resize(active);
+      });
+      tabBar.appendChild(btn);
+    });
 
-        // Drag & drop support
-        const dropzone = document.querySelector('.modern-dropzone');
-        if (dropzone) {
-            dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
-            dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-            dropzone.addEventListener('drop', e => {
-                e.preventDefault();
-                dropzone.classList.remove('drag-over');
-                const dt = e.dataTransfer;
-                if (dt.files.length) {
-                    fileInput.files = dt.files;
-                    fileDisplay.textContent = "📄 Selected: " + dt.files[0].name;
-                    btnSubmit.disabled = false;
-                }
-            });
-        }
+    // Sembunyikan semua kecuali tab pertama
+    COMPARE_KEYS.slice(1).forEach(k => {
+      const el = document.getElementById(PLOT_MAP[k]);
+      if (el) el.closest('.viz-card').style.display = 'none';
+    });
+  }
+
+  /* ── Init ────────────────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof PLOTS !== 'undefined') {
+      renderAll(PLOTS);
+      initCompareTabs();
+    } else {
+      console.warn('[render_plots] Variabel PLOTS tidak ditemukan di halaman.');
     }
+  });
 
-    /* ── 2. UPLOAD FORM — DUPLICATE CHECK + LOADING ─────────── */
-    const uploadForm = document.getElementById('upload-form');
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-
-            const formData = new FormData(uploadForm);
-            const selectedFile = fileInput ? fileInput.files[0] : null;
-            if (!selectedFile) return;
-
-            // Send AJAX with X-Requested-With header so Flask can return JSON
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', uploadForm.action, true);
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-            xhr.onload = function () {
-                try {
-                    const resp = JSON.parse(xhr.responseText);
-                    if (resp.duplicate) {
-                        Swal.fire({
-                            icon: 'info',
-                            title: '📂 Dataset Already Exists!',
-                            html: `File <strong>${resp.filename}</strong> sudah pernah dianalisis.<br>Menampilkan hasil analisis sebelumnya...`,
-                            confirmButtonColor: '#4318ff',
-                            confirmButtonText: 'Lihat Dashboard',
-                            timer: 5000,
-                            timerProgressBar: true
-                        }).then(() => { window.location.href = resp.redirect; });
-                    } else {
-                        Swal.fire({
-                            icon: 'success',
-                            title: '✅ Upload Berhasil!',
-                            text: `Dataset "${resp.filename}" sedang diproses...`,
-                            showConfirmButton: false,
-                            timer: 1500,
-                            didClose: () => { window.location.href = resp.redirect; }
-                        });
-                    }
-                } catch (_) {
-                    // Fallback: show loading then submit normally
-                    Swal.fire({
-                        title: 'Processing...', text: 'Analyzing Data & Generating Statistics.',
-                        icon: 'info', allowOutsideClick: false, showConfirmButton: false,
-                        didOpen: () => { Swal.showLoading(); HTMLFormElement.prototype.submit.call(uploadForm); }
-                    });
-                }
-            };
-            xhr.onerror = function () {
-                Swal.fire({ icon: 'error', title: 'Oops!', text: 'Terjadi kesalahan jaringan.', confirmButtonColor: '#4318ff' });
-            };
-
-            // Show loading during upload
-            Swal.fire({
-                title: '⏳ Uploading...', text: 'Mengunggah dan menganalisis dataset Anda.',
-                allowOutsideClick: false, showConfirmButton: false,
-                didOpen: () => { Swal.showLoading(); xhr.send(formData); }
-            });
-        });
-    }
-
-    /* ── 3. DARK / LIGHT MODE ────────────────────────────────── */
-    const themeToggle = document.getElementById('theme-toggle');
-    const themeIcon = document.getElementById('theme-icon');
-    const body = document.body;
-
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    body.setAttribute('data-theme', savedTheme);
-    if (savedTheme === 'dark') themeIcon.classList.replace('fa-moon', 'fa-sun');
-
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            const isDark = body.getAttribute('data-theme') === 'dark';
-            body.setAttribute('data-theme', isDark ? 'light' : 'dark');
-            themeIcon.classList.replace(isDark ? 'fa-sun' : 'fa-moon', isDark ? 'fa-moon' : 'fa-sun');
-            localStorage.setItem('theme', isDark ? 'light' : 'dark');
-            // Re-render charts with correct colors
-            if (window.chartsRendered && window.renderCharts) {
-                window.chartsRendered = false;
-                window.renderCharts();
-            }
-        });
-    }
-
-    /* ── 4. MULTI-LANGUAGE SYSTEM ────────────────────────────── */
-    const translations = {
-        en: {
-            subtitle: "Descriptive Statistics", nav_home: "Dashboard", nav_upload: "Upload Data",
-            nav_preview: "Data Preview", nav_stats: "Descriptive Stats", nav_analytics: "ANALYTICS",
-            nav_advanced: "ADVANCED ANALYTICS", title: "Descriptive Statistics Generator",
-            desc: "Upload, analyze, visualize and get insights automatically", admin_role: "Data Science Team",
-            upload_title: "Upload Your Dataset", dropzone_title: "Drag & drop your file here"
-        },
-        id: {
-            subtitle: "Statistik Deskriptif", nav_home: "Dasbor", nav_upload: "Unggah Data",
-            nav_preview: "Pratinjau Data", nav_stats: "Statistik Deskriptif", nav_analytics: "ANALITIK",
-            nav_advanced: "ANALITIK LANJUTAN", title: "Generator Statistik Deskriptif",
-            desc: "Unggah, analisis, visualisasi, dan dapatkan wawasan otomatis", admin_role: "Tim Data Science",
-            upload_title: "Unggah Dataset Anda", dropzone_title: "Tarik & lepas file di sini"
-        },
-        pt: {
-            subtitle: "Estatística Descritiva", nav_home: "Painel", nav_upload: "Carregar Dados",
-            nav_preview: "Visualizar Dados", nav_stats: "Estatísticas", nav_analytics: "ANÁLISES",
-            nav_advanced: "ANÁLISE AVANÇADA", title: "Gerador de Estatísticas Descritivas",
-            desc: "Carregue, analise, visualize e obtenha insights automaticamente", admin_role: "Equipe de Ciência",
-            upload_title: "Carregue seu conjunto de dados", dropzone_title: "Arraste e solte aqui"
-        }
-    };
-
-    const langSelector = document.getElementById('lang-selector');
-    function changeLanguage(lang) {
-        document.querySelectorAll('[data-translate]').forEach(el => {
-            const key = el.getAttribute('data-translate');
-            if (translations[lang]?.[key]) el.textContent = translations[lang][key];
-        });
-        localStorage.setItem('lang', lang);
-    }
-    const savedLang = localStorage.getItem('lang') || 'en';
-    if (langSelector) langSelector.value = savedLang;
-    changeLanguage(savedLang);
-    if (langSelector) langSelector.addEventListener('change', e => changeLanguage(e.target.value));
-
-    /* ── 5. TEAM MODAL ───────────────────────────────────────── */
-    const teamBtn = document.getElementById('team-profile-btn');
-    const teamModal = document.getElementById('team-modal');
-    const closeModal = document.getElementById('close-modal');
-
-    if (teamBtn && teamModal) {
-        teamBtn.addEventListener('click', () => { teamModal.style.display = 'flex'; });
-        closeModal?.addEventListener('click', () => { teamModal.style.display = 'none'; });
-        window.addEventListener('click', e => { if (e.target === teamModal) teamModal.style.display = 'none'; });
-    }
-
-    /* ── 6. DATATABLES ───────────────────────────────────────── */
-    if ($.fn.DataTable) {
-        $('.data-table').DataTable({
-            dom: '<"top"Bf>rt<"bottom"ilp><"clear">',
-            buttons: ['copy', 'csv', 'excel', 'pdf'],
-            pageLength: 10,
-            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
-            scrollX: true,
-            autoWidth: false,
-            language: { search: "🔍 Search:" }
-        });
-    }
-
-    /* ── 7. TAB SWITCHER ─────────────────────────────────────── */
-    window.switchTab = function (tabId) {
-        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-        const active = document.getElementById('tab-' + tabId);
-        if (active) active.style.display = 'block';
-
-        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        const menu = document.getElementById('menu-' + tabId);
-        if (menu) menu.classList.add('active');
-
-        if ($.fn.DataTable) {
-            $($.fn.dataTable.tables(true)).DataTable().columns.adjust();
-        }
-
-        // Auto-render charts when switching to visualizations or overview
-        if ((tabId === 'visualizations' || tabId === 'overview') && window.renderCharts) {
-            setTimeout(window.renderCharts, 150);
-        }
-    };
-
-    /* ── 8. DATA NETWORK CANVAS ANIMATION (Welcome page) ────── */
-    const canvas = document.getElementById('data-network-canvas');
-    if (canvas) {
-        const ctx = canvas.getContext('2d');
-        let width, height, particles;
-
-        function initCanvas() {
-            width = canvas.width = canvas.parentElement.clientWidth;
-            height = canvas.height = canvas.parentElement.clientHeight;
-            particles = [];
-            const count = window.innerWidth < 768 ? 50 : 100;
-            for (let i = 0; i < count; i++) particles.push(new Particle());
-        }
-
-        class Particle {
-            constructor() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-                this.vx = (Math.random() - 0.5) * 1.2;
-                this.vy = (Math.random() - 0.5) * 1.2;
-                this.r = Math.random() * 2.5 + 1;
-            }
-            update() {
-                this.x += this.vx; this.y += this.vy;
-                if (this.x < 0 || this.x > width) this.vx *= -1;
-                if (this.y < 0 || this.y > height) this.vy *= -1;
-            }
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(134,140,255,0.6)';
-                ctx.fill();
-            }
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, width, height);
-            particles.forEach(p => { p.update(); p.draw(); });
-            for (let i = 0; i < particles.length; i++) {
-                for (let j = i + 1; j < particles.length; j++) {
-                    const dx = particles[i].x - particles[j].x;
-                    const dy = particles[i].y - particles[j].y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 100) {
-                        ctx.beginPath();
-                        ctx.moveTo(particles[i].x, particles[i].y);
-                        ctx.lineTo(particles[j].x, particles[j].y);
-                        ctx.strokeStyle = `rgba(134,140,255,${1 - dist / 100})`;
-                        ctx.lineWidth = 0.5;
-                        ctx.stroke();
-                    }
-                }
-            }
-            requestAnimationFrame(animate);
-        }
-
-        initCanvas();
-        animate();
-        window.addEventListener('resize', initCanvas);
-    }
-
-    /* ── 9. WELCOME PAGE: LOGIN & ONBOARDING ─────────────────── */
-    window.processLogin = function () {
-        const name = document.getElementById('user-name')?.value.trim();
-        const email = document.getElementById('user-email')?.value.trim();
-        if (!name || !email) {
-            Swal.fire({ icon: 'warning', title: 'Incomplete!', text: 'Please fill in both fields.', confirmButtonColor: '#4318ff' });
-            return;
-        }
-        localStorage.setItem('ds_user_name', name);
-        localStorage.setItem('ds_user_email', email);
-        const login = document.getElementById('login-screen');
-        const onboarding = document.getElementById('onboarding-screen');
-        if (login) login.style.display = 'none';
-        if (onboarding) { onboarding.style.display = 'flex'; showSlide(1); }
-    };
-
-    window.nextSlide = function (num) { showSlide(num); };
-
-    function showSlide(num) {
-        document.querySelectorAll('.onboarding-slide').forEach(s => s.classList.remove('active'));
-        const slide = document.getElementById('slide-' + num);
-        if (slide) slide.classList.add('active');
-        if (num === 3) {
-            const name = localStorage.getItem('ds_user_name') || 'User';
-            const greetEl = document.getElementById('welcome-greeting');
-            const nameEl = document.getElementById('welcome-name');
-            const hour = new Date().getHours();
-            const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-            if (greetEl) greetEl.textContent = greeting;
-            if (nameEl) nameEl.textContent = name;
-        }
-    }
-
-    window.enterDashboard = function () {
-        const overlay = document.getElementById('app-overlay');
-        if (overlay) {
-            overlay.style.transition = 'opacity 0.5s ease';
-            overlay.style.opacity = '0';
-            setTimeout(() => { overlay.style.display = 'none'; }, 500);
-        }
-    };
-
-    /* ── 10. SIDEBAR COLLAPSE / EXPAND SYSTEM ─────────────── */
-    function triggerChartResize() {
-        setTimeout(() => {
-            if (window.renderCharts) {
-                window.renderCharts();
-            }
-            if ($.fn.DataTable) {
-                $($.fn.dataTable.tables(true)).DataTable().columns.adjust();
-            }
-        }, 310);
-    }
-
-    function collapseSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        const btnExpand = document.getElementById('btn-expand');
-        if (sidebar) sidebar.classList.add('collapsed');
-        if (btnExpand) btnExpand.classList.remove('hidden');
-        localStorage.setItem('sidebar_collapsed', 'true');
-        triggerChartResize();
-    }
-
-    function expandSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        const btnExpand = document.getElementById('btn-expand');
-        if (sidebar) sidebar.classList.remove('collapsed');
-        if (btnExpand) btnExpand.classList.add('hidden');
-        localStorage.setItem('sidebar_collapsed', 'false');
-        triggerChartResize();
-    }
-
-    const btnMinimize = document.getElementById('btn-minimize');
-    if (btnMinimize) btnMinimize.addEventListener('click', collapseSidebar);
-
-    const btnExpand = document.getElementById('btn-expand');
-    if (btnExpand) btnExpand.addEventListener('click', expandSidebar);
-
-    // Restore sidebar state from localStorage on load without flicker
-    const isCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
-    if (isCollapsed) {
-        const sidebar = document.getElementById('sidebar');
-        const btnExpandEl = document.getElementById('btn-expand');
-        if (sidebar) {
-            sidebar.style.transition = 'none';
-            sidebar.classList.add('collapsed');
-            sidebar.offsetHeight; // force layout reflow
-            sidebar.style.transition = '';
-        }
-        if (btnExpandEl) btnExpandEl.classList.remove('hidden');
-    }
-
-    // Auto-skip login if already logged in
-    const savedUser = localStorage.getItem('ds_user_name');
-    const overlay = document.getElementById('app-overlay');
-    if (savedUser && overlay) {
-        // Show onboarding directly
-        const loginScreen = document.getElementById('login-screen');
-        const onboardingScreen = document.getElementById('onboarding-screen');
-        if (loginScreen) loginScreen.style.display = 'none';
-        if (onboardingScreen) { onboardingScreen.style.display = 'flex'; showSlide(1); }
-    }
-});
-
-
+  // Expose untuk penggunaan manual
+  window.VizEngine = { renderAll, renderPlot, initCompareTabs };
+})();

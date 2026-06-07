@@ -1,19 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 
-{# ── Inject column data for interactive charts ── #}
-<script>
-var numCols = {{ num_cols | tojson | safe }};
-var catCols = {{ cat_cols | tojson | safe }};
-var colData = {{ col_data | tojson | safe }};
-</script>
-
 <!-- ═══════════════════ TAB 1: OVERVIEW ═══════════════════ -->
 <div id="tab-overview" class="tab-content active-tab fade-in">
-    <div class="section-header mb-4">
+    <div class="dashboard-header mb-4">
         <div>
             <h2><i class="fas fa-chart-pie text-blue"></i> Dataset Overview</h2>
-            <p>{{ filename }}</p>
+            <p class="text-muted">{{ filename }}</p>
         </div>
     </div>
 
@@ -87,86 +80,39 @@ var colData = {{ col_data | tojson | safe }};
     </div>
 </div>
 
-<!-- ═══════════════════ TAB 3: NUMERIC ANALYSIS ═══════════════════ -->
+<!-- ═══════════════════ TAB 3: NUMERICAL STATS ═══════════════════ -->
 <div id="tab-numerical" class="tab-content fade-in" style="display:none;">
-    <div class="section-header">
-        <div>
-            <h2><i class="fas fa-hashtag text-orange"></i> Numeric Analysis</h2>
-            <p>Summary statistics for all numerical columns in your dataset.</p>
-        </div>
-    </div>
-
     <div class="card full-card">
-        <div class="card-header-clean" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-            <h3><i class="fas fa-table text-orange"></i> Numerical Summary Statistics</h3>
-            <span style="font-size:0.78rem; color:var(--muted);">{{ num_stats|length }} variables · hover rows for details</span>
+        <div class="card-header-clean">
+            <h3><i class="fas fa-hashtag text-orange"></i> Numerical Summary</h3>
         </div>
-        <div class="stats-table-wrapper" style="padding: 0;">
-            <table class="pro-table">
+        <div class="table-scroll-wrapper">
+            <table class="data-table display nowrap" style="width:100%">
                 <thead>
                     <tr>
-                        <th>Variable</th>
-                        <th>Mean</th>
-                        <th>Median</th>
-                        <th>Mode</th>
-                        <th>Std Dev</th>
-                        <th>Variance</th>
-                        <th>Min</th>
-                        <th>Max</th>
-                        <th>Skewness</th>
-                        <th>Kurtosis</th>
-                        <th>Missing</th>
-                        <th>Missing %</th>
-                        <th>Normality</th>
-                        <th>Outliers</th>
+                        <th>Variable</th><th>Mean</th><th>Median</th><th>Min</th><th>Max</th>
+                        <th>Std Dev</th><th>Variance</th><th>Mode</th><th>Skewness</th>
+                        <th>Kurtosis</th><th>Missing</th><th>Missing %</th>
+                        <th>Normality</th><th>Outliers</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for stat in num_stats %}
                     <tr>
-                        <td class="col-name">{{ stat['Column'] }}</td>
-                        <td class="num-val highlight">{{ stat['Mean'] }}</td>
-                        <td class="num-val">{{ stat['Median'] }}</td>
-                        <td class="num-val">{{ stat['Mode'] }}</td>
-                        <td class="num-val">{{ stat['Std Dev'] }}</td>
-                        <td class="num-val">{{ stat['Variance'] }}</td>
-                        <td class="num-val">{{ stat['Min'] }}</td>
-                        <td class="num-val">{{ stat['Max'] }}</td>
-                        <td class="num-val">{{ stat['Skewness'] }}</td>
-                        <td class="num-val">{{ stat['Kurtosis'] }}</td>
+                        <td class="var-name">{{ stat['Column'] }}</td>
+                        <td>{{ stat['Mean'] }}</td><td>{{ stat['Median'] }}</td>
+                        <td>{{ stat['Min'] }}</td><td>{{ stat['Max'] }}</td>
+                        <td>{{ stat['Std Dev'] }}</td><td>{{ stat['Variance'] }}</td>
+                        <td>{{ stat['Mode'] }}</td><td>{{ stat['Skewness'] }}</td>
+                        <td>{{ stat['Kurtosis'] }}</td>
+                        <td class="text-warning">{{ stat['Missing Count'] }}</td>
+                        <td class="text-warning">{{ stat['Missing %'] }}</td>
                         <td>
-                            {% if stat['Missing Count'] == 0 %}
-                                <span class="badge badge-success">0</span>
-                            {% else %}
-                                <span class="badge badge-warning">{{ stat['Missing Count'] }}</span>
-                            {% endif %}
+                            {% if stat['Normality'] == 'Normal' %}<span class="badge badge-success">Normal</span>
+                            {% elif stat['Normality'] == 'Not Normal' %}<span class="badge badge-danger">Not Normal</span>
+                            {% else %}<span class="badge badge-muted">{{ stat['Normality'] }}</span>{% endif %}
                         </td>
-                        <td>
-                            {% set pct_val = stat['Missing %'] | replace('%','') | float %}
-                            {% if pct_val == 0 %}
-                                <span class="badge badge-success">0%</span>
-                            {% elif pct_val > 5 %}
-                                <span class="badge badge-danger">{{ stat['Missing %'] }}</span>
-                            {% else %}
-                                <span class="badge badge-warning">{{ stat['Missing %'] }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if stat['Normality'] == 'Normal' %}
-                                <span class="badge badge-success"><i class="fas fa-check-circle"></i> Normal</span>
-                            {% elif stat['Normality'] == 'Not Normal' %}
-                                <span class="badge badge-danger"><i class="fas fa-times-circle"></i> Not Normal</span>
-                            {% else %}
-                                <span class="badge badge-muted">{{ stat['Normality'] }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if stat['Outliers'] > 0 %}
-                                <span class="badge badge-danger">{{ stat['Outliers'] }}</span>
-                            {% else %}
-                                <span class="badge badge-success">0</span>
-                            {% endif %}
-                        </td>
+                        <td><strong class="text-danger">{{ stat['Outliers'] }}</strong></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -175,67 +121,31 @@ var colData = {{ col_data | tojson | safe }};
     </div>
 </div>
 
-<!-- ═══════════════════ TAB 4: CATEGORICAL ANALYSIS ═══════════════════ -->
+<!-- ═══════════════════ TAB 4: CATEGORICAL STATS ═══════════════════ -->
 <div id="tab-categorical" class="tab-content fade-in" style="display:none;">
-    <div class="section-header">
-        <div>
-            <h2><i class="fas fa-font text-purple"></i> Categorical Analysis</h2>
-            <p>Frequency distribution and mode analysis for categorical columns.</p>
-        </div>
-    </div>
-
     <div class="card full-card">
-        <div class="card-header-clean" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-            <h3><i class="fas fa-table text-purple"></i> Categorical Summary Statistics</h3>
-            <span style="font-size:0.78rem; color:var(--muted);">{{ cat_stats|length }} variables</span>
+        <div class="card-header-clean">
+            <h3><i class="fas fa-font text-purple"></i> Categorical Summary</h3>
         </div>
-        <div class="stats-table-wrapper" style="padding: 0;">
-            <table class="pro-table">
+        <div class="table-scroll-wrapper">
+            <table class="data-table display nowrap" style="width:100%">
                 <thead>
                     <tr>
-                        <th>Variable</th>
-                        <th>Unique Categories</th>
-                        <th>Mode (Most Frequent)</th>
-                        <th>Mode Frequency</th>
-                        <th>Mode %</th>
-                        <th>Missing</th>
-                        <th>Missing %</th>
+                        <th>Variable</th><th>Unique Categories</th><th>Mode</th>
+                        <th>Mode Freq</th><th>Mode %</th>
+                        <th>Missing</th><th>Missing %</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for stat in cat_stats %}
                     <tr>
-                        <td class="col-name">{{ stat['Column'] }}</td>
-                        <td>
-                            <span class="badge badge-muted" style="font-size:0.8rem;">{{ stat['Unique'] }}</span>
-                        </td>
-                        <td style="font-weight:600; color:var(--text);">{{ stat['Mode'] }}</td>
-                        <td class="num-val highlight">{{ stat['Mode Freq'] }}</td>
-                        <td>
-                            {% set mpct = stat['Mode %'] | replace('%','') | float %}
-                            {% if mpct > 50 %}
-                                <span class="badge badge-danger">{{ stat['Mode %'] }}</span>
-                            {% else %}
-                                <span class="badge badge-success">{{ stat['Mode %'] }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if stat['Missing Count'] == 0 %}
-                                <span class="badge badge-success">0</span>
-                            {% else %}
-                                <span class="badge badge-warning">{{ stat['Missing Count'] }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% set pct = stat['Missing %'] | replace('%','') | float %}
-                            {% if pct == 0 %}
-                                <span class="badge badge-success">0%</span>
-                            {% elif pct > 5 %}
-                                <span class="badge badge-danger">{{ stat['Missing %'] }}</span>
-                            {% else %}
-                                <span class="badge badge-warning">{{ stat['Missing %'] }}</span>
-                            {% endif %}
-                        </td>
+                        <td class="var-name">{{ stat['Column'] }}</td>
+                        <td>{{ stat['Unique'] }}</td>
+                        <td>{{ stat['Mode'] }}</td>
+                        <td>{{ stat['Mode Freq'] }}</td>
+                        <td>{{ stat['Mode %'] }}</td>
+                        <td class="text-warning">{{ stat['Missing Count'] }}</td>
+                        <td class="text-warning">{{ stat['Missing %'] }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -246,19 +156,19 @@ var colData = {{ col_data | tojson | safe }};
 
 <!-- ═══════════════════ TAB 5: ADVANCED STATS (WEEK 15) ═══════════════════ -->
 <div id="tab-advanced" class="tab-content fade-in" style="display:none;">
-    <div class="section-header mb-4">
+    <div class="dashboard-header mb-4">
         <h2><i class="fas fa-flask text-green"></i> Advanced Analytics — Week 15</h2>
     </div>
 
-    <!-- Section A: Advanced Numerical -->
+    <!-- Section A: Advanced Numerical (Quartile, IQR, CV, Percentile) -->
     {% if advanced.adv_num %}
     <div class="card full-card mb-4">
         <div class="card-header-clean">
             <h4><i class="fas fa-ruler text-blue"></i> Advanced Numerical Statistics</h4>
             <small class="text-muted">Quartile, IQR, CV, Percentile, Shapiro-Wilk</small>
         </div>
-        <div class="stats-table-wrapper" style="padding:0;">
-            <table class="pro-table">
+        <div class="table-scroll-wrapper">
+            <table class="data-table display nowrap" style="width:100%">
                 <thead>
                     <tr>
                         <th>Column</th><th>Q1 (25%)</th><th>Q2 Median</th><th>Q3 (75%)</th>
@@ -268,14 +178,14 @@ var colData = {{ col_data | tojson | safe }};
                 <tbody>
                     {% for row in advanced.adv_num %}
                     <tr>
-                        <td class="col-name">{{ row['Column'] }}</td>
-                        <td class="num-val">{{ row['Q1'] }}</td>
-                        <td class="num-val highlight">{{ row['Q2 (Median)'] }}</td>
-                        <td class="num-val">{{ row['Q3'] }}</td>
-                        <td class="num-val">{{ row['IQR'] }}</td>
-                        <td class="num-val">{{ row['CV (%)'] }}</td>
-                        <td class="num-val">{{ row['P5'] }}</td>
-                        <td class="num-val">{{ row['P95'] }}</td>
+                        <td class="var-name">{{ row['Column'] }}</td>
+                        <td>{{ row['Q1'] }}</td>
+                        <td>{{ row['Q2 (Median)'] }}</td>
+                        <td>{{ row['Q3'] }}</td>
+                        <td>{{ row['IQR'] }}</td>
+                        <td>{{ row['CV (%)'] }}</td>
+                        <td>{{ row['P5'] }}</td>
+                        <td>{{ row['P95'] }}</td>
                         <td>
                             {% if 'Normal' in row['Shapiro-Wilk'] and 'Not' not in row['Shapiro-Wilk'] %}
                                 <span class="badge badge-success">{{ row['Shapiro-Wilk'] }}</span>
@@ -291,79 +201,76 @@ var colData = {{ col_data | tojson | safe }};
     </div>
     {% endif %}
 
-    <!-- Section B: Correlation Top Pairs + Chi-Square -->
+    <!-- Section B: Correlation Top Pairs -->
     {% if advanced.top_corr_pairs %}
     <div class="chart-grid-2 mb-4">
         <div class="card chart-card">
             <div class="card-header-clean">
                 <h4><i class="fas fa-link text-orange"></i> Top Correlation Pairs</h4>
             </div>
-            <div class="stats-table-wrapper" style="padding:0;">
-                <table class="pro-table">
-                    <thead><tr><th>Variable A</th><th>Variable B</th><th>r</th><th>Strength</th></tr></thead>
-                    <tbody>
-                        {% for pair in advanced.top_corr_pairs %}
-                        <tr>
-                            <td class="col-name">{{ pair[0] }}</td>
-                            <td class="col-name">{{ pair[1] }}</td>
-                            <td>
-                                <span class="corr-badge {% if pair[2]|abs > 0.7 %}corr-strong{% elif pair[2]|abs > 0.4 %}corr-medium{% else %}corr-weak{% endif %}">
-                                    {{ pair[2] }}
-                                </span>
-                            </td>
-                            <td>{% if pair[2]|abs > 0.7 %}Kuat{% elif pair[2]|abs > 0.4 %}Sedang{% else %}Lemah{% endif %}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            <table class="simple-table">
+                <thead><tr><th>Variable A</th><th>Variable B</th><th>r</th><th>Strength</th></tr></thead>
+                <tbody>
+                    {% for pair in advanced.top_corr_pairs %}
+                    <tr>
+                        <td>{{ pair[0] }}</td>
+                        <td>{{ pair[1] }}</td>
+                        <td>
+                            <span class="corr-badge {% if pair[2]|abs > 0.7 %}corr-strong{% elif pair[2]|abs > 0.4 %}corr-medium{% else %}corr-weak{% endif %}">
+                                {{ pair[2] }}
+                            </span>
+                        </td>
+                        <td>{% if pair[2]|abs > 0.7 %}Kuat{% elif pair[2]|abs > 0.4 %}Sedang{% else %}Lemah{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
+        <!-- Section C: Chi-Square & Cramér's V -->
         {% if advanced.cat_assoc %}
         <div class="card chart-card">
             <div class="card-header-clean">
                 <h4><i class="fas fa-project-diagram text-purple"></i> Categorical Association (Cramér's V)</h4>
             </div>
-            <div class="stats-table-wrapper" style="padding:0;">
-                <table class="pro-table">
-                    <thead><tr><th>Col A</th><th>Col B</th><th>χ²</th><th>p-value</th><th>V</th><th>Kekuatan</th></tr></thead>
-                    <tbody>
-                        {% for row in advanced.cat_assoc %}
-                        <tr>
-                            <td class="col-name">{{ row.col_a }}</td>
-                            <td class="col-name">{{ row.col_b }}</td>
-                            <td class="num-val">{{ row.chi2 }}</td>
-                            <td class="{% if row.p < 0.05 %}text-success{% else %}text-muted{% endif %}">{{ row.p }}</td>
-                            <td class="num-val highlight">{{ row.cramers_v }}</td>
-                            <td><span class="badge {% if row.strength == 'Kuat' %}badge-success{% elif row.strength == 'Sedang' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.strength }}</span></td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            <table class="simple-table">
+                <thead><tr><th>Col A</th><th>Col B</th><th>χ²</th><th>p-value</th><th>V</th><th>Kekuatan</th></tr></thead>
+                <tbody>
+                    {% for row in advanced.cat_assoc %}
+                    <tr>
+                        <td>{{ row.col_a }}</td>
+                        <td>{{ row.col_b }}</td>
+                        <td>{{ row.chi2 }}</td>
+                        <td class="{% if row.p < 0.05 %}text-success{% else %}text-muted{% endif %}">{{ row.p }}</td>
+                        <td>{{ row.cramers_v }}</td>
+                        <td><span class="badge {% if row.strength == 'Kuat' %}badge-success{% elif row.strength == 'Sedang' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.strength }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
         {% endif %}
     </div>
     {% endif %}
 
-    <!-- Section D: ANOVA -->
+    <!-- Section D: ANOVA (Num vs Cat) -->
     {% if advanced.num_cat %}
     <div class="card full-card mb-4">
         <div class="card-header-clean">
             <h4><i class="fas fa-chart-area text-red"></i> Numerical vs Categorical — One-Way ANOVA</h4>
         </div>
-        <div class="stats-table-wrapper" style="padding:0;">
-            <table class="pro-table">
+        <div class="table-scroll-wrapper">
+            <table class="data-table display nowrap" style="width:100%">
                 <thead>
                     <tr><th>Numeric Col</th><th>Categorical Col</th><th>F-Statistic</th><th>p-value</th><th>Signifikan?</th></tr>
                 </thead>
                 <tbody>
                     {% for row in advanced.num_cat %}
                     <tr>
-                        <td class="col-name">{{ row.num }}</td>
-                        <td class="col-name" style="color:var(--purple);">{{ row.cat }}</td>
-                        <td class="num-val highlight">{{ row.f_stat }}</td>
-                        <td class="num-val">{{ row.p_anova }}</td>
+                        <td class="var-name">{{ row.num }}</td>
+                        <td class="var-name">{{ row.cat }}</td>
+                        <td>{{ row.f_stat }}</td>
+                        <td>{{ row.p_anova }}</td>
                         <td>
                             {% if row.significant %}
                                 <span class="badge badge-success"><i class="fas fa-check"></i> Ya (p&lt;0.05)</span>
@@ -380,240 +287,219 @@ var colData = {{ col_data | tojson | safe }};
     {% endif %}
 </div>
 
-<!-- ═══════════════════ TAB: UNIVARIATE ═══════════════════ -->
-<div id="tab-viz-univariate" class="tab-content fade-in" style="display:none;">
-    <div class="section-header">
-        <div>
-            <h2><i class="fas fa-chart-bar text-blue"></i> Univariate Analysis</h2>
-            <p>Explore distribution of a single numeric column.</p>
-        </div>
+<!-- ═══════════════════ TAB 6: VISUALIZATIONS ═══════════════════ -->
+<div id="tab-visualizations" class="tab-content fade-in" style="display:none;">
+    <div class="dashboard-header mb-3">
+        <h2><i class="fas fa-chart-area text-blue"></i> Auto-Visualizations</h2>
+        <p class="text-muted">Interactive Charts — Hover untuk tooltip detail</p>
     </div>
 
-    {% if num_cols %}
-    <div class="chart-grid-2 mb-4">
-        <!-- Histogram -->
-        <div class="card chart-card">
-            <div class="chart-selector-bar">
-                <label><i class="fas fa-hashtag text-blue"></i> Column:</label>
-                <select class="col-select" id="sel-uni-hist" onchange="drawUniHist(this.value)">
-                    {% for col in num_cols %}
-                    <option value="{{ col }}">{{ col }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="card-header-clean">
-                <h4><i class="fas fa-chart-bar text-blue"></i> Histogram</h4>
-            </div>
-            <div id="uni-hist" class="chart-area"></div>
-        </div>
-        <!-- Boxplot -->
-        <div class="card chart-card">
-            <div class="chart-selector-bar">
-                <label><i class="fas fa-hashtag text-orange"></i> Column:</label>
-                <select class="col-select" id="sel-uni-box" onchange="drawUniBox(this.value)">
-                    {% for col in num_cols %}
-                    <option value="{{ col }}">{{ col }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="card-header-clean">
-                <h4><i class="fas fa-box text-orange"></i> Box Plot</h4>
-            </div>
-            <div id="uni-box" class="chart-area"></div>
-        </div>
+    <!-- ── SUB-TAB NAVIGATION ── -->
+    <div class="viz-subtab-nav mb-4">
+        <button class="viz-subtab-btn active" onclick="switchVizTab('numerical')">📊 Numerical</button>
+        <button class="viz-subtab-btn" onclick="switchVizTab('categorical')">📋 Categorical</button>
+        <button class="viz-subtab-btn" onclick="switchVizTab('bivariate')">🔵 Bivariate & Multi</button>
+        <button class="viz-subtab-btn" onclick="switchVizTab('catnum')">🔀 Cat vs Num</button>
+        <button class="viz-subtab-btn" onclick="switchVizTab('compare')">⚖️ Komparasi</button>
     </div>
 
-    <!-- Density (full width) -->
-    <div class="card chart-card mb-4">
-        <div class="chart-selector-bar">
-            <label><i class="fas fa-wave-square text-purple"></i> Column:</label>
-            <select class="col-select" id="sel-uni-violin" onchange="drawUniViolin(this.value)">
-                {% for col in num_cols %}
-                <option value="{{ col }}">{{ col }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="card-header-clean">
-            <h4><i class="fas fa-wave-square text-purple"></i> Violin / Density Plot</h4>
-        </div>
-        <div id="uni-violin" class="chart-area"></div>
-    </div>
-    {% else %}
-    <div class="card p-4 text-center text-muted"><i class="fas fa-info-circle"></i> Tidak ada kolom numerik dalam dataset.</div>
-    {% endif %}
-</div>
-
-<!-- ═══════════════════ TAB: BIVARIATE ═══════════════════ -->
-<div id="tab-viz-bivariate" class="tab-content fade-in" style="display:none;">
-    <div class="section-header">
-        <div>
-            <h2><i class="fas fa-braille text-green"></i> Bivariate Analysis</h2>
-            <p>Explore relationship between two variables.</p>
-        </div>
-    </div>
-
-    <div class="chart-grid-2 mb-4">
-        <!-- Scatter Plot -->
-        <div class="card chart-card">
-            <div class="chart-selector-bar">
-                <div class="col-select-group">
-                    <label>X:</label>
-                    <select class="col-select" id="sel-biv-x" onchange="drawBivScatter()">
-                        {% for col in num_cols %}
-                        <option value="{{ col }}">{{ col }}</option>
-                        {% endfor %}
-                    </select>
+    <!-- ── NUMERICAL ── -->
+    <div id="viz-numerical" class="viz-subtab-content active-viztab">
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-chart-bar text-blue"></i> Histogram + KDE</h4>
+                    <span class="chart-badge">Univariate</span>
                 </div>
-                <div class="col-select-group">
-                    <label>Y:</label>
-                    <select class="col-select" id="sel-biv-y" onchange="drawBivScatter()">
-                        {% for col in num_cols %}
-                        <option value="{{ col }}" {% if loop.index == 2 %}selected{% endif %}>{{ col }}</option>
-                        {% endfor %}
-                    </select>
+                <div id="plot-hist-num" class="chart-area"></div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-wave-square text-green"></i> Density Plot (KDE)</h4>
+                    <span class="chart-badge">Univariate</span>
                 </div>
+                <div id="plot-density-num" class="chart-area"></div>
             </div>
-            <div class="card-header-clean">
-                <h4><i class="fas fa-braille text-green"></i> Scatter Plot</h4>
-            </div>
-            <div id="biv-scatter" class="chart-area"></div>
         </div>
-
-        <!-- Correlation Heatmap (static) -->
-        <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-fire text-red"></i> Correlation Heatmap</h4>
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-box text-orange"></i> Boxplot (Multi-Variable)</h4>
+                    <span class="chart-badge">Univariate</span>
+                </div>
+                <div id="plot-boxplot-num" class="chart-area"></div>
             </div>
-            <div id="biv-heatmap" class="chart-area"></div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-ruler text-purple"></i> QQ Plot</h4>
+                    <span class="chart-badge">Normality</span>
+                </div>
+                <div id="plot-qq-num" class="chart-area"></div>
+            </div>
+        </div>
+        <div class="chart-grid-1 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-music text-red"></i> Violin Plot (All Numeric)</h4>
+                    <span class="chart-badge">Univariate</span>
+                </div>
+                <div id="plot-violin-num" class="chart-area" style="min-height:340px;"></div>
+            </div>
         </div>
     </div>
 
-    <!-- Bar: Cat vs Num -->
-    {% if cat_cols and num_cols %}
-    <div class="card chart-card mb-4">
-        <div class="chart-selector-bar">
-            <div class="col-select-group">
-                <label>Category:</label>
-                <select class="col-select" id="sel-biv-cat" onchange="drawBivBar()">
-                    {% for col in cat_cols %}
-                    <option value="{{ col }}">{{ col }}</option>
-                    {% endfor %}
-                </select>
+    <!-- ── CATEGORICAL ── -->
+    <div id="viz-categorical" class="viz-subtab-content" style="display:none;">
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-chart-bar text-blue"></i> Bar Chart</h4>
+                    <span class="chart-badge">Categorical</span>
+                </div>
+                <div id="plot-bar-cat" class="chart-area"></div>
             </div>
-            <div class="col-select-group">
-                <label>Value (Num):</label>
-                <select class="col-select" id="sel-biv-num" onchange="drawBivBar()">
-                    {% for col in num_cols %}
-                    <option value="{{ col }}">{{ col }}</option>
-                    {% endfor %}
-                </select>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-chart-pie text-purple"></i> Donut / Pie Chart</h4>
+                    <span class="chart-badge">Categorical</span>
+                </div>
+                <div id="plot-pie-cat" class="chart-area"></div>
             </div>
         </div>
-        <div class="card-header-clean">
-            <h4><i class="fas fa-grip-lines-vertical text-orange"></i> Category vs Numeric — Bar Chart</h4>
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-list-ol text-green"></i> Count Plot</h4>
+                    <span class="chart-badge">Categorical</span>
+                </div>
+                <div id="plot-count-cat" class="chart-area"></div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-sort-amount-down text-orange"></i> Pareto Chart</h4>
+                    <span class="chart-badge">80/20 Rule</span>
+                </div>
+                <div id="plot-pareto-cat" class="chart-area"></div>
+            </div>
         </div>
-        <div id="biv-bar" class="chart-area"></div>
     </div>
-    {% endif %}
+
+    <!-- ── BIVARIATE & MULTIVARIATE ── -->
+    <div id="viz-bivariate" class="viz-subtab-content" style="display:none;">
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-circle-dot text-blue"></i> Scatter Plot</h4>
+                    <span class="chart-badge">Bivariate</span>
+                </div>
+                <div id="plot-scatter-biv" class="chart-area"></div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-fire text-red"></i> Correlation Heatmap</h4>
+                    <span class="chart-badge">Multivariate</span>
+                </div>
+                <div id="plot-heatmap" class="chart-area"></div>
+            </div>
+        </div>
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-chart-line text-green"></i> Regression Plot</h4>
+                    <span class="chart-badge">OLS + 95% CI</span>
+                </div>
+                <div id="plot-regression" class="chart-area"></div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-circle text-orange"></i> Bubble Chart</h4>
+                    <span class="chart-badge">Trivariate</span>
+                </div>
+                <div id="plot-bubble" class="chart-area"></div>
+            </div>
+        </div>
+        <div class="chart-grid-1 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-braille text-purple"></i> Pair Plot / Scatter Matrix</h4>
+                    <span class="chart-badge">Multivariate</span>
+                </div>
+                <div id="plot-scatter-matrix" class="chart-area" style="min-height:420px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── CAT vs NUM ── -->
+    <div id="viz-catnum" class="viz-subtab-content" style="display:none;">
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-box text-blue"></i> Boxplot by Category</h4>
+                    <span class="chart-badge">Cat × Num</span>
+                </div>
+                <div id="plot-box-catnum" class="chart-area"></div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-music text-purple"></i> Violin by Category</h4>
+                    <span class="chart-badge">Cat × Num</span>
+                </div>
+                <div id="plot-violin-catnum" class="chart-area"></div>
+            </div>
+        </div>
+        <div class="chart-grid-2 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-chart-bar text-orange"></i> Grouped Bar Chart</h4>
+                    <span class="chart-badge">Cat × Num</span>
+                </div>
+                <div id="plot-grouped-bar" class="chart-area"></div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-ellipsis-h text-green"></i> Strip Plot</h4>
+                    <span class="chart-badge">Cat × Num</span>
+                </div>
+                <div id="plot-strip" class="chart-area"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── KOMPARASI ── -->
+    <div id="viz-compare" class="viz-subtab-content" style="display:none;">
+        <div class="chart-grid-1 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-balance-scale text-blue"></i> Violin — Perbandingan Semua Variabel</h4>
+                    <span class="chart-badge">Komparasi</span>
+                </div>
+                <div id="plot-violin-compare" class="chart-area" style="min-height:360px;"></div>
+            </div>
+        </div>
+        <div class="chart-grid-1 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-chart-bar text-orange"></i> Grouped Bar — Perbandingan Mean</h4>
+                    <span class="chart-badge">Komparasi</span>
+                </div>
+                <div id="plot-grouped-bar-compare" class="chart-area" style="min-height:320px;"></div>
+            </div>
+        </div>
+        <div class="chart-grid-1 mb-4">
+            <div class="card chart-card">
+                <div class="card-header-clean">
+                    <h4><i class="fas fa-random text-green"></i> Parallel Coordinates — Pola Multivariabel</h4>
+                    <span class="chart-badge">Komparasi</span>
+                </div>
+                <div id="plot-parallel" class="chart-area" style="min-height:360px;"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- ═══════════════════ TAB: MULTIVARIATE ═══════════════════ -->
-<div id="tab-viz-multivariate" class="tab-content fade-in" style="display:none;">
-    <div class="section-header">
-        <div>
-            <h2><i class="fas fa-project-diagram text-purple"></i> Multivariate Analysis</h2>
-            <p>Explore patterns across multiple numeric columns simultaneously.</p>
-        </div>
-    </div>
-
-    {% if num_cols | length >= 2 %}
-    <!-- Scatter Matrix -->
-    <div class="card chart-card mb-4">
-        <div class="chart-selector-bar" style="gap:14px;">
-            <label><i class="fas fa-sliders-h"></i> Select columns for scatter matrix:</label>
-            <div id="multi-col-checks" style="display:flex; flex-wrap:wrap; gap:8px;">
-                {% for col in num_cols %}
-                <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:var(--text); cursor:pointer; padding:3px 8px; border-radius:6px; border:1px solid var(--border); background:var(--card-bg);">
-                    <input type="checkbox" value="{{ col }}" class="multi-col-check" {% if loop.index <= 4 %}checked{% endif %} onchange="drawMultiScatter()">
-                    {{ col }}
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-        <div class="card-header-clean">
-            <h4><i class="fas fa-braille text-purple"></i> Scatter Matrix</h4>
-        </div>
-        <div id="multi-scatter" style="width:100%; height: clamp(380px, 50vh, 600px);"></div>
-    </div>
-
-    <!-- Heatmap -->
-    <div class="card chart-card mb-4">
-        <div class="card-header-clean">
-            <h4><i class="fas fa-fire text-red"></i> Full Correlation Heatmap</h4>
-        </div>
-        <div id="multi-heatmap" class="chart-area"></div>
-    </div>
-    {% else %}
-    <div class="card p-4 text-center text-muted"><i class="fas fa-info-circle"></i> Diperlukan minimal 2 kolom numerik untuk analisis multivariat.</div>
-    {% endif %}
-</div>
-
-<!-- ═══════════════════ TAB: TIME SERIES ═══════════════════ -->
-<div id="tab-viz-timeseries" class="tab-content fade-in" style="display:none;">
-    <div class="section-header">
-        <div>
-            <h2><i class="fas fa-chart-line text-blue"></i> Time Series Analysis</h2>
-            <p>Visualize numeric column trends over row index or time.</p>
-        </div>
-    </div>
-
-    {% if num_cols %}
-    <!-- Line Chart -->
-    <div class="card chart-card mb-4">
-        <div class="chart-selector-bar">
-            <label><i class="fas fa-chart-line text-blue"></i> Column:</label>
-            <select class="col-select" id="sel-ts-col" onchange="drawTimeSeries()">
-                {% for col in num_cols %}
-                <option value="{{ col }}">{{ col }}</option>
-                {% endfor %}
-            </select>
-            <label style="margin-left:10px;"><i class="fas fa-sliders-h text-muted"></i> Rolling Window:</label>
-            <select class="col-select" id="sel-ts-window" onchange="drawTimeSeries()" style="max-width:100px;">
-                <option value="7">7</option>
-                <option value="14">14</option>
-                <option value="30" selected>30</option>
-                <option value="60">60</option>
-            </select>
-        </div>
-        <div class="card-header-clean">
-            <h4><i class="fas fa-chart-line text-blue"></i> Line Chart + Rolling Average</h4>
-        </div>
-        <div id="ts-line" class="chart-area"></div>
-    </div>
-
-    <!-- Distribution over rolling windows -->
-    <div class="card chart-card mb-4">
-        <div class="chart-selector-bar">
-            <label><i class="fas fa-chart-area text-green"></i> Column:</label>
-            <select class="col-select" id="sel-ts-area" onchange="drawTimeSeriesArea()">
-                {% for col in num_cols %}
-                <option value="{{ col }}">{{ col }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="card-header-clean">
-            <h4><i class="fas fa-chart-area text-green"></i> Cumulative Trend</h4>
-        </div>
-        <div id="ts-area" class="chart-area"></div>
-    </div>
-    {% else %}
-    <div class="card p-4 text-center text-muted"><i class="fas fa-info-circle"></i> Tidak ada kolom numerik dalam dataset.</div>
-    {% endif %}
-</div>
-
-<!-- ═══════════════════ TAB: SMART INSIGHTS ═══════════════════ -->
+<!-- ═══════════════════ TAB 7: SMART INSIGHTS ═══════════════════ -->
 <div id="tab-insights" class="tab-content fade-in" style="display:none;">
-    <div class="section-header mb-4">
+    <div class="dashboard-header mb-4">
         <h2><i class="fas fa-lightbulb" style="color:#ffce20;"></i> Smart Insights</h2>
         <p class="text-muted">Automated conclusions extracted from your dataset.</p>
     </div>
@@ -632,9 +518,9 @@ var colData = {{ col_data | tojson | safe }};
     </div>
 </div>
 
-<!-- ═══════════════════ TAB: AI DATABOT ═══════════════════ -->
+<!-- ═══════════════════ TAB 8: AI DATABOT (OPTIONAL) ═══════════════════ -->
 <div id="tab-ai" class="tab-content fade-in" style="display:none;">
-    <div class="section-header mb-4">
+    <div class="dashboard-header mb-4">
         <h2><i class="fas fa-robot text-green"></i> DataBot AI Assistant</h2>
         <p class="text-muted">Tanyakan apa saja tentang dataset kamu</p>
     </div>
@@ -660,247 +546,175 @@ var colData = {{ col_data | tojson | safe }};
     </div>
 </div>
 
-<!-- ═══════════════════ RENDER SCRIPTS ═══════════════════ -->
+<!-- ═══════════════════ PLOTLY RENDER SCRIPT ═══════════════════ -->
 <script>
 var plotsData = null;
-try {
-    plotsData = {{ plots | tojson | safe }};
-} catch(e) {
-    console.error("Gagal memuat data grafik:", e);
-}
+try { plotsData = {{ plots | tojson | safe }}; }
+catch(e) { console.error("Gagal memuat data grafik:", e); }
 
-var chartsRendered = false;
+// ── Pemetaan divId → key di plotsData ────────────────────────────────────
+var CHART_MAP = [
+    // Overview mini
+    ['ov-hist',  'hist_num'],
+    ['ov-pie',   'pie_cat'],
+    // Numerical
+    ['plot-hist-num',    'hist_num'],
+    ['plot-density-num', 'density_num'],
+    ['plot-boxplot-num', 'boxplot_num'],
+    ['plot-qq-num',      'qq_num'],
+    ['plot-violin-num',  'violin_num'],
+    // Categorical
+    ['plot-bar-cat',     'bar_cat'],
+    ['plot-pie-cat',     'pie_cat'],
+    ['plot-count-cat',   'count_cat'],
+    ['plot-pareto-cat',  'pareto_cat'],
+    // Bivariate & Multivariate
+    ['plot-scatter-biv',    'scatter_biv'],
+    ['plot-heatmap',        'heatmap'],
+    ['plot-regression',     'regression_plot'],
+    ['plot-bubble',         'bubble_chart'],
+    ['plot-scatter-matrix', 'scatter_matrix'],
+    // Cat vs Num
+    ['plot-box-catnum',   'box_cat_num'],
+    ['plot-violin-catnum','violin_cat_num'],
+    ['plot-grouped-bar',  'grouped_bar'],
+    ['plot-strip',        'strip_plot'],
+    // Komparasi
+    ['plot-violin-compare',      'violin_compare'],
+    ['plot-grouped-bar-compare', 'grouped_bar_compare'],
+    ['plot-parallel',            'parallel_coords'],
+];
 
-/* ── Plotly layout helper ── */
-function getLayout() {
-    const isDark = document.body.getAttribute('data-theme') === 'dark';
-    return isDark
-        ? { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#ffffff'} }
-        : { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#2b3674'} };
-}
+// Track which divs have been rendered
+var _rendered = new Set();
 
-function drawStatic(divId, plotObj) {
-    if (!plotObj || !document.getElementById(divId)) return;
-    const layout = Object.assign({}, plotObj.layout, getLayout());
-    Plotly.newPlot(divId, plotObj.data, layout, { responsive:true, displayModeBar:true });
-}
-
-window.renderCharts = function() {
-    if (!plotsData || typeof Plotly === 'undefined') return;
-    if (chartsRendered) {
-        ['ov-hist','ov-pie','biv-heatmap','multi-heatmap'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el._fullData) Plotly.Plots.resize(el);
-        });
-        return;
-    }
-    drawStatic('ov-hist', plotsData.hist_num);
-    drawStatic('ov-pie', plotsData.pie_cat);
-    drawStatic('biv-heatmap', plotsData.heatmap);
-    drawStatic('multi-heatmap', plotsData.heatmap);
-    chartsRendered = true;
+var PLOTLY_CFG = {
+    responsive: true,
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d','select2d','autoScale2d'],
+    displaylogo: false,
+    scrollZoom: false,
+    toImageButtonOptions: { format:'png', scale:2 },
 };
 
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(window.renderCharts, 300);
-});
-
-/* ══════════════════════════════════════════════
-   UNIVARIATE CHARTS
-══════════════════════════════════════════════ */
-function drawUniHist(col) {
-    if (!colData[col] || !document.getElementById('uni-hist')) return;
-    const vals = colData[col].values;
-    Plotly.newPlot('uni-hist', [{
-        x: vals, type: 'histogram',
-        marker: { color: '#4318ff', opacity: 0.8 },
-        nbinsx: 30, name: col
-    }], Object.assign({
-        xaxis: { title: col },
-        yaxis: { title: 'Count' },
-        bargap: 0.05, showlegend: false,
-        margin: { t: 20, l: 50, r: 20, b: 50 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
+function getLayoutPatch() {
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    return {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor:  'rgba(0,0,0,0)',
+        font: { color: isDark ? '#c8d8f0' : '#2b3674', family: 'Inter, sans-serif' },
+        hoverlabel: {
+            bgcolor: 'rgba(10,18,48,0.93)',
+            bordercolor: 'rgba(100,160,235,0.45)',
+            font: { color:'#e8f4fc', size:13, family:'Inter, sans-serif' },
+            namelength: -1,
+        },
+    };
 }
 
-function drawUniBox(col) {
-    if (!colData[col] || !document.getElementById('uni-box')) return;
-    const vals = colData[col].values;
-    Plotly.newPlot('uni-box', [{
-        y: vals, type: 'box', name: col,
-        marker: { color: '#ffce20' },
-        boxpoints: 'outliers', jitter: 0.3,
-        fillcolor: 'rgba(255,206,32,0.15)',
-        line: { color: '#ffce20' }
-    }], Object.assign({
-        yaxis: { title: col },
-        showlegend: false,
-        margin: { t: 20, l: 50, r: 20, b: 20 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
-}
-
-function drawUniViolin(col) {
-    if (!colData[col] || !document.getElementById('uni-violin')) return;
-    const vals = colData[col].values;
-    Plotly.newPlot('uni-violin', [{
-        y: vals, type: 'violin', name: col,
-        box: { visible: true },
-        meanline: { visible: true },
-        fillcolor: 'rgba(134,140,255,0.3)',
-        line: { color: '#868cff' }
-    }], Object.assign({
-        yaxis: { title: col },
-        showlegend: false,
-        margin: { t: 20, l: 50, r: 20, b: 20 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
-}
-
-function initUnivariate() {
-    const firstNum = numCols[0];
-    if (!firstNum) return;
-    drawUniHist(firstNum);
-    drawUniBox(firstNum);
-    drawUniViolin(firstNum);
-}
-
-/* ══════════════════════════════════════════════
-   BIVARIATE CHARTS
-══════════════════════════════════════════════ */
-function drawBivScatter() {
-    const colX = document.getElementById('sel-biv-x')?.value;
-    const colY = document.getElementById('sel-biv-y')?.value;
-    if (!colX || !colY || !colData[colX] || !colData[colY]) return;
-    const xVals = colData[colX].values;
-    const yVals = colData[colY].values;
-    const len = Math.min(xVals.length, yVals.length);
-    Plotly.newPlot('biv-scatter', [{
-        x: xVals.slice(0, len), y: yVals.slice(0, len),
-        mode: 'markers', type: 'scatter', name: `${colX} vs ${colY}`,
-        marker: { color: '#05cd99', size: 5, opacity: 0.65 }
-    }], Object.assign({
-        xaxis: { title: colX },
-        yaxis: { title: colY },
-        margin: { t: 20, l: 50, r: 20, b: 50 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
-}
-
-function drawBivBar() {
-    const catCol = document.getElementById('sel-biv-cat')?.value;
-    const numCol = document.getElementById('sel-biv-num')?.value;
-    if (!catCol || !numCol || !colData[catCol] || !colData[numCol]) return;
-    const labels = colData[catCol].labels;
-    const counts = colData[catCol].counts;
-    Plotly.newPlot('biv-bar', [{
-        x: labels, y: counts, type: 'bar', name: catCol,
-        marker: { color: '#868cff', opacity: 0.85 }
-    }], Object.assign({
-        xaxis: { title: catCol },
-        yaxis: { title: 'Count' },
-        margin: { t: 20, l: 50, r: 20, b: 80 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
-}
-
-function initBivariate() {
-    drawBivScatter();
-    drawBivBar();
-    drawStatic('biv-heatmap', plotsData?.heatmap);
-}
-
-/* ══════════════════════════════════════════════
-   MULTIVARIATE CHARTS
-══════════════════════════════════════════════ */
-function drawMultiScatter() {
-    const checks = document.querySelectorAll('.multi-col-check:checked');
-    const selected = Array.from(checks).map(c => c.value).filter(c => colData[c]);
-    if (selected.length < 2) return;
-    const dimensions = selected.map(col => ({
-        label: col,
-        values: colData[col].values
-    }));
-    Plotly.newPlot('multi-scatter', [{
-        type: 'splom',
-        dimensions: dimensions,
-        marker: { color: '#4318ff', size: 3, opacity: 0.5 }
-    }], Object.assign({
-        margin: { t: 30, l: 30, r: 30, b: 30 },
-        dragmode: 'select'
-    }, getLayout()), { responsive: true, displayModeBar: true });
-}
-
-function initMultivariate() {
-    drawMultiScatter();
-    drawStatic('multi-heatmap', plotsData?.heatmap);
-}
-
-/* ══════════════════════════════════════════════
-   TIME SERIES CHARTS
-══════════════════════════════════════════════ */
-function rollingMean(arr, window) {
-    return arr.map((_, i) => {
-        if (i < window - 1) return null;
-        const slice = arr.slice(i - window + 1, i + 1);
-        return slice.reduce((a, b) => a + b, 0) / slice.length;
+function drawChart(divId, plotKey, force) {
+    if (!plotsData) return;
+    const plotObj = plotsData[plotKey];
+    if (!plotObj) return;
+    const el = document.getElementById(divId);
+    if (!el) return;
+    if (!force && _rendered.has(divId)) {
+        Plotly.Plots.resize(el);
+        return;
+    }
+    const layout = Object.assign({}, plotObj.layout, getLayoutPatch());
+    const cfg = Object.assign({}, PLOTLY_CFG, plotObj._config || {});
+    Plotly.react(el, plotObj.data, layout, cfg).then(() => {
+        _rendered.add(divId);
+        // Smooth hover transitions via CSS on hover layer
+        el.style.transition = 'opacity 0.2s ease';
     });
 }
 
-function drawTimeSeries() {
-    const col = document.getElementById('sel-ts-col')?.value;
-    const win = parseInt(document.getElementById('sel-ts-window')?.value || '30');
-    if (!col || !colData[col]) return;
-    const vals = colData[col].values;
-    const xs = vals.map((_, i) => i);
-    const rm = rollingMean(vals, win);
-    Plotly.newPlot('ts-line', [
-        { x: xs, y: vals, mode: 'lines', name: col,
-          line: { color: '#4318ff', width: 1.5 }, opacity: 0.7 },
-        { x: xs, y: rm, mode: 'lines', name: `Rolling Mean (${win})`,
-          line: { color: '#ee5d50', width: 2, dash: 'dash' } }
-    ], Object.assign({
-        xaxis: { title: 'Row Index' }, yaxis: { title: col },
-        legend: { x: 0, y: 1 },
-        margin: { t: 20, l: 50, r: 20, b: 50 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
+// Draw only charts visible in the current viewport / visible tab
+function renderVisibleCharts() {
+    if (!plotsData || typeof Plotly === 'undefined') return;
+    CHART_MAP.forEach(([divId, plotKey]) => {
+        const el = document.getElementById(divId);
+        if (!el) return;
+        // Check if element is in a visible container
+        if (el.offsetParent !== null) {
+            drawChart(divId, plotKey, false);
+        }
+    });
 }
 
-function drawTimeSeriesArea() {
-    const col = document.getElementById('sel-ts-area')?.value;
-    if (!col || !colData[col]) return;
-    const vals = colData[col].values;
-    const cumSum = vals.reduce((acc, v, i) => { acc.push((acc[i - 1] || 0) + v); return acc; }, []);
-    const xs = vals.map((_, i) => i);
-    Plotly.newPlot('ts-area', [{
-        x: xs, y: cumSum, mode: 'lines', fill: 'tozeroy', name: `Cumulative ${col}`,
-        line: { color: '#05cd99', width: 2 },
-        fillcolor: 'rgba(5,205,153,0.15)'
-    }], Object.assign({
-        xaxis: { title: 'Row Index' }, yaxis: { title: `Cumulative ${col}` },
-        margin: { t: 20, l: 60, r: 20, b: 50 }
-    }, getLayout()), { responsive: true, displayModeBar: false });
+// Force-render all charts in a specific viz sub-tab
+function renderVizSubTab(tabName) {
+    if (!plotsData || typeof Plotly === 'undefined') return;
+    CHART_MAP.forEach(([divId, plotKey]) => {
+        const el = document.getElementById(divId);
+        if (!el) return;
+        if (el.closest('#viz-' + tabName)) {
+            drawChart(divId, plotKey, false);
+        }
+    });
 }
 
-function initTimeSeries() {
-    drawTimeSeries();
-    drawTimeSeriesArea();
+// ── Sub-tab switcher for Visualizations tab ───────────────────────────────
+function switchVizTab(tab) {
+    document.querySelectorAll('.viz-subtab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.viz-subtab-btn').forEach(el => el.classList.remove('active'));
+    const target = document.getElementById('viz-' + tab);
+    if (target) target.style.display = 'block';
+    document.querySelectorAll('.viz-subtab-btn').forEach(btn => {
+        if (btn.textContent.toLowerCase().includes(tab) ||
+            btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tab)) {
+            btn.classList.add('active');
+        }
+    });
+    setTimeout(() => renderVizSubTab(tab), 60);
 }
 
-/* ══════════════════════════════════════════════
-   TAB SWITCH HOOK — trigger chart init on first open
-══════════════════════════════════════════════ */
-var tabInited = {};
-const origSwitchTab = window.switchTab;
-window.switchTab = function(tabId) {
-    if (origSwitchTab) origSwitchTab(tabId);
-    if (!tabInited[tabId] && typeof Plotly !== 'undefined') {
-        tabInited[tabId] = true;
-        if (tabId === 'viz-univariate') setTimeout(initUnivariate, 100);
-        if (tabId === 'viz-bivariate')  setTimeout(initBivariate, 100);
-        if (tabId === 'viz-multivariate') setTimeout(initMultivariate, 100);
-        if (tabId === 'viz-timeseries') setTimeout(initTimeSeries, 100);
-        if (tabId === 'visualizations') setTimeout(window.renderCharts, 100);
+// ── Main tab switch hook (called by base.html switchTab) ─────────────────
+var _origSwitchTab = window.switchTab;
+window.switchTab = function(tab) {
+    if (_origSwitchTab) _origSwitchTab(tab);
+    if (tab === 'visualizations') {
+        setTimeout(() => {
+            // Render active viz sub-tab
+            const activeViz = document.querySelector('.viz-subtab-content.active-viztab, .viz-subtab-content:not([style*="none"])');
+            if (activeViz) {
+                const subId = activeViz.id.replace('viz-', '');
+                renderVizSubTab(subId);
+            }
+            renderVisibleCharts(); // also overview
+        }, 80);
     }
+    // overview
+    if (tab === 'overview') setTimeout(renderVisibleCharts, 80);
 };
 
-/* ── AI CHAT ── */
+// ── Initial render on load ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(renderVisibleCharts, 350);
+    // If we land on viz tab directly, also render it
+    setTimeout(() => {
+        if (document.getElementById('tab-visualizations') &&
+            !document.getElementById('tab-visualizations').style.display !== 'none') {
+            renderVizSubTab('numerical');
+        }
+    }, 500);
+});
+
+// Resize all rendered charts on window resize (debounced)
+var _resizeTimer;
+window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+        _rendered.forEach(divId => {
+            const el = document.getElementById(divId);
+            if (el && el._fullData) Plotly.Plots.resize(el);
+        });
+    }, 180);
+});
+
+// ── AI CHAT ──────────────────────────────────────────────────────────────
 var datasetContext = "Filename: {{ filename }}, Rows: {{ metrics.total_rows }}, Cols: {{ metrics.total_columns }}, Num cols: {{ num_cols|join(', ') }}, Cat cols: {{ cat_cols|join(', ') }}";
 
 function sendAIMessage() {
@@ -917,25 +731,21 @@ function sendAIMessage() {
     })
     .then(r => r.json())
     .then(data => { typingEl.querySelector('.chat-bubble').innerHTML = data.reply || 'Tidak ada respons.'; })
-    .catch(() => { typingEl.querySelector('.chat-bubble').innerHTML = '⚠️ Gagal terhubung ke AI.'; });
+    .catch(() => { typingEl.querySelector('.chat-bubble').innerHTML = '⚠️ Gagal terhubung ke AI. Pastikan API Key valid.'; });
 }
 
-function appendChatMsg(text, role, typing = false) {
+function appendChatMsg(text, role, typing=false) {
     const container = document.getElementById('chat-messages');
     const div = document.createElement('div');
     div.className = `chat-msg ${role}`;
-    div.innerHTML = `
-        <div class="chat-avatar"><i class="fas fa-${role === 'bot' ? 'robot' : 'user'}"></i></div>
-        <div class="chat-bubble ${typing ? 'typing' : ''}">${text}</div>
-    `;
+    div.innerHTML = `<div class="chat-avatar"><i class="fas fa-${role==='bot'?'robot':'user'}"></i></div><div class="chat-bubble ${typing?'typing':''}">${text}</div>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
     return div;
 }
 
-document.getElementById('ai-input')?.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') sendAIMessage();
-});
+const aiInput = document.getElementById('ai-input');
+if (aiInput) aiInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendAIMessage(); });
 </script>
 
 {% endblock %}
