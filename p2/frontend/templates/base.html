@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DS Generator — Kelompok 2 ITSB</title>
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <!-- DataTables -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+
+    <!-- Font Awesome & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-theme="light">
+
+<div class="layout-wrapper">
+
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR
+    ════════════════════════════════════════════ -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+
+            <!-- ╔══════════════════════════════════════╗
+                 ║  LOGO ITSB                           ║
+                 ║  Ganti URL di bawah dengan link foto ║
+                 ║  logo ITSB yang kamu inginkan        ║
+                 ╚══════════════════════════════════════╝ -->
+            <div class="brand-logo">
+                <img src="MASUKKAN_URL_LOGO_ITSB_DI_SINI"
+                     alt="ITSB Logo"
+                     class="logo-img"
+                     onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
+                <div id="logo-fallback" class="brand-icon" style="display:none;">
+                    <i class="fas fa-chart-simple"></i>
+                </div>
+            </div>
+            <!-- ════════════════════════════════════ -->
+
+            <div class="brand-text">
+                <h2>DS Generator</h2>
+                <p data-translate="subtitle">Descriptive Statistics</p>
+            </div>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item active" id="menu-overview">
+                <a href="{% if filename %}#overview{% else %}javascript:void(0);{% endif %}"
+                   onclick="{% if filename %}switchTab('overview'){% endif %}">
+                    <i class="fas fa-home"></i>
+                    <span data-translate="nav_home">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item" id="menu-upload">
+                <a href="{{ url_for('upload_file') }}">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span data-translate="nav_upload">Upload Data</span>
+                </a>
+            </li>
+
+            {% if filename %}
+            <li class="nav-header" data-translate="nav_analytics">ANALYTICS</li>
+
+            <li class="nav-item" id="menu-preview">
+                <a href="#preview" onclick="switchTab('preview')">
+                    <i class="fas fa-table"></i>
+                    <span data-translate="nav_preview">Data Preview</span>
+                </a>
+            </li>
+
+            <li class="nav-item nav-parent">
+                <a style="pointer-events:none; opacity:0.6; cursor:default;">
+                    <i class="fas fa-calculator"></i>
+                    <span data-translate="nav_stats">Descriptive Stats</span>
+                </a>
+            </li>
+            <li class="nav-item sub-menu" id="menu-numerical">
+                <a href="#numerical" onclick="switchTab('numerical')">
+                    <i class="fas fa-hashtag"></i> Numerical
+                </a>
+            </li>
+            <li class="nav-item sub-menu" id="menu-categorical">
+                <a href="#categorical" onclick="switchTab('categorical')">
+                    <i class="fas fa-font"></i> Categorical
+                </a>
+            </li>
+
+            <li class="nav-header mt-3" data-translate="nav_advanced">ADVANCED ANALYTICS</li>
+
+            <li class="nav-item" id="menu-advanced">
+                <a href="#advanced" onclick="switchTab('advanced')">
+                    <i class="fas fa-flask"></i> Advanced Stats
+                    <span class="badge-new">W15</span>
+                </a>
+            </li>
+            <li class="nav-item" id="menu-visualizations">
+                <a href="#visualizations" onclick="switchTab('visualizations'); if(window.renderCharts) setTimeout(window.renderCharts, 200);">
+                    <i class="fas fa-chart-pie"></i> Visualizations
+                    <span class="badge-new" style="background:#ee5d50;">NEW</span>
+                </a>
+            </li>
+            <li class="nav-item" id="menu-insights">
+                <a href="#insights" onclick="switchTab('insights')">
+                    <i class="fas fa-lightbulb"></i> Smart Insights
+                </a>
+            </li>
+
+            <!-- ── OPTIONAL AI CHAT ── -->
+            <li class="nav-header mt-3">AI ASSISTANT</li>
+            <li class="nav-item" id="menu-ai">
+                <a href="#ai" onclick="switchTab('ai')">
+                    <i class="fas fa-robot"></i> DataBot AI
+                    <span class="badge-new" style="background:#05cd99;">AI</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN AREA
+    ════════════════════════════════════════════ -->
+    <main class="main-wrapper">
+
+        <!-- TOP BAR -->
+        <header class="topbar">
+            <div class="page-title">
+                <h1 data-translate="title">Descriptive Statistics Generator</h1>
+                <p data-translate="desc">Upload, analyze, visualize and get insights automatically</p>
+            </div>
+            <div class="topbar-right">
+                <select id="lang-selector" class="lang-select">
+                    <option value="en">🌐 EN</option>
+                    <option value="id">🇮🇩 ID</option>
+                    <option value="pt">🇧🇷 PT</option>
+                </select>
+                <div class="icon-btn" id="theme-toggle" title="Toggle Dark Mode">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </div>
+                <div class="user-profile" id="team-profile-btn" title="Lihat Anggota Kelompok 2">
+                    <div class="avatar"><i class="fas fa-users"></i></div>
+                    <div class="user-info">
+                        <span class="name">Group 2</span>
+                        <span class="role" data-translate="admin_role">Data Science Team</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- CONTENT -->
+        <div class="content-container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     MODAL TIM KELOMPOK 2
+════════════════════════════════════════════ -->
+<div id="team-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-users"></i> Kelompok 2 — Data Science ITSB</h2>
+            <span class="close-modal" id="close-modal">&times;</span>
+        </div>
+        <div class="team-grid">
+            <div class="id-card">
+                <img src="https://raw.githubusercontent.com/caroldupinopereira-cmyk/carol/main/carol_1-removebg-preview.png" alt="Carol">
+                <h4>Carol Dupino Pereira</h4><p class="nim">NIM: 52250051</p><p class="role-tag">Data Science</p>
+                <div class="card-links">
+                    <a href="https://github.com/caroldupinopereira-cmyk" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://rpubs.com/Dupino" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                </div>
+            </div>
+            <div class="id-card">
+                <img src="https://github.com/refantanjung23-wq.png" alt="Refantanur">
+                <h4>Refantanur Husnul Haqib</h4><p class="nim">NIM: 52250052</p><p class="role-tag">Data Science</p>
+                <div class="card-links">
+                    <a href="https://github.com/refantanjung23-wq" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://rpubs.com/Refantanur" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                </div>
+            </div>
+            <div class="id-card">
+                <img src="https://raw.githubusercontent.com/cahayasemidang-max/foto/cfc8d91ef344fb1beba4eadb93e4be67168bc2b8/FotoCahaya.png" alt="Cahaya">
+                <h4>Cahaya Medina Semidang</h4><p class="nim">NIM: 52250053</p><p class="role-tag">Data Science</p>
+                <div class="card-links">
+                    <a href="https://github.com/cahayasemidang-max" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://rpubs.com/cahayaa23" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                </div>
+            </div>
+            <div class="id-card">
+                <img src="https://raw.githubusercontent.com/raihaniasyahputri/Foto_lulu/696dc3e134536210f870e9d5230b8fbeaad40e0d/IMG-20251129-WA0001.png" alt="Raihania">
+                <h4>Raihania Syah Putri</h4><p class="nim">NIM: 52250054</p><p class="role-tag">Data Science</p>
+                <div class="card-links">
+                    <a href="https://github.com/raihaniasyahputri" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://rpubs.com/raihania496" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                </div>
+            </div>
+            <div class="id-card">
+                <img src="https://raw.githubusercontent.com/cahayasemidang-max/foto/b7534990c32ff093c6cb2faefc6282f5f6079296/FotoCloise.png" alt="Cloise">
+                <h4>Cloise Shafira</h4><p class="nim">NIM: 52250044</p><p class="role-tag">Data Science</p>
+                <div class="card-links">
+                    <a href="https://github.com/xcoliyyyzz1/cloi" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://rpubs.com/coliyyzzz1" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                </div>
+            </div>
+            <div class="id-card">
+                <img src="https://raw.githubusercontent.com/caroldupinopereira-cmyk/adinda/main/adinda_baru-removebg-preview.png" alt="Adinda">
+                <h4>Adinda Adelia Futri</h4><p class="nim">NIM: 52250055</p><p class="role-tag">Data Science</p>
+                <div class="card-links">
+                    <a href="https://github.com/adindaadeliafutri6-gif" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://rpubs.com/futri0055" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DataTables Scripts -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+<!-- Flash Notifications via SweetAlert2 -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        {% for category, message in messages %}
+        Swal.fire({
+            icon: '{{ category }}' === 'error' ? 'error' : ('{{ category }}' === 'info' ? 'info' : 'success'),
+            title: '{{ category }}' === 'error' ? 'Oops...' : ('{{ category }}' === 'info' ? '📂 Dataset Found' : '✅ Success!'),
+            text: `{{ message }}`,
+            confirmButtonColor: '#4318ff',
+            timer: '{{ category }}' === 'info' ? 4000 : undefined,
+            timerProgressBar: true
+        });
+        {% endfor %}
+    });
+    </script>
+    {% endif %}
+{% endwith %}
+
+</body>
+</html>
