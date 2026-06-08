@@ -1,118 +1,240 @@
+"""
+backend/descriptive_stats.py
+Descriptive Statistics Generator — Kelompok 2 ITSB
+
+Numerical columns output:
+  Mean, Median, Min, Max, Std Dev, Variance, Mode,
+  Skewness, Kurtosis, Missing Count, Missing %, Normality, Outliers
+
+Categorical columns output:
+  Unique, Mode, Mode Freq, Mode %, Missing Count, Missing %
+"""
+
 import pandas as pd
 import numpy as np
 from scipy.stats import shapiro
 
-def get_summary_metrics(df):
-    """Returns high-level dataset metrics."""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HELPER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _fmt(val, decimals=2):
+    """
+    Format angka menjadi float dengan `decimals` digit.
+    Jika bukan angka atau NaN → kembalikan string 'N/A'.
+    """
+    if val is None:
+        return "N/A"
+    try:
+        f = float(val)
+        if np.isnan(f) or np.isinf(f):
+            return "N/A"
+        return round(f, decimals)
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _pct(count, total, decimals=2):
+    """Hitung persentase dengan aman."""
+    if total == 0:
+        return "0.00%"
+    return f"{round(count / total * 100, decimals)}%"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUMMARY METRICS  (untuk KPI cards di dashboard)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_summary_metrics(df, num_cols=None, cat_cols=None):
+    """
+    Mengembalikan dict metrik level dataset.
+    Dipanggil di app.py dan dioper ke template sebagai `metrics`.
+
+    num_cols dan cat_cols bersifat opsional — jika tidak diisi,
+    akan di-detect otomatis dari df sehingga app.py lama tetap bisa
+    memanggil get_summary_metrics(df) tanpa error.
+
+    Keys yang dikembalikan:
+        total_rows, total_columns,
+        num_count, cat_count,
+        missing_cells, missing_pct
+    """
+    # Auto-detect jika tidak dioper dari app.py
+    if num_cols is None:
+        num_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    if cat_cols is None:
+        cat_cols = df.select_dtypes(include=['object', 'category', 'string']).columns.tolist()
+
+    total_rows    = len(df)
+    total_columns = len(df.columns)
+    missing_cells = int(df.isna().sum().sum())
+    total_cells   = total_rows * total_columns
+    missing_pct   = round(missing_cells / total_cells * 100, 2) if total_cells > 0 else 0.0
+
     return {
-        "total_rows": f"{len(df):,}",
-        "total_columns": f"{len(df.columns):,}",
-        "missing_cells": f"{df.isna().sum().sum():,}"
+        "total_rows":     f"{total_rows:,}",
+        "total_columns":  f"{total_columns:,}",
+        "num_count":      len(num_cols),
+        "cat_count":      len(cat_cols),
+        "missing_cells":  f"{missing_cells:,}",
+        "missing_pct":    f"{missing_pct}%",
     }
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DESCRIPTIVE STATS
+# ─────────────────────────────────────────────────────────────────────────────
+
 def get_descriptive_stats(df, num_cols, cat_cols):
-    """Calculates Advanced Descriptive Statistics."""
+    """
+    Menghitung statistik deskriptif lengkap.
+
+    Returns
+    -------
+    num_stats : list[dict]
+        Satu dict per kolom numerik, berisi 14 metrik.
+    cat_stats : list[dict]
+        Satu dict per kolom kategorik, berisi 6 metrik.
+    """
     total_rows = len(df)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # NUMERICAL STATISTICS
+    # ══════════════════════════════════════════════════════════════════════════
     num_stats = []
-    
-    # ---------------- NUMERICAL VARIABLES ----------------
+
     for col in num_cols:
-        clean_series = df[col].dropna()
-        n_clean = len(clean_series)
-        
-        # Missing Values
-        missing_count = df[col].isna().sum()
-        missing_pct = (missing_count / total_rows) * 100 if total_rows > 0 else 0
-        
-        if n_clean > 0:
-            # Basic Stats
-            mean_val = clean_series.mean()
-            median_val = clean_series.median()
-            min_val = clean_series.min()
-            max_val = clean_series.max()
-            std_val = clean_series.std()
-            var_val = clean_series.var()
-            
-            # Mode
-            mode_s = clean_series.mode()
-            mode_val = mode_s.iloc[0] if not mode_s.empty else "N/A"
-            
-            # Skewness & Kurtosis
-            skew_val = clean_series.skew()
-            kurt_val = clean_series.kurt()
-            
-            # Normal Distribution Test (Shapiro-Wilk Test)
-            if n_clean >= 3:
-                # Ambil sampel max 5000 agar komputasi tidak berat & scipy tidak warning
-                sample_series = clean_series if n_clean <= 5000 else clean_series.sample(5000, random_state=42)
-                if sample_series.nunique() > 1: # Cek jika datanya tidak statis (ada variansi)
-                    stat, p_value = shapiro(sample_series)
-                    normality = "Normal" if p_value > 0.05 else "Not Normal"
-                else:
-                    normality = "Not Normal"
+        series      = df[col]
+        clean       = series.dropna()
+        n_clean     = len(clean)
+
+        # ── Missing values ────────────────────────────────────────────────────
+        missing_count = int(series.isna().sum())
+        missing_pct   = _pct(missing_count, total_rows)
+
+        # ── Jika tidak ada data bersih → isi semua N/A ────────────────────────
+        if n_clean == 0:
+            num_stats.append({
+                "Column":        col,
+                "Mean":          "N/A",
+                "Median":        "N/A",
+                "Min":           "N/A",
+                "Max":           "N/A",
+                "Std Dev":       "N/A",
+                "Variance":      "N/A",
+                "Mode":          "N/A",
+                "Skewness":      "N/A",
+                "Kurtosis":      "N/A",
+                "Missing Count": missing_count,
+                "Missing %":     missing_pct,
+                "Normality":     "N/A",
+                "Outliers":      0,
+            })
+            continue
+
+        # ── Central tendency ──────────────────────────────────────────────────
+        mean_val   = _fmt(clean.mean())
+        median_val = _fmt(clean.median())
+        min_val    = _fmt(clean.min())
+        max_val    = _fmt(clean.max())
+
+        # ── Dispersion ────────────────────────────────────────────────────────
+        std_val = _fmt(clean.std())
+        var_val = _fmt(clean.var())
+
+        # ── Mode ──────────────────────────────────────────────────────────────
+        mode_series = clean.mode()
+        mode_val    = _fmt(mode_series.iloc[0]) if not mode_series.empty else "N/A"
+
+        # ── Shape ─────────────────────────────────────────────────────────────
+        skew_val = _fmt(clean.skew(), decimals=4)
+        kurt_val = _fmt(clean.kurt(), decimals=4)
+
+        # ── Normality Test (Shapiro-Wilk) ─────────────────────────────────────
+        #    Minimal 3 data; sample max 5000 agar tidak lambat
+        if n_clean >= 3:
+            sample = clean if n_clean <= 5000 else clean.sample(5000, random_state=42)
+            if sample.nunique() <= 1:
+                # Data konstan → pasti tidak normal
+                normality = "Not Normal"
             else:
-                normality = "N/A"
-            
-            # Number of Outliers (IQR Method)
-            Q1 = clean_series.quantile(0.25)
-            Q3 = clean_series.quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-            outliers_count = ((clean_series < lower_bound) | (clean_series > upper_bound)).sum()
+                try:
+                    _, p_val = shapiro(sample)
+                    normality = "Normal" if p_val > 0.05 else "Not Normal"
+                except Exception:
+                    normality = "N/A"
         else:
-            mean_val = median_val = min_val = max_val = std_val = var_val = mode_val = "N/A"
-            skew_val = kurt_val = "N/A"
-            normality = "N/A"
-            outliers_count = 0
-            
-        def fmt(val): return round(val, 2) if isinstance(val, (int, float)) and pd.notna(val) else val
+            normality = "N/A (n<3)"
+
+        # ── Outliers (metode IQR) ─────────────────────────────────────────────
+        q1  = clean.quantile(0.25)
+        q3  = clean.quantile(0.75)
+        iqr = q3 - q1
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+        outliers_count = int(((clean < lower) | (clean > upper)).sum())
 
         num_stats.append({
-            "Column": col,
-            "Mean": fmt(mean_val),
-            "Median": fmt(median_val),
-            "Min": fmt(min_val),
-            "Max": fmt(max_val),
-            "Std Dev": fmt(std_val),
-            "Variance": fmt(var_val),
-            "Mode": fmt(mode_val),
-            "Skewness": fmt(skew_val),
-            "Kurtosis": fmt(kurt_val),
-            "Missing Count": int(missing_count),
-            "Missing %": f"{round(missing_pct, 2)}%",
-            "Normality": normality,
-            "Outliers": int(outliers_count)
+            "Column":        col,
+            "Mean":          mean_val,
+            "Median":        median_val,
+            "Min":           min_val,
+            "Max":           max_val,
+            "Std Dev":       std_val,
+            "Variance":      var_val,
+            "Mode":          mode_val,
+            "Skewness":      skew_val,
+            "Kurtosis":      kurt_val,
+            "Missing Count": missing_count,
+            "Missing %":     missing_pct,
+            "Normality":     normality,
+            "Outliers":      outliers_count,
         })
-    
-    # ---------------- CATEGORICAL VARIABLES ----------------
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORICAL STATISTICS
+    # ══════════════════════════════════════════════════════════════════════════
     cat_stats = []
+
     for col in cat_cols:
-        missing_count = df[col].isna().sum()
-        missing_pct = (missing_count / total_rows) * 100 if total_rows > 0 else 0
-        
-        clean_series = df[col].dropna()
-        
-        if not clean_series.empty:
-            unique_val = clean_series.nunique()
-            mode_s = clean_series.mode()
-            mode_val = mode_s.iloc[0] if not mode_s.empty else "N/A"
-            
-            # Mode Frequency & Percentage
-            mode_freq = clean_series.value_counts().iloc[0] if not clean_series.value_counts().empty else 0
-            mode_pct = (mode_freq / len(clean_series)) * 100
-        else:
-            unique_val = mode_freq = mode_pct = 0
-            mode_val = "N/A"
-            
+        series        = df[col]
+        clean         = series.dropna()
+
+        # ── Missing values ────────────────────────────────────────────────────
+        missing_count = int(series.isna().sum())
+        missing_pct   = _pct(missing_count, total_rows)
+
+        # ── Jika tidak ada data bersih ────────────────────────────────────────
+        if clean.empty:
+            cat_stats.append({
+                "Column":        col,
+                "Unique":        0,
+                "Mode":          "N/A",
+                "Mode Freq":     0,
+                "Mode %":        "0.00%",
+                "Missing Count": missing_count,
+                "Missing %":     missing_pct,
+            })
+            continue
+
+        # ── Unique categories ─────────────────────────────────────────────────
+        unique_count = int(clean.nunique())
+
+        # ── Mode ──────────────────────────────────────────────────────────────
+        vc        = clean.value_counts()
+        mode_val  = str(vc.index[0]) if not vc.empty else "N/A"
+        mode_freq = int(vc.iloc[0])  if not vc.empty else 0
+        mode_pct  = _pct(mode_freq, len(clean))
+
         cat_stats.append({
-            "Column": col,
-            "Unique": int(unique_val),
-            "Mode": str(mode_val),
-            "Mode Freq": int(mode_freq),
-            "Mode %": f"{round(mode_pct, 2)}%",
-            "Missing Count": int(missing_count),
-            "Missing %": f"{round(missing_pct, 2)}%"
+            "Column":        col,
+            "Unique":        unique_count,
+            "Mode":          mode_val,
+            "Mode Freq":     mode_freq,
+            "Mode %":        mode_pct,
+            "Missing Count": missing_count,
+            "Missing %":     missing_pct,
         })
-        
+
     return num_stats, cat_stats
