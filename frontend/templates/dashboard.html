@@ -56,7 +56,13 @@
 
 /* ── Full width chart grid ── */
 .chart-grid-1 { display: grid; grid-template-columns: 1fr; gap: 18px; }
+
+.dataset-info-grid div { display:flex; flex-wrap: wrap; gap:6px; }
+@media (max-width: 700px) {
+    .dataset-info-grid { grid-template-columns: 1fr !important; }
+}
 </style>
+
 
 <!-- ══════════════ TAB 1: OVERVIEW ══════════════ -->
 <div id="tab-overview" class="tab-content active-tab fade-in">
@@ -68,6 +74,21 @@
     </div>
 
     <div class="kpi-grid">
+        <div class="card" style="grid-column: 1 / -1; padding: 18px 22px;">
+            <div class="card-header-clean" style="border-bottom: none; padding: 0 0 10px;">
+                <h4 style="font-size: 0.98rem;">
+                    <i class="fas fa-info-circle text-blue"></i> Dataset Information
+                </h4>
+            </div>
+            <div class="dataset-info-grid" style="display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px 18px;">
+                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">File Name:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.name }}</span></div>
+                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">Rows:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.rows }}</span></div>
+                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">Columns:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.cols }}</span></div>
+                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">File Size:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.size }}</span></div>
+                <div style="grid-column: 1 / -1;"><span class="text-muted" style="font-weight:700; font-size:0.78rem;">Upload Time:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.time }}</span></div>
+            </div>
+        </div>
+
         <div class="card kpi-card blue">
             <div class="kpi-icon"><i class="fas fa-list-ol"></i></div>
             <div class="kpi-data"><h3>{{ metrics.total_rows }}</h3><p>Total Rows</p></div>

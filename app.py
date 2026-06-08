@@ -174,6 +174,11 @@ def dashboard(filename):
         'time': upload_time_str,
     }
 
+
+        # metadata yang bisa dipakai untuk template lain (opsional)
+        # (dataset_info sudah dikirim langsung ke dashboard.html via render_template)
+
+
     # ── Interactive chart data (sampled, untuk col_data) ─────────────────────
     col_data = {}
     for col in num_cols:
