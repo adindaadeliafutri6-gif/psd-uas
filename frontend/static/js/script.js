@@ -34,18 +34,17 @@ function switchTab(tabName) {
     const cc = document.querySelector('.content-container');
     if (cc) cc.scrollTop = 0;
 
-    // Jika pindah ke tab visualizations, trigger render chart
+    // Jika pindah ke tab visualizations, master view
     if (tabName === 'visualizations') {
         setTimeout(function () {
-            if (typeof renderVisibleCharts === 'function') renderVisibleCharts();
-            if (typeof renderVizSubTab === 'function')    renderVizSubTab('numerical');
+            if (typeof VizMaster !== 'undefined') VizMaster.onTabShow();
         }, 100);
     }
 
-    // Jika kembali ke overview, render chart overview
+    // Jika kembali ke overview, render grid dashboard
     if (tabName === 'overview') {
         setTimeout(function () {
-            if (typeof renderVisibleCharts === 'function') renderVisibleCharts();
+            if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onTabShow();
         }, 100);
     }
 }

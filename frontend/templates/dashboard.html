@@ -62,69 +62,148 @@
     .dataset-info-grid { grid-template-columns: 1fr !important; }
 }
 </style>
+{# Overview grid styles → style.css (.ov-*) #}
 
 
-<!-- ══════════════ TAB 1: OVERVIEW ══════════════ -->
+<!-- ══════════════ TAB 1: OVERVIEW (Grid 12-kolom) ══════════════ -->
 <div id="tab-overview" class="tab-content active-tab fade-in">
     <div class="dashboard-header mb-4">
         <div>
-            <h2><i class="fas fa-chart-pie text-blue"></i> Dataset Overview</h2>
-            <p class="text-muted">{{ filename }}</p>
+            <h2><i class="fas fa-chart-pie text-blue"></i> Dashboard</h2>
+            <p class="text-muted">{{ filename }} · {{ dataset_info.size }} · {{ dataset_info.time }}</p>
         </div>
     </div>
 
-    <div class="kpi-grid">
-        <div class="card" style="grid-column: 1 / -1; padding: 18px 22px;">
-            <div class="card-header-clean" style="border-bottom: none; padding: 0 0 10px;">
-                <h4 style="font-size: 0.98rem;">
-                    <i class="fas fa-info-circle text-blue"></i> Dataset Information
-                </h4>
-            </div>
-            <div class="dataset-info-grid" style="display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px 18px;">
-                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">File Name:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.name }}</span></div>
-                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">Rows:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.rows }}</span></div>
-                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">Columns:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.cols }}</span></div>
-                <div><span class="text-muted" style="font-weight:700; font-size:0.78rem;">File Size:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.size }}</span></div>
-                <div style="grid-column: 1 / -1;"><span class="text-muted" style="font-weight:700; font-size:0.78rem;">Upload Time:</span> <span style="font-weight:700; color: var(--text);">{{ dataset_info.time }}</span></div>
+    {# ── A. KPI Row (maks. 5 kartu, proporsional) ── #}
+    <div class="ov-kpi-row">
+        {% for kpi in overview.kpis %}
+        <div class="card kpi-card {{ kpi.color }}">
+            <div class="kpi-icon"><i class="fas {{ kpi.icon }}"></i></div>
+            <div class="kpi-data">
+                <h3>{{ kpi.value }}</h3>
+                <p>{{ kpi.label }}</p>
             </div>
         </div>
-
-        <div class="card kpi-card blue">
-            <div class="kpi-icon"><i class="fas fa-list-ol"></i></div>
-            <div class="kpi-data"><h3>{{ metrics.total_rows }}</h3><p>Total Rows</p></div>
-        </div>
-        <div class="card kpi-card green">
-            <div class="kpi-icon"><i class="fas fa-columns"></i></div>
-            <div class="kpi-data"><h3>{{ metrics.total_columns }}</h3><p>Total Columns</p></div>
-        </div>
-        <div class="card kpi-card orange">
-            <div class="kpi-icon"><i class="fas fa-hashtag"></i></div>
-            <div class="kpi-data"><h3>{{ metrics.num_count }}</h3><p>Numeric Cols</p></div>
-        </div>
-        <div class="card kpi-card purple">
-            <div class="kpi-icon"><i class="fas fa-font"></i></div>
-            <div class="kpi-data"><h3>{{ metrics.cat_count }}</h3><p>Categorical Cols</p></div>
-        </div>
-        <div class="card kpi-card red">
-            <div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div>
-            <div class="kpi-data"><h3>{{ metrics.missing_cells }}</h3><p>Missing Cells</p></div>
-        </div>
+        {% endfor %}
     </div>
 
-    <div class="chart-grid-2 mt-4">
-        <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-chart-bar text-blue"></i> Distribution Preview</h4>
+    {# ── B. Baris tengah — 3 kolom ── #}
+    {% set mid_visible = overview.slots.ov_hbar.visible or overview.slots.ov_center.visible or overview.slots.ov_top_right.visible %}
+    {% if mid_visible %}
+    <div class="ov-viz-row ov-viz-row--3">
+        {% if overview.slots.ov_hbar.visible %}
+        <div class="ov-chart-slot card chart-card"
+             data-viz-tab="{{ overview.viz_links.ov_hbar.tab }}"
+             data-viz-sub="{{ overview.viz_links.ov_hbar.sub or 'categorical' }}"
+             title="Klik untuk buka Visualizations">
+            <div class="card-header-clean ov-slot-header">
+                <h4><i class="fas fa-bars text-blue"></i> {{ overview.slots.ov_hbar.title }}</h4>
+                <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
-            <div id="ov-hist" class="chart-area"></div>
+            <div id="ov_hbar" class="chart-area ov-chart-area"></div>
         </div>
-        <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-chart-pie text-purple"></i> Category Proportion</h4>
+        {% endif %}
+
+        {% if overview.slots.ov_center.visible %}
+        <div class="ov-chart-slot card chart-card"
+             data-viz-tab="{{ overview.viz_links.ov_center.tab }}"
+             data-viz-sub="{{ overview.viz_links.ov_center.sub or 'categorical' }}"
+             title="Klik untuk buka Visualizations">
+            <div class="card-header-clean ov-slot-header">
+                <h4><i class="fas fa-chart-pie text-purple"></i> {{ overview.slots.ov_center.title }}</h4>
+                <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
-            <div id="ov-pie" class="chart-area"></div>
+            <div id="ov_center" class="chart-area ov-chart-area"></div>
         </div>
+        {% endif %}
+
+        {% if overview.slots.ov_top_right.visible %}
+        <div class="ov-chart-slot card chart-card"
+             data-viz-tab="{% if has_ts %}timeseries{% else %}{{ overview.viz_links.ov_top_right.tab }}{% endif %}"
+             data-viz-sub="{{ overview.viz_links.ov_top_right.sub or 'numerical' }}"
+             title="Klik untuk buka Visualizations">
+            <div class="card-header-clean ov-slot-header">
+                <h4><i class="fas fa-chart-line text-green"></i> {{ overview.slots.ov_top_right.title }}</h4>
+                <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
+            </div>
+            <div id="ov_top_right" class="chart-area ov-chart-area"></div>
+        </div>
+        {% endif %}
     </div>
+    {% endif %}
+
+    {# ── C. Baris bawah — 3 kolom + toggle ── #}
+    {% set bot_visible = overview.slots.ov_vbar_left.visible or overview.slots.ov_area_bottom.visible or overview.slots.ov_vbar_right.visible %}
+    {% if bot_visible %}
+    <div class="ov-viz-row ov-viz-row--3 mt-4">
+        {% if overview.slots.ov_vbar_left.visible %}
+        <div class="ov-chart-slot card chart-card"
+             data-viz-tab="{{ overview.viz_links.ov_vbar_left.tab }}"
+             data-viz-sub="numerical"
+             title="Klik untuk buka Visualizations">
+            <div class="card-header-clean ov-slot-header">
+                <h4><i class="fas fa-chart-bar text-orange"></i> {{ overview.slots.ov_vbar_left.title }}</h4>
+                <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
+            </div>
+            {% if overview.toggle_data.ov_vbar_left and overview.toggle_data.ov_vbar_left.options|length > 1 %}
+            <div class="ov-toggle-wrap" onclick="event.stopPropagation()">
+                <label for="toggle-ov_vbar_left">Kolom:</label>
+                <select id="toggle-ov_vbar_left">
+                    {% for opt in overview.toggle_data.ov_vbar_left.options %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_vbar_left.default %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div id="ov_vbar_left" class="chart-area ov-chart-area"></div>
+        </div>
+        {% endif %}
+
+        {% if overview.slots.ov_area_bottom.visible %}
+        <div class="ov-chart-slot card chart-card"
+             data-viz-tab="{{ overview.viz_links.ov_area_bottom.tab }}"
+             data-viz-sub="numerical"
+             title="Klik untuk buka Visualizations">
+            <div class="card-header-clean ov-slot-header">
+                <h4><i class="fas fa-chart-area text-blue"></i> {{ overview.slots.ov_area_bottom.title }}</h4>
+                <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
+            </div>
+            <div id="ov_area_bottom" class="chart-area ov-chart-area"></div>
+        </div>
+        {% endif %}
+
+        {% if overview.slots.ov_vbar_right.visible %}
+        <div class="ov-chart-slot card chart-card"
+             data-viz-tab="{{ overview.viz_links.ov_vbar_right.tab }}"
+             data-viz-sub="categorical"
+             title="Klik untuk buka Visualizations">
+            <div class="card-header-clean ov-slot-header">
+                <h4><i class="fas fa-chart-bar text-red"></i> {{ overview.slots.ov_vbar_right.title }}</h4>
+                <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
+            </div>
+            {% if overview.toggle_data.ov_vbar_right and overview.toggle_data.ov_vbar_right.options|length > 1 %}
+            <div class="ov-toggle-wrap" onclick="event.stopPropagation()">
+                <label for="toggle-ov_vbar_right">Kolom:</label>
+                <select id="toggle-ov_vbar_right">
+                    {% for opt in overview.toggle_data.ov_vbar_right.options %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_vbar_right.default %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div id="ov_vbar_right" class="chart-area ov-chart-area"></div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if not mid_visible and not bot_visible %}
+    <div class="card ov-empty-state mt-4">
+        <i class="fas fa-chart-line"></i>
+        <p>Dataset ini tidak memiliki kolom yang cukup untuk visualisasi ringkasan.</p>
+        <p class="text-muted">Unggah dataset dengan kolom numerik atau kategorik untuk melihat grafik.</p>
+    </div>
+    {% endif %}
 </div>
 
 <!-- ══════════════ TAB 2: DATA PREVIEW ══════════════ -->
@@ -136,6 +215,120 @@
             </h3>
         </div>
         <div class="table-scroll-wrapper">{{ preview | safe }}</div>
+    </div>
+</div>
+
+<!-- ══════════════ TAB: DATA CLEANING ══════════════ -->
+<div id="tab-cleaning" class="tab-content fade-in" style="display:none;">
+    <div class="dashboard-header mb-4">
+        <div>
+            <h2><i class="fas fa-broom text-green"></i> Data Cleaning</h2>
+            <p class="text-muted">Pembersihan otomatis sebelum analisis — sesuaikan opsi lalu terapkan</p>
+        </div>
+    </div>
+
+    <div class="clean-summary-grid mb-4">
+        <div class="card clean-stat-card">
+            <span class="clean-stat-label">Rows</span>
+            <span class="clean-stat-value">{{ cleaning_summary.rows_before }} → {{ cleaning_summary.rows_after }}</span>
+        </div>
+        <div class="card clean-stat-card">
+            <span class="clean-stat-label">Columns</span>
+            <span class="clean-stat-value">{{ cleaning_summary.cols_before }} → {{ cleaning_summary.cols_after }}</span>
+        </div>
+        <div class="card clean-stat-card">
+            <span class="clean-stat-label">Missing Cells</span>
+            <span class="clean-stat-value">{{ cleaning_summary.missing_before }} → {{ cleaning_summary.missing_after }}</span>
+        </div>
+        <div class="card clean-stat-card">
+            <span class="clean-stat-label">Missing %</span>
+            <span class="clean-stat-value">{{ cleaning_summary.missing_pct_before }}% → {{ cleaning_summary.missing_pct_after }}%</span>
+        </div>
+    </div>
+
+    <div class="chart-grid-2 mb-4">
+        <div class="card full-card">
+            <div class="card-header-clean">
+                <h4><i class="fas fa-sliders-h text-blue"></i> Cleaning Options</h4>
+            </div>
+            <form class="clean-form" method="get" action="{{ url_for('dashboard', filename=filename) }}">
+                <label class="clean-check"><input type="checkbox" name="strip_ws" value="1" {% if clean_opts.strip_whitespace %}checked{% endif %}> Strip whitespace (kolom teks)</label>
+                <label class="clean-check"><input type="checkbox" name="empty_nan" value="1" {% if clean_opts.empty_to_nan %}checked{% endif %}> Ubah string kosong → NaN</label>
+                <label class="clean-check"><input type="checkbox" name="drop_dupes" value="1" {% if clean_opts.drop_duplicates %}checked{% endif %}> Hapus baris duplikat</label>
+                <label class="clean-check"><input type="checkbox" name="drop_empty" value="1" {% if clean_opts.drop_empty_cols %}checked{% endif %}> Hapus kolom 100% kosong</label>
+                <label class="clean-check"><input type="checkbox" name="cap_outliers" value="1" {% if clean_opts.cap_outliers %}checked{% endif %}> Cap outlier (metode IQR)</label>
+                <div class="clean-field">
+                    <label>Hapus kolom jika missing &gt;</label>
+                    <select name="drop_miss_thresh">
+                        <option value="0" {% if clean_opts.drop_high_missing == 0 %}selected{% endif %}>Tidak dihapus</option>
+                        <option value="0.5" {% if clean_opts.drop_high_missing == 0.5 %}selected{% endif %}>50%</option>
+                        <option value="0.7" {% if clean_opts.drop_high_missing == 0.7 %}selected{% endif %}>70%</option>
+                        <option value="0.9" {% if clean_opts.drop_high_missing == 0.9 %}selected{% endif %}>90%</option>
+                    </select>
+                </div>
+                <div class="clean-field">
+                    <label>Isi missing numerik</label>
+                    <select name="fill_num">
+                        <option value="none" {% if clean_opts.fill_missing_numeric == 'none' %}selected{% endif %}>Tidak diisi</option>
+                        <option value="mean" {% if clean_opts.fill_missing_numeric == 'mean' %}selected{% endif %}>Mean</option>
+                        <option value="median" {% if clean_opts.fill_missing_numeric == 'median' %}selected{% endif %}>Median</option>
+                    </select>
+                </div>
+                <div class="clean-field">
+                    <label>Isi missing kategorik</label>
+                    <select name="fill_cat">
+                        <option value="none" {% if clean_opts.fill_missing_categorical == 'none' %}selected{% endif %}>Tidak diisi</option>
+                        <option value="mode" {% if clean_opts.fill_missing_categorical == 'mode' %}selected{% endif %}>Mode</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-clean-apply"><i class="fas fa-magic"></i> Terapkan Cleaning</button>
+            </form>
+        </div>
+
+        <div class="card full-card">
+            <div class="card-header-clean">
+                <h4><i class="fas fa-list-check text-orange"></i> Cleaning Log</h4>
+            </div>
+            <ul class="clean-log">
+                {% for entry in cleaning_summary.log %}
+                <li><i class="fas fa-check-circle text-green"></i> {{ entry }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card full-card">
+        <div class="card-header-clean">
+            <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report (Sebelum Cleaning)</h4>
+        </div>
+        <div class="table-scroll-wrapper">
+            <table class="data-table display nowrap" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th>
+                        <th>Unique</th><th>Issues</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in quality_report %}
+                    <tr>
+                        <td class="var-name">{{ row.column }}</td>
+                        <td>{{ row.dtype }}</td>
+                        <td class="{% if row.missing > 0 %}text-warning{% endif %}">{{ row.missing }}</td>
+                        <td class="{% if row.missing_pct > 0 %}text-warning{% endif %}">{{ row.missing_pct }}%</td>
+                        <td>{{ row.unique }}</td>
+                        <td>
+                            {% if row.status == 'ok' %}
+                                <span class="badge badge-success">OK</span>
+                            {% else %}
+                                <span class="badge badge-warning">{{ row.issues }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -331,190 +524,58 @@
     {% endif %}
 </div>
 
-<!-- ══════════════ TAB 6: VISUALIZATIONS ══════════════ -->
+<!-- ══════════════ TAB 6: VISUALIZATIONS (Master View) ══════════════ -->
 <div id="tab-visualizations" class="tab-content fade-in" style="display:none;">
-    <div class="dashboard-header mb-3">
-        <h2><i class="fas fa-chart-area text-blue"></i> Auto-Visualizations</h2>
-        <p class="text-muted">Interactive Charts — Hover for detailed tooltips</p>
-    </div>
+    <div class="viz-master-page">
+        <div class="viz-master-header">
+            <h2 id="viz-category-title">Visualizations</h2>
+            <p class="viz-master-sub">{{ filename }}</p>
+        </div>
 
-    <!-- Sub-tab nav -->
-    <div class="viz-subtab-nav">
-        <button class="viz-subtab-btn active" onclick="switchVizTab('numerical')">📊 Numerical</button>
-        <button class="viz-subtab-btn" onclick="switchVizTab('categorical')">📋 Categorical</button>
-        <button class="viz-subtab-btn" onclick="switchVizTab('bivariate')">🔵 Bivariate & Multi</button>
-        <button class="viz-subtab-btn" onclick="switchVizTab('catnum')">🔀 Cat vs Num</button>
-        <button class="viz-subtab-btn" onclick="switchVizTab('compare')">⚖️ Comparison</button>
-    </div>
+        {# A. KPI Row #}
+        <div id="viz-kpi-row" class="viz-kpi-row"></div>
 
-    <!-- a) NUMERICAL -->
-    <div id="viz-numerical" class="viz-subtab-content">
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-chart-bar text-blue"></i> Histogram + KDE<span class="chart-badge">Univariate</span></h4>
-                </div>
-                <div id="plot-hist-num" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-wave-square text-green"></i> Density Plot (KDE)<span class="chart-badge">Univariate</span></h4>
-                </div>
-                <div id="plot-density-num" class="chart-area"></div>
+        {# Placeholder — dataset tidak kompatibel #}
+        <div id="viz-placeholder" class="viz-placeholder" style="display:none;">
+            <div class="viz-placeholder-inner">
+                <i class="fas fa-chart-area"></i>
+                <p>Dataset tidak kompatibel untuk kategori ini.</p>
             </div>
         </div>
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-box text-orange"></i> Boxplot (Multi-Variable)<span class="chart-badge">Univariate</span></h4>
-                </div>
-                <div id="plot-boxplot-num" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-ruler text-purple"></i> QQ Plot<span class="chart-badge">Normality</span></h4>
-                </div>
-                <div id="plot-qq-num" class="chart-area"></div>
-            </div>
-        </div>
-        <div class="chart-grid-1 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-music text-red"></i> Violin Plot (All Numeric)<span class="chart-badge">Univariate</span></h4>
-                </div>
-                <div id="plot-violin-num" class="chart-area" style="min-height:340px;"></div>
-            </div>
-        </div>
-    </div>
 
-    <!-- b) CATEGORICAL -->
-    <div id="viz-categorical" class="viz-subtab-content" style="display:none;">
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-chart-bar text-blue"></i> Bar Chart<span class="chart-badge">Categorical</span></h4>
+        {# B. Master Visualization Container #}
+        <div id="viz-master-chart" class="viz-master-container">
+            <div id="viz-master-controls" class="viz-master-toolbar">
+                <div class="viz-toolbar-left">
+                    <div id="viz-dd-x-wrap" class="viz-dd-wrap">
+                        <label for="viz-col-x">Kolom X</label>
+                        <select id="viz-col-x"></select>
+                    </div>
+                    <div id="viz-dd-y-wrap" class="viz-dd-wrap" style="display:none;">
+                        <label for="viz-col-y">Kolom Y</label>
+                        <select id="viz-col-y"></select>
+                    </div>
+                    <div id="viz-dd-z-wrap" class="viz-dd-wrap" style="display:none;">
+                        <label for="viz-col-z">Ukuran</label>
+                        <select id="viz-col-z"></select>
+                    </div>
                 </div>
-                <div id="plot-bar-cat" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-chart-pie text-purple"></i> Donut / Pie Chart<span class="chart-badge">Categorical</span></h4>
+                <div class="viz-toolbar-right">
+                    <span id="viz-chart-type-label" class="viz-type-label"></span>
+                    <span id="viz-chart-counter" class="viz-type-counter"></span>
                 </div>
-                <div id="plot-pie-cat" class="chart-area"></div>
             </div>
-        </div>
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-list-ol text-green"></i> Count Plot<span class="chart-badge">Categorical</span></h4>
-                </div>
-                <div id="plot-count-cat" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-sort-amount-down text-orange"></i> Pareto Chart<span class="chart-badge">80/20 Rule</span></h4>
-                </div>
-                <div id="plot-pareto-cat" class="chart-area"></div>
-            </div>
-        </div>
-    </div>
 
-    <!-- c) BIVARIATE & MULTIVARIATE -->
-    <div id="viz-bivariate" class="viz-subtab-content" style="display:none;">
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-circle-dot text-blue"></i> Scatter Plot<span class="chart-badge">Bivariate</span></h4>
-                </div>
-                <div id="plot-scatter-biv" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-fire text-red"></i> Correlation Heatmap<span class="chart-badge">Multivariate</span></h4>
-                </div>
-                <div id="plot-heatmap" class="chart-area"></div>
-            </div>
-        </div>
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-chart-line text-green"></i> Regression Plot<span class="chart-badge">OLS + 95% CI</span></h4>
-                </div>
-                <div id="plot-regression" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-circle text-orange"></i> Bubble Chart<span class="chart-badge">Trivariate</span></h4>
-                </div>
-                <div id="plot-bubble" class="chart-area"></div>
-            </div>
-        </div>
-        <div class="chart-grid-1 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-braille text-purple"></i> Pair Plot / Scatter Matrix<span class="chart-badge">Multivariate</span></h4>
-                </div>
-                <div id="plot-scatter-matrix" class="chart-area" style="min-height:420px;"></div>
-            </div>
-        </div>
-    </div>
+            <div id="viz-master-plot" class="viz-master-plot"></div>
 
-    <!-- d) CAT vs NUM -->
-    <div id="viz-catnum" class="viz-subtab-content" style="display:none;">
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-box text-blue"></i> Boxplot by Category<span class="chart-badge">Cat × Num</span></h4>
-                </div>
-                <div id="plot-box-catnum" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-music text-purple"></i> Violin by Category<span class="chart-badge">Cat × Num</span></h4>
-                </div>
-                <div id="plot-violin-catnum" class="chart-area"></div>
-            </div>
-        </div>
-        <div class="chart-grid-2 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-chart-bar text-orange"></i> Grouped Bar Chart<span class="chart-badge">Cat × Num</span></h4>
-                </div>
-                <div id="plot-grouped-bar" class="chart-area"></div>
-            </div>
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-ellipsis-h text-green"></i> Strip Plot<span class="chart-badge">Cat × Num</span></h4>
-                </div>
-                <div id="plot-strip" class="chart-area"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- e) COMPARISON -->
-    <div id="viz-compare" class="viz-subtab-content" style="display:none;">
-        <div class="chart-grid-1 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-balance-scale text-blue"></i> Violin — All Variables Comparison<span class="chart-badge">Comparison</span></h4>
-                </div>
-                <div id="plot-violin-compare" class="chart-area" style="min-height:360px;"></div>
-            </div>
-        </div>
-        <div class="chart-grid-1 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-chart-bar text-orange"></i> Grouped Bar — Mean Comparison<span class="chart-badge">Comparison</span></h4>
-                </div>
-                <div id="plot-grouped-bar-compare" class="chart-area" style="min-height:320px;"></div>
-            </div>
-        </div>
-        <div class="chart-grid-1 mb-4">
-            <div class="card chart-card">
-                <div class="card-header-clean">
-                    <h4><i class="fas fa-random text-green"></i> Parallel Coordinates — Multivariate Pattern<span class="chart-badge">Comparison</span></h4>
-                </div>
-                <div id="plot-parallel" class="chart-area" style="min-height:360px;"></div>
+            <div class="viz-master-footer">
+                <button type="button" id="viz-btn-prev" class="viz-nav-btn" aria-label="Previous chart">
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <span class="viz-footer-hint">Ganti tipe grafik pada kolom terpilih</span>
+                <button type="button" id="viz-btn-next" class="viz-nav-btn" aria-label="Next chart">
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -690,44 +751,26 @@
     </div>
 </div>
 
-<!-- ══════════════ PLOTLY RENDER SCRIPT ══════════════ -->
+<!-- ══════════════ OVERVIEW + PLOTLY SCRIPTS ══════════════ -->
+<script src="{{ url_for('static', filename='js/dashboardOverview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/visualizationsMaster.js') }}"></script>
 <script>
 var plotsData = null;
+var overviewPayload = null;
+var vizMeta = {
+    filename: {{ filename | tojson }},
+    num_cols: {{ num_cols | tojson }},
+    cat_cols: {{ cat_cols | tojson }},
+    dt_cols: {{ dt_cols | tojson }},
+    has_ts: {{ has_ts | tojson }},
+};
 try { plotsData = {{ plots | tojson | safe }}; }
 catch(e) { console.error("Failed to load chart data:", e); }
+try { overviewPayload = {{ overview | tojson | safe }}; }
+catch(e) { console.error("Failed to load overview data:", e); }
 
-/* ── Chart map: divId → plotsData key ── */
+/* ── Chart map: Time Series tab only ── */
 var CHART_MAP = [
-    // Overview
-    ['ov-hist',  'hist_num'],
-    ['ov-pie',   'pie_cat'],
-    // Numerical
-    ['plot-hist-num',    'hist_num'],
-    ['plot-density-num', 'density_num'],
-    ['plot-boxplot-num', 'boxplot_num'],
-    ['plot-qq-num',      'qq_num'],
-    ['plot-violin-num',  'violin_num'],
-    // Categorical
-    ['plot-bar-cat',   'bar_cat'],
-    ['plot-pie-cat',   'pie_cat'],
-    ['plot-count-cat', 'count_cat'],
-    ['plot-pareto-cat','pareto_cat'],
-    // Bivariate
-    ['plot-scatter-biv',    'scatter_biv'],
-    ['plot-heatmap',        'heatmap'],
-    ['plot-regression',     'regression_plot'],
-    ['plot-bubble',         'bubble_chart'],
-    ['plot-scatter-matrix', 'scatter_matrix'],
-    // Cat vs Num
-    ['plot-box-catnum',    'box_cat_num'],
-    ['plot-violin-catnum', 'violin_cat_num'],
-    ['plot-grouped-bar',   'grouped_bar'],
-    ['plot-strip',         'strip_plot'],
-    // Comparison
-    ['plot-violin-compare',      'violin_compare'],
-    ['plot-grouped-bar-compare', 'grouped_bar_compare'],
-    ['plot-parallel',            'parallel_coords'],
-    // Time Series
     ['plot-ts-line',     'ts_line'],
     ['plot-ts-trend',    'ts_trend'],
     ['plot-ts-ma',       'ts_ma'],
@@ -779,25 +822,9 @@ function renderVisibleCharts() {
     });
 }
 
-/* ── Viz sub-tab switcher ── */
-function switchVizTab(tab) {
-    document.querySelectorAll('.viz-subtab-content').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('.viz-subtab-btn').forEach(el => el.classList.remove('active'));
-    const target = document.getElementById('viz-' + tab);
-    if (target) target.style.display = 'block';
-
-    // Activate correct button
-    document.querySelectorAll('.viz-subtab-btn').forEach(btn => {
-        const oc = btn.getAttribute('onclick') || '';
-        if (oc.includes("'" + tab + "'")) btn.classList.add('active');
-    });
-
-    setTimeout(() => {
-        CHART_MAP.forEach(([divId, plotKey]) => {
-            const el = document.getElementById(divId);
-            if (el && el.offsetParent !== null) drawChart(divId, plotKey, false);
-        });
-    }, 60);
+/* ── Viz category (sidebar → master view) ── */
+function switchVizTab(category) {
+    if (typeof VizMaster !== 'undefined') VizMaster.openCategory(category || 'numerical');
 }
 
 /* ── TS sub-tab switcher ── */
@@ -835,9 +862,8 @@ window.switchTab = function(tab) {
     if (_origSwitchTab) _origSwitchTab(tab);
 
     if (tab === 'visualizations') {
-        setTimeout(() => {
-            switchVizTab('numerical');
-            renderVisibleCharts();
+        setTimeout(function() {
+            if (typeof VizMaster !== 'undefined') VizMaster.onTabShow();
         }, 80);
     }
     if (tab === 'timeseries') {
@@ -846,12 +872,20 @@ window.switchTab = function(tab) {
         }, 80);
     }
     if (tab === 'overview') {
-        setTimeout(renderVisibleCharts, 80);
+        setTimeout(function() {
+            if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onTabShow();
+        }, 80);
     }
 };
 
 /* ── Init on load ── */
 document.addEventListener('DOMContentLoaded', function() {
+    if (typeof OverviewDashboard !== 'undefined' && overviewPayload) {
+        OverviewDashboard.init(overviewPayload);
+    }
+    if (typeof VizMaster !== 'undefined' && vizMeta) {
+        VizMaster.init(vizMeta);
+    }
     setTimeout(renderVisibleCharts, 350);
 });
 
@@ -864,6 +898,7 @@ window.addEventListener('resize', function() {
             const el = document.getElementById(divId);
             if (el && el._fullData) Plotly.Plots.resize(el);
         });
+        if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onResize();
     }, 180);
 });
 

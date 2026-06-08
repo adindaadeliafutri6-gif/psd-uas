@@ -7,10 +7,15 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 
 from backend.data_loader import load_data
+from backend.data_cleaning import clean_dataset, analyze_quality, get_cleaning_summary
 from backend.preprocessing import detect_data_types
 from backend.descriptive_stats import get_summary_metrics, get_descriptive_stats
 from backend.advanced_stats import get_advanced_stats
 from backend.visualizations import generate_plots
+from backend.dashboard_overview import generate_overview_dashboard
+from backend.viz_engine import (
+    generate_master_chart, category_available, CATEGORY_CHARTS, CHART_LABELS,
+)
 from backend.insights_generator import generate_auto_insights
 from backend.time_series import detect_datetime_cols, generate_ts_plots   # ← NEW
 
@@ -107,10 +112,30 @@ def dashboard(filename):
         flash('File tidak ditemukan.', 'error')
         return redirect(url_for('upload_file'))
 
-    df = load_data(filepath)
-    if df is None:
+    df_raw = load_data(filepath)
+    if df_raw is None:
         flash('Gagal membaca dataset.', 'error')
         return redirect(url_for('upload_file'))
+
+    # ── Data Cleaning (opsi dari query string / form) ─────────────────────────
+    def _clean_flag(name, default=True):
+        if name in request.args:
+            return request.args.get(name) == '1'
+        return default
+
+    clean_opts = {
+        'strip_whitespace': _clean_flag('strip_ws'),
+        'empty_to_nan': _clean_flag('empty_nan'),
+        'drop_duplicates': _clean_flag('drop_dupes'),
+        'drop_empty_cols': _clean_flag('drop_empty'),
+        'drop_high_missing': float(request.args.get('drop_miss_thresh', '0') or 0),
+        'fill_missing_numeric': request.args.get('fill_num', 'none'),
+        'fill_missing_categorical': request.args.get('fill_cat', 'none'),
+        'cap_outliers': _clean_flag('cap_outliers', default=False),
+    }
+    df, cleaning_log = clean_dataset(df_raw, clean_opts)
+    cleaning_summary = get_cleaning_summary(df_raw, df, cleaning_log)
+    quality_report = analyze_quality(df_raw)
 
     # ── Column detection ──────────────────────────────────────────────────────
     num_cols, cat_cols = detect_data_types(df)
@@ -125,11 +150,18 @@ def dashboard(filename):
     # ── Advanced stats (Week 15) ──────────────────────────────────────────────
     advanced = get_advanced_stats(df, num_cols, cat_cols)
 
+    # ── Time Series detection (untuk overview + tab TS) ───────────────────────
+    dt_cols = detect_datetime_cols(df)
+
+    # ── Dashboard overview (KPI + grid charts) ────────────────────────────────
+    overview = generate_overview_dashboard(
+        df, num_cols, cat_cols, dt_cols=dt_cols, metrics=metrics
+    )
+
     # ── Standard visualizations ───────────────────────────────────────────────
     plots = generate_plots(df, num_cols, cat_cols)
 
-    # ── Time Series (auto-detect) ─────────────────────────────────────────────
-    dt_cols          = detect_datetime_cols(df)   # lebih canggih dari versi lama
+    # ── Time Series plots ─────────────────────────────────────────────────────
     ts_plots         = {}
     ts_insights_list = []
     ts_meta          = {}
@@ -174,11 +206,6 @@ def dashboard(filename):
         'time': upload_time_str,
     }
 
-
-        # metadata yang bisa dipakai untuk template lain (opsional)
-        # (dataset_info sudah dikirim langsung ke dashboard.html via render_template)
-
-
     # ── Interactive chart data (sampled, untuk col_data) ─────────────────────
     col_data = {}
     for col in num_cols:
@@ -211,11 +238,59 @@ def dashboard(filename):
         cat_cols     = cat_cols,
         col_data     = col_data,
         dataset_info = dataset_info,
+        cleaning_summary = cleaning_summary,
+        quality_report   = quality_report,
+        clean_opts       = clean_opts,
+        overview         = overview,
         # ── Time Series ──────────────────────────────────────────────────────
         has_ts       = bool(dt_cols),   # True/False → kontrol tab di template
         dt_cols      = dt_cols,         # list nama kolom datetime
         ts_meta      = ts_meta,         # {dt_col, num_col, freq_label, ...}
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VISUALIZATION MASTER API
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _load_analysis_df(filename):
+    """Muat & bersihkan dataset (sama seperti dashboard default)."""
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(filepath):
+        return None, None, None, None
+    df_raw = load_data(filepath)
+    if df_raw is None:
+        return None, None, None, None
+    df, _ = clean_dataset(df_raw, {})
+    num_cols, cat_cols = detect_data_types(df)
+    dt_cols = detect_datetime_cols(df)
+    return df, num_cols, cat_cols, dt_cols
+
+
+@app.route('/api/viz-chart/<filename>')
+def api_viz_chart(filename):
+    """Generate satu grafik master berdasarkan kategori, tipe, dan kolom."""
+    df, num_cols, cat_cols, _ = _load_analysis_df(filename)
+    if df is None:
+        return jsonify({'ok': False, 'placeholder': 'Dataset tidak ditemukan.'}), 404
+
+    category = request.args.get('category', 'numerical')
+    chart_type = request.args.get('chart_type', '')
+    col_x = request.args.get('col_x') or None
+    col_y = request.args.get('col_y') or None
+    col_z = request.args.get('col_z') or None
+
+    if not chart_type:
+        types = CATEGORY_CHARTS.get(category, [])
+        chart_type = types[0] if types else ''
+
+    result = generate_master_chart(
+        df, num_cols, cat_cols, category, chart_type,
+        col_x=col_x, col_y=col_y, col_z=col_z,
+    )
+    result['category'] = category
+    result['available'] = category_available(category, num_cols, cat_cols)
+    return jsonify(result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
