@@ -182,37 +182,79 @@ var VizMaster = (function () {
         if (state.colZ) params.set('col_z', state.colZ);
 
         var chartEl = $('viz-master-plot');
-        if (chartEl) chartEl.innerHTML = '<div class="viz-loading"><i class="fas fa-spinner fa-spin"></i></div>';
+        if (chartEl) chartEl.innerHTML = '<div class="viz-loading"><i class="fas fa-spinner fa-spin"></i> Loading chart...</div>';
+        showChart();
 
-        fetch('/api/viz-chart/' + encodeURIComponent(meta.filename) + '?' + params.toString())
-            .then(function (r) { return r.json(); })
+        var requestUrl = '/api/viz-chart/' + encodeURIComponent(meta.filename) + '?' + params.toString();
+        var timeoutId = null;
+        var abortController = null;
+        
+        // Browser compatibility: gunakan AbortController jika tersedia
+        if (typeof AbortController !== 'undefined') {
+            abortController = new AbortController();
+            timeoutId = setTimeout(function() {
+                abortController.abort();
+            }, 15000);
+        } else {
+            timeoutId = setTimeout(function() {
+                if (chartEl) chartEl.innerHTML = '<div class="viz-error"><i class="fas fa-exclamation-circle"></i> Request timeout — periksa koneksi</div>';
+            }, 15000);
+        }
+
+        var fetchOptions = {};
+        if (abortController) {
+            fetchOptions.signal = abortController.signal;
+        }
+
+        fetch(requestUrl, fetchOptions)
+            .then(function (r) { 
+                if (timeoutId) clearTimeout(timeoutId);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json(); 
+            })
             .then(function (data) {
                 if (!data.ok) {
                     showPlaceholder(data.placeholder || 'Grafik tidak tersedia.');
                     renderKpis(data.kpis || []);
                     return;
                 }
-                showChart();
                 renderKpis(data.kpis);
                 updateNavLabel(data);
                 state.chartType = data.chart_type;
                 state.chartIndex = data.chart_index;
 
                 if (typeof Plotly !== 'undefined' && data.chart) {
-                    var layout = Object.assign({}, data.chart.layout, {
-                        autosize: true,
-                        margin: { l: 54, r: 24, t: 48, b: 52 },
-                    });
-                    Plotly.react(chartEl, data.chart.data, layout, {
-                        responsive: true,
-                        displayModeBar: true,
-                        displaylogo: false,
-                        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                    });
+                    try {
+                        var layout = Object.assign({}, data.chart.layout, {
+                            autosize: true,
+                            margin: { l: 54, r: 24, t: 48, b: 52 },
+                        });
+                        Plotly.react(chartEl, data.chart.data, layout, {
+                            responsive: true,
+                            displayModeBar: true,
+                            displaylogo: false,
+                            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                        }).then(function() {
+                            // Chart rendered successfully
+                        }).catch(function(plotlyErr) {
+                            console.error('Plotly error:', plotlyErr);
+                            if (chartEl) chartEl.innerHTML = '<div class="viz-error"><i class="fas fa-exclamation-circle"></i> Rendering failed</div>';
+                        });
+                    } catch (e) {
+                        chartEl.innerHTML = '<div class="viz-error"><i class="fas fa-exclamation-circle"></i> Rendering error: ' + e.message + '</div>';
+                    }
                 }
             })
-            .catch(function () {
-                showPlaceholder('Gagal memuat grafik. Periksa koneksi atau dataset.');
+            .catch(function (err) {
+                if (timeoutId) clearTimeout(timeoutId);
+                var errMsg = 'Gagal memuat grafik';
+                if (err.name === 'AbortError') {
+                    errMsg = 'Request timeout — grafik terlalu besar atau koneksi lambat';
+                } else if (err.message) {
+                    errMsg += ': ' + err.message;
+                }
+                console.error('Viz fetch error:', err);
+                if (chartEl) chartEl.innerHTML = '<div class="viz-error"><i class="fas fa-exclamation-circle"></i> ' + errMsg + '</div>';
             });
     }
 

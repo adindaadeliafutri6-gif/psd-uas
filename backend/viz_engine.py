@@ -381,7 +381,15 @@ def generate_master_chart(df, num_cols, cat_cols, category, chart_type,
     Generate single chart + metadata for master visualization view.
 
     Returns dict: ok, chart, kpis, chart_label, placeholder
+    
+    OPTIMASI: Untuk dataset besar, gunakan sample untuk rendering cepat.
     """
+    # ── SAMPLING: Gunakan sample jika dataset > 5000 baris ──────────────────────
+    if len(df) > 5000:
+        df_viz = df.sample(n=5000, random_state=42)
+    else:
+        df_viz = df
+    
     if not category_available(category, num_cols, cat_cols):
         return {
             'ok': False,
@@ -409,27 +417,27 @@ def generate_master_chart(df, num_cols, cat_cols, category, chart_type,
 
     try:
         builders = {
-            'histogram': lambda: _chart_histogram(df, col_x),
-            'boxplot': lambda: _chart_boxplot(df, col_x),
-            'density': lambda: _chart_density(df, col_x),
-            'qq': lambda: _chart_qq(df, col_x),
-            'violin': lambda: _chart_violin_uni(df, col_x),
-            'bar': lambda: _chart_bar_cat(df, col_x),
-            'pie': lambda: _chart_pie_cat(df, col_x),
-            'count': lambda: _chart_count_cat(df, col_x),
-            'pareto': lambda: _chart_pareto_cat(df, col_x),
-            'scatter': lambda: _chart_scatter(df, col_x, col_y),
-            'heatmap': lambda: _chart_heatmap(df, num_cols),
-            'regression': lambda: _chart_regression(df, col_x, col_y),
-            'bubble': lambda: _chart_bubble(df, col_x, col_y, col_z),
-            'pair': lambda: _chart_pair(df, num_cols),
-            'box_by_cat': lambda: _chart_box_catnum(df, col_x, col_y),
-            'violin_by_cat': lambda: _chart_violin_catnum(df, col_x, col_y),
-            'grouped_bar': lambda: _chart_grouped_bar(df, col_x, col_y),
-            'strip': lambda: _chart_strip(df, col_x, col_y),
-            'violin_compare': lambda: _chart_violin_compare(df, num_cols),
-            'grouped_bar_compare': lambda: _chart_grouped_compare(df, num_cols),
-            'parallel': lambda: _chart_parallel(df, num_cols, cat_cols),
+            'histogram': lambda: _chart_histogram(df_viz, col_x),
+            'boxplot': lambda: _chart_boxplot(df_viz, col_x),
+            'density': lambda: _chart_density(df_viz, col_x),
+            'qq': lambda: _chart_qq(df_viz, col_x),
+            'violin': lambda: _chart_violin_uni(df_viz, col_x),
+            'bar': lambda: _chart_bar_cat(df_viz, col_x),
+            'pie': lambda: _chart_pie_cat(df_viz, col_x),
+            'count': lambda: _chart_count_cat(df_viz, col_x),
+            'pareto': lambda: _chart_pareto_cat(df_viz, col_x),
+            'scatter': lambda: _chart_scatter(df_viz, col_x, col_y),
+            'heatmap': lambda: _chart_heatmap(df_viz, num_cols),
+            'regression': lambda: _chart_regression(df_viz, col_x, col_y),
+            'bubble': lambda: _chart_bubble(df_viz, col_x, col_y, col_z),
+            'pair': lambda: _chart_pair(df_viz, num_cols),
+            'box_by_cat': lambda: _chart_box_catnum(df_viz, col_x, col_y),
+            'violin_by_cat': lambda: _chart_violin_catnum(df_viz, col_x, col_y),
+            'grouped_bar': lambda: _chart_grouped_bar(df_viz, col_x, col_y),
+            'strip': lambda: _chart_strip(df_viz, col_x, col_y),
+            'violin_compare': lambda: _chart_violin_compare(df_viz, num_cols),
+            'grouped_bar_compare': lambda: _chart_grouped_compare(df_viz, num_cols),
+            'parallel': lambda: _chart_parallel(df_viz, num_cols, cat_cols),
         }
         chart = builders[chart_type]()
         kpis = build_kpis(category, df, col_x, col_y, num_cols)

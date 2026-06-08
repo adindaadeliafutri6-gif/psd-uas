@@ -386,6 +386,13 @@
             <!-- ── VISUALIZATIONS ── -->
             <li class="nav-section-label">VISUALIZATIONS</li>
 
+            <li class="nav-item" id="menu-visualizations">
+                <a href="#visualizations" onclick="switchTab('visualizations')" data-tip="Visualizations">
+                    <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
+                    <span class="nav-label">Visualizations</span>
+                </a>
+            </li>
+
             <li class="nav-item sub-item" id="menu-viz-num">
                 <a href="#visualizations" onclick="openVizCategory('numerical'); return false;"
                    data-tip="Numerical Charts">
@@ -422,8 +429,7 @@
                 </a>
             </li>
 
-            <!-- ── TIME SERIES (conditional) ── -->
-            {% if has_ts %}
+            <!-- ── TIME SERIES (always visible) ── -->
             <li class="nav-section-label">TIME SERIES</li>
             <li class="nav-item" id="menu-timeseries">
                 <a href="#timeseries" onclick="switchTab('timeseries')" data-tip="Time Series">
@@ -472,7 +478,7 @@
                     <span class="nav-label">Rolling Mean</span>
                 </a>
             </li>
-            {% endif %}
+
 
             <!-- ── INSIGHTS & AI ── -->
             <li class="nav-section-label">INSIGHTS & AI</li>

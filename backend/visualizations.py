@@ -46,6 +46,14 @@ def _layout(**extra):
 def _safe_json(fig):
     return json.loads(fig.to_json())
 
+def _hex_to_rgba(hex_color, alpha=0.12):
+    """Convert #RRGGBB hex to rgba() string for Plotly fillcolor."""
+    h = hex_color.lstrip('#')
+    if len(h) == 3:
+        h = ''.join(c * 2 for c in h)
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f'rgba({r},{g},{b},{alpha})'
+
 def _apply_axes(fig):
     fig.update_xaxes(**AXIS_STYLE)
     fig.update_yaxes(**AXIS_STYLE)
@@ -105,7 +113,7 @@ def _density_num(df, num_cols):
             mode='lines', name=col,
             line=dict(color=COLORS[i % len(COLORS)], width=2),
             fill='tozeroy',
-            fillcolor=COLORS[i % len(COLORS)].replace(')', ',0.08)').replace('rgb', 'rgba') if 'rgb' in COLORS[i % len(COLORS)] else COLORS[i % len(COLORS)] + '14',
+            fillcolor=_hex_to_rgba(COLORS[i % len(COLORS)], 0.12),
             hovertemplate=f'{col}: %{{x:.2f}}<br>Density: %{{y:.4f}}<extra></extra>',
         ))
     fig.update_layout(_layout(title='🌊 Density Plot (KDE) — All Numeric Columns'))
@@ -569,7 +577,16 @@ def generate_plots(df, num_cols, cat_cols):
     """
     Menghasilkan semua grafik Plotly dalam format JSON.
     Mengembalikan dict { key: plotly_json }.
+    
+    OPTIMASI: Untuk dataset besar (>5000 baris), ambil sample untuk visualisasi
+    agar response JSON tidak terlalu besar dan loading cepat.
     """
+    # ── SAMPLING: Gunakan sample jika dataset > 5000 baris ──────────────────────
+    if len(df) > 5000:
+        df_viz = df.sample(n=5000, random_state=42)
+    else:
+        df_viz = df
+    
     plots = {}
 
     def _try(key, fn, *args):
@@ -582,38 +599,38 @@ def generate_plots(df, num_cols, cat_cols):
 
     # ── a) Numerical ──────────────────────────────────────────────────────────
     if num_cols:
-        _try('hist_num',     _hist_num,     df, num_cols)
-        _try('density_num',  _density_num,  df, num_cols)
-        _try('boxplot_num',  _boxplot_num,  df, num_cols)
-        _try('qq_num',       _qq_num,       df, num_cols)
-        _try('violin_num',   _violin_num,   df, num_cols)
+        _try('hist_num',     _hist_num,     df_viz, num_cols)
+        _try('density_num',  _density_num,  df_viz, num_cols)
+        _try('boxplot_num',  _boxplot_num,  df_viz, num_cols)
+        _try('qq_num',       _qq_num,       df_viz, num_cols)
+        _try('violin_num',   _violin_num,   df_viz, num_cols)
 
     # ── b) Categorical ────────────────────────────────────────────────────────
     if cat_cols:
-        _try('bar_cat',    _bar_cat,    df, cat_cols)
-        _try('pie_cat',    _pie_cat,    df, cat_cols)
-        _try('count_cat',  _count_cat,  df, cat_cols)
-        _try('pareto_cat', _pareto_cat, df, cat_cols)
+        _try('bar_cat',    _bar_cat,    df_viz, cat_cols)
+        _try('pie_cat',    _pie_cat,    df_viz, cat_cols)
+        _try('count_cat',  _count_cat,  df_viz, cat_cols)
+        _try('pareto_cat', _pareto_cat, df_viz, cat_cols)
 
     # ── c) Bivariate & Multivariate ───────────────────────────────────────────
     if len(num_cols) >= 2:
-        _try('scatter_biv',    _scatter_biv,    df, num_cols, cat_cols)
-        _try('heatmap',        _heatmap,        df, num_cols)
-        _try('scatter_matrix', _scatter_matrix, df, num_cols, cat_cols)
-        _try('regression_plot',_regression_plot,df, num_cols)
-        _try('bubble_chart',   _bubble_chart,   df, num_cols, cat_cols)
+        _try('scatter_biv',    _scatter_biv,    df_viz, num_cols, cat_cols)
+        _try('heatmap',        _heatmap,        df_viz, num_cols)
+        _try('scatter_matrix', _scatter_matrix, df_viz, num_cols, cat_cols)
+        _try('regression_plot',_regression_plot,df_viz, num_cols)
+        _try('bubble_chart',   _bubble_chart,   df_viz, num_cols, cat_cols)
 
     # ── d) Cat vs Num ─────────────────────────────────────────────────────────
     if num_cols and cat_cols:
-        _try('box_cat_num',    _box_cat_num,    df, num_cols, cat_cols)
-        _try('violin_cat_num', _violin_cat_num, df, num_cols, cat_cols)
-        _try('grouped_bar',    _grouped_bar,    df, num_cols, cat_cols)
-        _try('strip_plot',     _strip_plot,     df, num_cols, cat_cols)
+        _try('box_cat_num',    _box_cat_num,    df_viz, num_cols, cat_cols)
+        _try('violin_cat_num', _violin_cat_num, df_viz, num_cols, cat_cols)
+        _try('grouped_bar',    _grouped_bar,    df_viz, num_cols, cat_cols)
+        _try('strip_plot',     _strip_plot,     df_viz, num_cols, cat_cols)
 
     # ── e) Komparasi ──────────────────────────────────────────────────────────
     if len(num_cols) >= 2:
-        _try('violin_compare',       _violin_compare,       df, num_cols)
-        _try('grouped_bar_compare',  _grouped_bar_compare,  df, num_cols)
-        _try('parallel_coords',      _parallel_coords,      df, num_cols, cat_cols)
+        _try('violin_compare',       _violin_compare,       df_viz, num_cols)
+        _try('grouped_bar_compare',  _grouped_bar_compare,  df_viz, num_cols)
+        _try('parallel_coords',      _parallel_coords,      df_viz, num_cols, cat_cols)
 
     return plots

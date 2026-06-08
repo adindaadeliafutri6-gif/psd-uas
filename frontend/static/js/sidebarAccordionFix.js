@@ -9,7 +9,7 @@
 
     // 1) Accordion markup (recommended)
     var item = document.getElementById(accId) || document.querySelector('.nav-accordion-item#' + CSS.escape(accId));
-    try { console.log('[sidebarAccordionFix] item found?', !!item, 'accId=', accId); } catch(e) {}
+    try { console.log('[sideba rAccordionFix] item found?', !!item, 'accId=', accId); } catch(e) {}
 
     if (item) {
       item.classList.toggle('open');

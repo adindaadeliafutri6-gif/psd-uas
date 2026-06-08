@@ -582,12 +582,22 @@
 </div>
 
 <!-- ══════════════ TAB 7: TIME SERIES ══════════════ -->
-{% if has_ts %}
 <div id="tab-timeseries" class="tab-content fade-in" style="display:none;">
+
+    {% if not has_ts %}
+    <div class="card full-card mb-4">
+        <div class="card-header-clean">
+            <h2 style="margin:0;"><i class="fas fa-clock text-muted"></i> Time Series Analytics</h2>
+            <p class="text-muted" style="margin-top:6px;">Dataset tidak memiliki kolom datetime yang valid, sehingga time series tidak dapat ditampilkan.</p>
+        </div>
+    </div>
+    {% else %}
+
     <div class="dashboard-header mb-3">
         <h2><i class="fas fa-chart-line text-green"></i> Time Series Analytics</h2>
         <p class="text-muted">Auto-detected datetime column — temporal analysis enabled</p>
     </div>
+
 
     <!-- Meta info strip -->
     {% if ts_meta %}
@@ -615,24 +625,7 @@
     </div>
     {% endif %}
 
-    <!-- TS Sub-tab nav -->
-    <div class="ts-subtab-nav">
-        <button class="ts-subtab-btn active" onclick="switchTsTab('line')">
-            <i class="fas fa-chart-line"></i> Line Chart
-        </button>
-        <button class="ts-subtab-btn" onclick="switchTsTab('trend')">
-            <i class="fas fa-arrow-trend-up"></i> Trend Line
-        </button>
-        <button class="ts-subtab-btn" onclick="switchTsTab('ma')">
-            <i class="fas fa-wave-square"></i> Moving Average
-        </button>
-        <button class="ts-subtab-btn" onclick="switchTsTab('rolling')">
-            <i class="fas fa-rotate"></i> Rolling Mean
-        </button>
-        <button class="ts-subtab-btn" onclick="switchTsTab('overview')">
-            <i class="fas fa-border-all"></i> Overview Panel
-        </button>
-    </div>
+
 
     <!-- Line Chart -->
     <div id="ts-line" class="ts-subtab-content">
@@ -647,8 +640,9 @@
         </div>
     </div>
 
-    <!-- Trend -->
+    <!-- Trend (disabled: now single view) -->
     <div id="ts-trend" class="ts-subtab-content" style="display:none;">
+
         <div class="card chart-card">
             <div class="card-header-clean">
                 <h4><i class="fas fa-arrow-trend-up text-blue"></i> Trend Line (OLS)
@@ -660,8 +654,9 @@
         </div>
     </div>
 
-    <!-- Moving Average -->
+    <!-- Moving Average (disabled: now single view) -->
     <div id="ts-ma" class="ts-subtab-content" style="display:none;">
+
         <div class="card chart-card">
             <div class="card-header-clean">
                 <h4><i class="fas fa-wave-square text-orange"></i> Moving Average
@@ -673,8 +668,9 @@
         </div>
     </div>
 
-    <!-- Rolling Mean -->
+    <!-- Rolling Mean (disabled: now single view) -->
     <div id="ts-rolling" class="ts-subtab-content" style="display:none;">
+
         <div class="card chart-card">
             <div class="card-header-clean">
                 <h4><i class="fas fa-rotate text-purple"></i> Rolling Mean — Multi-Window
@@ -686,8 +682,9 @@
         </div>
     </div>
 
-    <!-- Overview Panel -->
+    <!-- Overview Panel (disabled: now single view) -->
     <div id="ts-overview" class="ts-subtab-content" style="display:none;">
+
         <div class="card chart-card">
             <div class="card-header-clean">
                 <h4><i class="fas fa-border-all text-red"></i> Time Series Overview Panel
@@ -701,7 +698,13 @@
 </div>
 {% endif %}
 
+<script>
+// TS tab placeholder rendering safety is handled server-side.
+</script>
+
 <!-- ══════════════ TAB 8: SMART INSIGHTS ══════════════ -->
+
+
 <div id="tab-insights" class="tab-content fade-in" style="display:none;">
     <div class="dashboard-header mb-4">
         <h2><i class="fas fa-lightbulb" style="color:#ffce20;"></i> Smart Insights</h2>
@@ -827,34 +830,52 @@ function switchVizTab(category) {
     if (typeof VizMaster !== 'undefined') VizMaster.openCategory(category || 'numerical');
 }
 
-/* ── TS sub-tab switcher ── */
+/* ── TS sub-tab switcher (sidebar) ── */
 function switchTsTab(tab) {
-    document.querySelectorAll('.ts-subtab-content').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('.ts-subtab-btn').forEach(el => el.classList.remove('active'));
-    const target = document.getElementById('ts-' + tab);
-    if (target) target.style.display = 'block';
+    // tab: overview | line | trend | ma | rolling
+    if (!tab) return;
 
-    document.querySelectorAll('.ts-subtab-btn').forEach(btn => {
-        const oc = btn.getAttribute('onclick') || '';
-        if (oc.includes("'" + tab + "'")) btn.classList.add('active');
+    // Toggle TS panels
+    document.querySelectorAll('.ts-subtab-content').forEach(function (el) {
+        el.style.display = 'none';
+        el.classList.remove('active-viztab');
     });
 
-    // Map tab name → plot div ID
-    const tsMap = {
-        'line':     'plot-ts-line',
-        'trend':    'plot-ts-trend',
-        'ma':       'plot-ts-ma',
-        'rolling':  'plot-ts-rolling',
-        'overview': 'plot-ts-overview',
-    };
-    const plotKey = {
-        'line': 'ts_line', 'trend': 'ts_trend',
-        'ma': 'ts_ma', 'rolling': 'ts_rolling', 'overview': 'ts_overview',
-    };
-    setTimeout(() => {
-        if (tsMap[tab]) drawChart(tsMap[tab], plotKey[tab], false);
-    }, 60);
+    var target = document.getElementById('ts-' + tab);
+    if (target) {
+        target.style.display = 'block';
+        target.classList.add('active-viztab');
+    }
+
+    // Render the selected plotly chart (if exists)
+    // Render the selected plotly chart (if exists)
+    if (typeof drawChart === 'function') {
+        // Map ts-* tab -> divId
+        var divIdMap = {
+            overview: 'plot-ts-overview',
+            line: 'plot-ts-line',
+            trend: 'plot-ts-trend',
+            ma: 'plot-ts-ma',
+            rolling: 'plot-ts-rolling'
+        };
+        var divId = divIdMap[tab];
+        if (divId) {
+            // force=true by deleting from _rendered if needed
+            try {
+                _rendered.delete(divId);
+            } catch (e) {}
+            var plotKeyMap = {
+                'plot-ts-overview': 'ts_overview',
+                'plot-ts-line': 'ts_line',
+                'plot-ts-trend': 'ts_trend',
+                'plot-ts-ma': 'ts_ma',
+                'plot-ts-rolling': 'ts_rolling'
+            };
+            drawChart(divId, plotKeyMap[divId], true);
+        }
+    }
 }
+
 
 /* ── Main tab switch hook ── */
 var _origSwitchTab = window.switchTab;
@@ -866,11 +887,7 @@ window.switchTab = function(tab) {
             if (typeof VizMaster !== 'undefined') VizMaster.onTabShow();
         }, 80);
     }
-    if (tab === 'timeseries') {
-        setTimeout(() => {
-            switchTsTab('line');
-        }, 80);
-    }
+
     if (tab === 'overview') {
         setTimeout(function() {
             if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onTabShow();

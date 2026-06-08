@@ -977,6 +977,24 @@ table.data-table tbody tr:hover { background: var(--bg); }
     height: 100%;
     color: #7EA9FF;
     font-size: 1.5rem;
+    gap: 12px;
+}
+
+.viz-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #ff6b6b;
+    font-size: 1rem;
+    gap: 12px;
+    flex-direction: column;
+    padding: 20px;
+    text-align: center;
+}
+
+.viz-error i {
+    font-size: 2.2rem;
 }
 
 .viz-master-footer {
