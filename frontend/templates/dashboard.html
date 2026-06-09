@@ -618,32 +618,13 @@
     </div>
 </div>
 
-<!-- ══════════════ TAB 9: AI DATABOT ══════════════ -->
-<div id="tab-ai" class="tab-content" style="display:none;">
-    <div class="dashboard-header mb-4">
-        <h2><i class="fas fa-robot text-green"></i> DataBot AI Assistant</h2>
-        <p class="text-muted">Ask anything about your dataset</p>
-    </div>
-    <div class="card ai-chat-card">
-        <div id="chat-messages" class="chat-messages">
-            <div class="chat-msg bot">
-                <div class="chat-avatar"><i class="fas fa-robot"></i></div>
-                <div class="chat-bubble">
-                    Halo! Saya <strong>DataBot</strong> 🤖 Siap membantu menganalisis dataset <em>{{ filename }}</em>.
-                </div>
-            </div>
-        </div>
-        <div class="chat-input-row">
-            <input type="text" id="ai-input" class="chat-input" placeholder="Tanyakan sesuatu tentang dataset ini…" />
-            <button class="btn-send" onclick="sendAIMessage()"><i class="fas fa-paper-plane"></i></button>
-        </div>
-        <small class="text-muted" style="padding:8px 20px;display:block;">
-            💡 Requires <code>ANTHROPIC_API_KEY</code> environment variable.
-        </small>
-    </div>
-</div>
+<!-- ══════════════ TAB 9: AI DATABOT (disabled) ══════════════ -->
+
+<!-- Bagian AI DataBot dihapus agar dashboard tidak menampilkan fitur AI. -->
+
 
 <!-- ══════════════ SCRIPTS ══════════════ -->
+
 <script src="{{ url_for('static', filename='js/dashboardOverview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/visualizationsMaster.js') }}"></script>
 
@@ -820,8 +801,10 @@ window.addEventListener('resize', function() {
     }, 200);
 });
 
-/* ── AI Chat ── */
+/* ── AI Chat (disabled) ── */
 function sendAIMessage() {
+    return;
+
     var input = document.getElementById('ai-input');
     if (!input) return;
     var msg = input.value.trim();

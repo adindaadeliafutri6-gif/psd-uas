@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet"/>
   <style>
+/* Landing topnav logo */
+#topnav .brand-logo-img{
+  width:40px;
+  height:40px;
+
+  border-radius:8px;
+  object-fit:cover;
+  display:block;
+}
+
 /* ══════════════════════════════════════════════
    BASE
 ══════════════════════════════════════════════ */
@@ -579,7 +589,7 @@ body {
 
     <div class="tech-row">
       <span class="tech-pill tp-py"><i class="fab fa-python"></i> Python · Flask</span>
-      <span class="tech-pill tp-ai"><i class="fas fa-robot"></i> Gemini AI</span>
+
       <span class="tech-pill tp-plt"><i class="fas fa-chart-pie"></i> Plotly</span>
       <span class="tech-pill tp-csv"><i class="fas fa-file-csv"></i> CSV · XLSX · TXT</span>
     </div>
@@ -599,12 +609,26 @@ body {
 ══════════════════════════════════════════════ -->
 <nav id="topnav">
   <div class="nav-brand">
-    <div class="brand-icon"><i class="fas fa-chart-simple"></i></div>
+    <div class="brand-icon" aria-hidden="true">
+      <img
+        class="brand-logo-img"
+        src="https://raw.githubusercontent.com/adindaadeliafutri6-gif/logo/main/logo%20itsb.png"
+        alt="ITSB Logo"
+        onerror="this.style.display='none';"
+
+
+
+      />
+
+
+
+    </div>
     <div class="brand-text">
       <h1>DS Generator</h1>
       <span>Kelompok 2 · ITSB</span>
     </div>
   </div>
+
   <div class="nav-right">
     <button class="nav-btn nb-ghost" onclick="openModal('modal-team')">
       <i class="fas fa-users"></i> Team
@@ -724,12 +748,12 @@ body {
         <span class="step-num">03</span>
         <div class="step-icon"><i class="fas fa-chart-pie"></i></div>
         <h3>Insights</h3>
-        <p>Explore 15+ Plotly charts, AI-powered Smart Insights, and export reports as Excel or PDF.</p>
+        <p>Explore Plotly charts, AI-powered Smart Insights, and export reports as Excel or PDF.</p>
       </div>
     </div>
     <div class="feature-row" style="margin-bottom:22px;">
       <span class="feat-pill hl"><i class="fas fa-bolt"></i> Auto-EDA &lt;5s</span>
-      <span class="feat-pill hl"><i class="fas fa-robot"></i> AI DataBot</span>
+
       <span class="feat-pill"><i class="fas fa-file-export"></i> Export Excel/PDF</span>
       <span class="feat-pill"><i class="fas fa-moon"></i> Dark Mode</span>
       <span class="feat-pill"><i class="fas fa-language"></i> Multi-language</span>
