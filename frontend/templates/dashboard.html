@@ -3,70 +3,41 @@
 
 <style>
 /* ── Viz sub-tab nav ── */
-.viz-subtab-nav {
-    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;
-}
+.viz-subtab-nav { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
 .viz-subtab-btn {
-    padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--muted);
-    font-size: 0.78rem; font-weight: 600; cursor: pointer;
-    transition: all .2s ease; font-family: inherit;
+    padding:7px 16px; border-radius:8px; border:1px solid var(--border);
+    background:var(--bg); color:var(--muted);
+    font-size:.78rem; font-weight:600; cursor:pointer;
+    transition:all .2s ease; font-family:inherit;
 }
-.viz-subtab-btn:hover { border-color: var(--blue); color: var(--text); }
+.viz-subtab-btn:hover { border-color:var(--blue); color:var(--text); }
 .viz-subtab-btn.active {
-    background: var(--blue); color: #fff;
-    border-color: var(--blue);
-    box-shadow: 0 3px 12px rgba(67,24,255,.28);
+    background:var(--blue); color:#fff; border-color:var(--blue);
+    box-shadow:0 3px 12px rgba(67,24,255,.28);
 }
 
-/* ── TS sub-tab nav ── */
-.ts-subtab-nav {
-    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;
-}
-.ts-subtab-btn {
-    padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--muted);
-    font-size: 0.78rem; font-weight: 600; cursor: pointer;
-    transition: all .2s ease; font-family: inherit;
-}
-.ts-subtab-btn:hover { border-color: var(--green); color: var(--text); }
-.ts-subtab-btn.active {
-    background: var(--green); color: #fff;
-    border-color: var(--green);
-    box-shadow: 0 3px 12px rgba(5,205,153,.28);
-}
-
-/* ── TS meta info strip ── */
+/* ── TS meta strip ── */
 .ts-meta-strip {
-    display: flex; gap: 20px; flex-wrap: wrap;
-    padding: 12px 18px; border-radius: 10px;
-    background: var(--bg); border: 1px solid var(--border);
-    margin-bottom: 18px;
+    display:flex; gap:20px; flex-wrap:wrap;
+    padding:12px 18px; border-radius:10px;
+    background:var(--bg); border:1px solid var(--border);
+    margin-bottom:18px;
 }
-.ts-meta-item { display: flex; flex-direction: column; gap: 2px; }
-.ts-meta-label { font-size: 0.65rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
-.ts-meta-value { font-size: 0.88rem; color: var(--text); font-weight: 600; }
+.ts-meta-item { display:flex; flex-direction:column; gap:2px; }
+.ts-meta-label { font-size:.65rem; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+.ts-meta-value { font-size:.88rem; color:var(--text); font-weight:600; }
 
 /* ── Chart badge ── */
 .chart-badge {
-    font-size: 0.62rem; font-weight: 700; padding: 2px 8px;
-    border-radius: 20px; background: var(--bg); color: var(--muted);
-    border: 1px solid var(--border); margin-left: 4px;
+    font-size:.62rem; font-weight:700; padding:2px 8px;
+    border-radius:20px; background:var(--bg); color:var(--muted);
+    border:1px solid var(--border); margin-left:4px;
 }
-
-/* ── Full width chart grid ── */
-.chart-grid-1 { display: grid; grid-template-columns: 1fr; gap: 18px; }
-
-.dataset-info-grid div { display:flex; flex-wrap: wrap; gap:6px; }
-@media (max-width: 700px) {
-    .dataset-info-grid { grid-template-columns: 1fr !important; }
-}
+.chart-grid-1 { display:grid; grid-template-columns:1fr; gap:18px; }
 </style>
-{# Overview grid styles → style.css (.ov-*) #}
 
-
-<!-- ══════════════ TAB 1: OVERVIEW (Grid 12-kolom) ══════════════ -->
-<div id="tab-overview" class="tab-content active-tab fade-in">
+<!-- ══════════════ TAB 1: OVERVIEW ══════════════ -->
+<div id="tab-overview" class="tab-content active-tab">
     <div class="dashboard-header mb-4">
         <div>
             <h2><i class="fas fa-chart-pie text-blue"></i> Dashboard</h2>
@@ -74,7 +45,6 @@
         </div>
     </div>
 
-    {# ── A. KPI Row (maks. 5 kartu, proporsional) ── #}
     <div class="ov-kpi-row">
         {% for kpi in overview.kpis %}
         <div class="card kpi-card {{ kpi.color }}">
@@ -87,15 +57,13 @@
         {% endfor %}
     </div>
 
-    {# ── B. Baris tengah — 3 kolom ── #}
     {% set mid_visible = overview.slots.ov_hbar.visible or overview.slots.ov_center.visible or overview.slots.ov_top_right.visible %}
     {% if mid_visible %}
     <div class="ov-viz-row ov-viz-row--3">
         {% if overview.slots.ov_hbar.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_hbar.tab }}"
-             data-viz-sub="{{ overview.viz_links.ov_hbar.sub or 'categorical' }}"
-             title="Klik untuk buka Visualizations">
+             data-viz-sub="{{ overview.viz_links.ov_hbar.sub or 'categorical' }}">
             <div class="card-header-clean ov-slot-header">
                 <h4><i class="fas fa-bars text-blue"></i> {{ overview.slots.ov_hbar.title }}</h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -107,8 +75,7 @@
         {% if overview.slots.ov_center.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_center.tab }}"
-             data-viz-sub="{{ overview.viz_links.ov_center.sub or 'categorical' }}"
-             title="Klik untuk buka Visualizations">
+             data-viz-sub="{{ overview.viz_links.ov_center.sub or 'categorical' }}">
             <div class="card-header-clean ov-slot-header">
                 <h4><i class="fas fa-chart-pie text-purple"></i> {{ overview.slots.ov_center.title }}</h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -120,8 +87,7 @@
         {% if overview.slots.ov_top_right.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{% if has_ts %}timeseries{% else %}{{ overview.viz_links.ov_top_right.tab }}{% endif %}"
-             data-viz-sub="{{ overview.viz_links.ov_top_right.sub or 'numerical' }}"
-             title="Klik untuk buka Visualizations">
+             data-viz-sub="{{ overview.viz_links.ov_top_right.sub or 'numerical' }}">
             <div class="card-header-clean ov-slot-header">
                 <h4><i class="fas fa-chart-line text-green"></i> {{ overview.slots.ov_top_right.title }}</h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -132,15 +98,13 @@
     </div>
     {% endif %}
 
-    {# ── C. Baris bawah — 3 kolom + toggle ── #}
     {% set bot_visible = overview.slots.ov_vbar_left.visible or overview.slots.ov_area_bottom.visible or overview.slots.ov_vbar_right.visible %}
     {% if bot_visible %}
     <div class="ov-viz-row ov-viz-row--3 mt-4">
         {% if overview.slots.ov_vbar_left.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_vbar_left.tab }}"
-             data-viz-sub="numerical"
-             title="Klik untuk buka Visualizations">
+             data-viz-sub="numerical">
             <div class="card-header-clean ov-slot-header">
                 <h4><i class="fas fa-chart-bar text-orange"></i> {{ overview.slots.ov_vbar_left.title }}</h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -162,8 +126,7 @@
         {% if overview.slots.ov_area_bottom.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_area_bottom.tab }}"
-             data-viz-sub="numerical"
-             title="Klik untuk buka Visualizations">
+             data-viz-sub="numerical">
             <div class="card-header-clean ov-slot-header">
                 <h4><i class="fas fa-chart-area text-blue"></i> {{ overview.slots.ov_area_bottom.title }}</h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -175,8 +138,7 @@
         {% if overview.slots.ov_vbar_right.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_vbar_right.tab }}"
-             data-viz-sub="categorical"
-             title="Klik untuk buka Visualizations">
+             data-viz-sub="categorical">
             <div class="card-header-clean ov-slot-header">
                 <h4><i class="fas fa-chart-bar text-red"></i> {{ overview.slots.ov_vbar_right.title }}</h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -200,14 +162,13 @@
     {% if not mid_visible and not bot_visible %}
     <div class="card ov-empty-state mt-4">
         <i class="fas fa-chart-line"></i>
-        <p>Dataset ini tidak memiliki kolom yang cukup untuk visualisasi ringkasan.</p>
-        <p class="text-muted">Unggah dataset dengan kolom numerik atau kategorik untuk melihat grafik.</p>
+        <p>Dataset tidak memiliki kolom yang cukup untuk visualisasi ringkasan.</p>
     </div>
     {% endif %}
 </div>
 
 <!-- ══════════════ TAB 2: DATA PREVIEW ══════════════ -->
-<div id="tab-preview" class="tab-content fade-in" style="display:none;">
+<div id="tab-preview" class="tab-content" style="display:none;">
     <div class="card full-card">
         <div class="card-header-clean">
             <h3><i class="fas fa-search text-blue"></i> Data Preview
@@ -219,11 +180,11 @@
 </div>
 
 <!-- ══════════════ TAB: DATA CLEANING ══════════════ -->
-<div id="tab-cleaning" class="tab-content fade-in" style="display:none;">
+<div id="tab-cleaning" class="tab-content" style="display:none;">
     <div class="dashboard-header mb-4">
         <div>
             <h2><i class="fas fa-broom text-green"></i> Data Cleaning</h2>
-            <p class="text-muted">Pembersihan otomatis sebelum analisis — sesuaikan opsi lalu terapkan</p>
+            <p class="text-muted">Pembersihan otomatis sebelum analisis</p>
         </div>
     </div>
 
@@ -252,11 +213,11 @@
                 <h4><i class="fas fa-sliders-h text-blue"></i> Cleaning Options</h4>
             </div>
             <form class="clean-form" method="get" action="{{ url_for('dashboard', filename=filename) }}">
-                <label class="clean-check"><input type="checkbox" name="strip_ws" value="1" {% if clean_opts.strip_whitespace %}checked{% endif %}> Strip whitespace (kolom teks)</label>
-                <label class="clean-check"><input type="checkbox" name="empty_nan" value="1" {% if clean_opts.empty_to_nan %}checked{% endif %}> Ubah string kosong → NaN</label>
+                <label class="clean-check"><input type="checkbox" name="strip_ws" value="1" {% if clean_opts.strip_whitespace %}checked{% endif %}> Strip whitespace</label>
+                <label class="clean-check"><input type="checkbox" name="empty_nan" value="1" {% if clean_opts.empty_to_nan %}checked{% endif %}> String kosong → NaN</label>
                 <label class="clean-check"><input type="checkbox" name="drop_dupes" value="1" {% if clean_opts.drop_duplicates %}checked{% endif %}> Hapus baris duplikat</label>
                 <label class="clean-check"><input type="checkbox" name="drop_empty" value="1" {% if clean_opts.drop_empty_cols %}checked{% endif %}> Hapus kolom 100% kosong</label>
-                <label class="clean-check"><input type="checkbox" name="cap_outliers" value="1" {% if clean_opts.cap_outliers %}checked{% endif %}> Cap outlier (metode IQR)</label>
+                <label class="clean-check"><input type="checkbox" name="cap_outliers" value="1" {% if clean_opts.cap_outliers %}checked{% endif %}> Cap outlier (IQR)</label>
                 <div class="clean-field">
                     <label>Hapus kolom jika missing &gt;</label>
                     <select name="drop_miss_thresh">
@@ -299,15 +260,12 @@
 
     <div class="card full-card">
         <div class="card-header-clean">
-            <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report (Sebelum Cleaning)</h4>
+            <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report</h4>
         </div>
         <div class="table-scroll-wrapper">
             <table class="data-table display nowrap" style="width:100%">
                 <thead>
-                    <tr>
-                        <th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th>
-                        <th>Unique</th><th>Issues</th>
-                    </tr>
+                    <tr><th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th><th>Unique</th><th>Issues</th></tr>
                 </thead>
                 <tbody>
                     {% for row in quality_report %}
@@ -318,11 +276,8 @@
                         <td class="{% if row.missing_pct > 0 %}text-warning{% endif %}">{{ row.missing_pct }}%</td>
                         <td>{{ row.unique }}</td>
                         <td>
-                            {% if row.status == 'ok' %}
-                                <span class="badge badge-success">OK</span>
-                            {% else %}
-                                <span class="badge badge-warning">{{ row.issues }}</span>
-                            {% endif %}
+                            {% if row.status == 'ok' %}<span class="badge badge-success">OK</span>
+                            {% else %}<span class="badge badge-warning">{{ row.issues }}</span>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -333,7 +288,7 @@
 </div>
 
 <!-- ══════════════ TAB 3: NUMERICAL STATS ══════════════ -->
-<div id="tab-numerical" class="tab-content fade-in" style="display:none;">
+<div id="tab-numerical" class="tab-content" style="display:none;">
     <div class="card full-card">
         <div class="card-header-clean">
             <h3><i class="fas fa-hashtag text-orange"></i> Numerical Summary</h3>
@@ -344,8 +299,7 @@
                     <tr>
                         <th>Variable</th><th>Mean</th><th>Median</th><th>Min</th><th>Max</th>
                         <th>Std Dev</th><th>Variance</th><th>Mode</th><th>Skewness</th>
-                        <th>Kurtosis</th><th>Missing</th><th>Missing %</th>
-                        <th>Normality</th><th>Outliers</th>
+                        <th>Kurtosis</th><th>Missing</th><th>Missing %</th><th>Normality</th><th>Outliers</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -374,7 +328,7 @@
 </div>
 
 <!-- ══════════════ TAB 4: CATEGORICAL STATS ══════════════ -->
-<div id="tab-categorical" class="tab-content fade-in" style="display:none;">
+<div id="tab-categorical" class="tab-content" style="display:none;">
     <div class="card full-card">
         <div class="card-header-clean">
             <h3><i class="fas fa-font text-purple"></i> Categorical Summary</h3>
@@ -382,10 +336,7 @@
         <div class="table-scroll-wrapper">
             <table class="data-table display nowrap" style="width:100%">
                 <thead>
-                    <tr>
-                        <th>Variable</th><th>Unique Categories</th><th>Mode</th>
-                        <th>Mode Freq</th><th>Mode %</th><th>Missing</th><th>Missing %</th>
-                    </tr>
+                    <tr><th>Variable</th><th>Unique</th><th>Mode</th><th>Mode Freq</th><th>Mode %</th><th>Missing</th><th>Missing %</th></tr>
                 </thead>
                 <tbody>
                     {% for stat in cat_stats %}
@@ -404,7 +355,7 @@
 </div>
 
 <!-- ══════════════ TAB 5: ADVANCED STATS ══════════════ -->
-<div id="tab-advanced" class="tab-content fade-in" style="display:none;">
+<div id="tab-advanced" class="tab-content" style="display:none;">
     <div class="dashboard-header mb-4">
         <h2><i class="fas fa-flask text-green"></i> Advanced Analytics — Week 15</h2>
     </div>
@@ -418,10 +369,7 @@
         <div class="table-scroll-wrapper">
             <table class="data-table display nowrap" style="width:100%">
                 <thead>
-                    <tr>
-                        <th>Column</th><th>Q1 (25%)</th><th>Q2 Median</th><th>Q3 (75%)</th>
-                        <th>IQR</th><th>CV (%)</th><th>P5</th><th>P95</th><th>Shapiro-Wilk</th>
-                    </tr>
+                    <tr><th>Column</th><th>Q1</th><th>Q2 Median</th><th>Q3</th><th>IQR</th><th>CV (%)</th><th>P5</th><th>P95</th><th>Shapiro-Wilk</th></tr>
                 </thead>
                 <tbody>
                     {% for row in advanced.adv_num %}
@@ -433,9 +381,7 @@
                         <td>
                             {% if 'Normal' in row['Shapiro-Wilk'] and 'Not' not in row['Shapiro-Wilk'] %}
                                 <span class="badge badge-success">{{ row['Shapiro-Wilk'] }}</span>
-                            {% else %}
-                                <span class="badge badge-danger">{{ row['Shapiro-Wilk'] }}</span>
-                            {% endif %}
+                            {% else %}<span class="badge badge-danger">{{ row['Shapiro-Wilk'] }}</span>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -457,11 +403,7 @@
                     {% for pair in advanced.top_corr_pairs %}
                     <tr>
                         <td>{{ pair[0] }}</td><td>{{ pair[1] }}</td>
-                        <td>
-                            <span class="corr-badge {% if pair[2]|abs > 0.7 %}corr-strong{% elif pair[2]|abs > 0.4 %}corr-medium{% else %}corr-weak{% endif %}">
-                                {{ pair[2] }}
-                            </span>
-                        </td>
+                        <td><span class="corr-badge {% if pair[2]|abs > 0.7 %}corr-strong{% elif pair[2]|abs > 0.4 %}corr-medium{% else %}corr-weak{% endif %}">{{ pair[2] }}</span></td>
                         <td>{% if pair[2]|abs > 0.7 %}Kuat{% elif pair[2]|abs > 0.4 %}Sedang{% else %}Lemah{% endif %}</td>
                     </tr>
                     {% endfor %}
@@ -509,11 +451,8 @@
                         <td class="var-name">{{ row.num }}</td><td class="var-name">{{ row.cat }}</td>
                         <td>{{ row.f_stat }}</td><td>{{ row.p_anova }}</td>
                         <td>
-                            {% if row.significant %}
-                                <span class="badge badge-success"><i class="fas fa-check"></i> Yes (p&lt;0.05)</span>
-                            {% else %}
-                                <span class="badge badge-muted">Not Significant</span>
-                            {% endif %}
+                            {% if row.significant %}<span class="badge badge-success"><i class="fas fa-check"></i> Yes (p&lt;0.05)</span>
+                            {% else %}<span class="badge badge-muted">Not Significant</span>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -525,17 +464,15 @@
 </div>
 
 <!-- ══════════════ TAB 6: VISUALIZATIONS (Master View) ══════════════ -->
-<div id="tab-visualizations" class="tab-content fade-in" style="display:none;">
+<div id="tab-visualizations" class="tab-content" style="display:none;">
     <div class="viz-master-page">
         <div class="viz-master-header">
             <h2 id="viz-category-title">Visualizations</h2>
             <p class="viz-master-sub">{{ filename }}</p>
         </div>
 
-        {# A. KPI Row #}
         <div id="viz-kpi-row" class="viz-kpi-row"></div>
 
-        {# Placeholder — dataset tidak kompatibel #}
         <div id="viz-placeholder" class="viz-placeholder" style="display:none;">
             <div class="viz-placeholder-inner">
                 <i class="fas fa-chart-area"></i>
@@ -543,7 +480,6 @@
             </div>
         </div>
 
-        {# B. Master Visualization Container #}
         <div id="viz-master-chart" class="viz-master-container">
             <div id="viz-master-controls" class="viz-master-toolbar">
                 <div class="viz-toolbar-left">
@@ -566,14 +502,20 @@
                 </div>
             </div>
 
-            <div id="viz-master-plot" class="viz-master-plot"></div>
+            <!-- Plot area: empty on load, filled by VizMaster on tab open -->
+            <div id="viz-master-plot" class="viz-master-plot">
+                <div class="viz-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:#7EA9FF;">
+                    <i class="fas fa-chart-bar" style="font-size:2rem;opacity:.3;"></i>
+                    <span style="margin-left:12px;font-size:.9rem;opacity:.5;">Pilih kategori dari sidebar untuk mulai</span>
+                </div>
+            </div>
 
             <div class="viz-master-footer">
-                <button type="button" id="viz-btn-prev" class="viz-nav-btn" aria-label="Previous chart">
+                <button type="button" id="viz-btn-prev" class="viz-nav-btn">
                     <i class="fas fa-chevron-left"></i> Previous
                 </button>
                 <span class="viz-footer-hint">Ganti tipe grafik pada kolom terpilih</span>
-                <button type="button" id="viz-btn-next" class="viz-nav-btn" aria-label="Next chart">
+                <button type="button" id="viz-btn-next" class="viz-nav-btn">
                     Next <i class="fas fa-chevron-right"></i>
                 </button>
             </div>
@@ -582,139 +524,90 @@
 </div>
 
 <!-- ══════════════ TAB 7: TIME SERIES ══════════════ -->
-<div id="tab-timeseries" class="tab-content fade-in" style="display:none;">
+<div id="tab-timeseries" class="tab-content" style="display:none;">
 
     {% if not has_ts %}
     <div class="card full-card mb-4">
         <div class="card-header-clean">
             <h2 style="margin:0;"><i class="fas fa-clock text-muted"></i> Time Series Analytics</h2>
-            <p class="text-muted" style="margin-top:6px;">Dataset tidak memiliki kolom datetime yang valid, sehingga time series tidak dapat ditampilkan.</p>
+            <p class="text-muted" style="margin-top:6px;">Dataset tidak memiliki kolom datetime yang valid.</p>
         </div>
     </div>
     {% else %}
-
     <div class="dashboard-header mb-3">
         <h2><i class="fas fa-chart-line text-green"></i> Time Series Analytics</h2>
-        <p class="text-muted">Auto-detected datetime column — temporal analysis enabled</p>
+        <p class="text-muted">Auto-detected datetime column</p>
     </div>
 
-
-    <!-- Meta info strip -->
     {% if ts_meta %}
     <div class="ts-meta-strip mb-4">
-        <div class="ts-meta-item">
-            <span class="ts-meta-label"><i class="fas fa-calendar"></i> Date Column</span>
-            <span class="ts-meta-value">{{ ts_meta.dt_col }}</span>
-        </div>
-        <div class="ts-meta-item">
-            <span class="ts-meta-label"><i class="fas fa-hashtag"></i> Metric</span>
-            <span class="ts-meta-value">{{ ts_meta.num_col }}</span>
-        </div>
-        <div class="ts-meta-item">
-            <span class="ts-meta-label"><i class="fas fa-clock"></i> Frequency</span>
-            <span class="ts-meta-value">{{ ts_meta.freq_label }}</span>
-        </div>
-        <div class="ts-meta-item">
-            <span class="ts-meta-label"><i class="fas fa-database"></i> Data Points</span>
-            <span class="ts-meta-value">{{ ts_meta.n_points }}</span>
-        </div>
-        <div class="ts-meta-item">
-            <span class="ts-meta-label"><i class="fas fa-calendar-alt"></i> Period</span>
-            <span class="ts-meta-value">{{ ts_meta.date_start }} → {{ ts_meta.date_end }}</span>
-        </div>
+        <div class="ts-meta-item"><span class="ts-meta-label">Date Column</span><span class="ts-meta-value">{{ ts_meta.dt_col }}</span></div>
+        <div class="ts-meta-item"><span class="ts-meta-label">Metric</span><span class="ts-meta-value">{{ ts_meta.num_col }}</span></div>
+        <div class="ts-meta-item"><span class="ts-meta-label">Frequency</span><span class="ts-meta-value">{{ ts_meta.freq_label }}</span></div>
+        <div class="ts-meta-item"><span class="ts-meta-label">Data Points</span><span class="ts-meta-value">{{ ts_meta.n_points }}</span></div>
+        <div class="ts-meta-item"><span class="ts-meta-label">Period</span><span class="ts-meta-value">{{ ts_meta.date_start }} → {{ ts_meta.date_end }}</span></div>
     </div>
     {% endif %}
 
-
-
-    <!-- Line Chart -->
+    <!-- Sub-panels — all hidden, shown via switchTsTab() -->
     <div id="ts-line" class="ts-subtab-content">
         <div class="card chart-card">
             <div class="card-header-clean">
-                <h4><i class="fas fa-chart-line text-green"></i> Time Series Line Chart
-                    <span class="chart-badge">Temporal</span>
-                </h4>
-                <small class="text-muted">Interactive — use rangeslider to zoom into periods</small>
+                <h4><i class="fas fa-chart-line text-green"></i> Time Series Line Chart <span class="chart-badge">Temporal</span></h4>
             </div>
             <div id="plot-ts-line" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
 
-    <!-- Trend (disabled: now single view) -->
     <div id="ts-trend" class="ts-subtab-content" style="display:none;">
-
         <div class="card chart-card">
             <div class="card-header-clean">
-                <h4><i class="fas fa-arrow-trend-up text-blue"></i> Trend Line (OLS)
-                    <span class="chart-badge">Regression</span>
-                </h4>
-                <small class="text-muted">Ordinary Least Squares trend with R² indicator</small>
+                <h4><i class="fas fa-arrow-trend-up text-blue"></i> Trend Line (OLS) <span class="chart-badge">Regression</span></h4>
             </div>
             <div id="plot-ts-trend" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
 
-    <!-- Moving Average (disabled: now single view) -->
     <div id="ts-ma" class="ts-subtab-content" style="display:none;">
-
         <div class="card chart-card">
             <div class="card-header-clean">
-                <h4><i class="fas fa-wave-square text-orange"></i> Moving Average
-                    <span class="chart-badge">Smoothing</span>
-                </h4>
-                <small class="text-muted">Adaptive window size based on data length</small>
+                <h4><i class="fas fa-wave-square text-orange"></i> Moving Average <span class="chart-badge">Smoothing</span></h4>
             </div>
             <div id="plot-ts-ma" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
 
-    <!-- Rolling Mean (disabled: now single view) -->
     <div id="ts-rolling" class="ts-subtab-content" style="display:none;">
-
         <div class="card chart-card">
             <div class="card-header-clean">
-                <h4><i class="fas fa-rotate text-purple"></i> Rolling Mean — Multi-Window
-                    <span class="chart-badge">Smoothing</span>
-                </h4>
-                <small class="text-muted">Multiple rolling windows overlaid for comparison</small>
+                <h4><i class="fas fa-rotate text-purple"></i> Rolling Mean <span class="chart-badge">Smoothing</span></h4>
             </div>
             <div id="plot-ts-rolling" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
 
-    <!-- Overview Panel (disabled: now single view) -->
     <div id="ts-overview" class="ts-subtab-content" style="display:none;">
-
         <div class="card chart-card">
             <div class="card-header-clean">
-                <h4><i class="fas fa-border-all text-red"></i> Time Series Overview Panel
-                    <span class="chart-badge">4-in-1</span>
-                </h4>
-                <small class="text-muted">Line · Trend · Moving Average · Rolling Volatility</small>
+                <h4><i class="fas fa-border-all text-red"></i> Overview Panel <span class="chart-badge">4-in-1</span></h4>
             </div>
             <div id="plot-ts-overview" class="chart-area" style="min-height:540px;"></div>
         </div>
     </div>
+    {% endif %}
 </div>
-{% endif %}
-
-<script>
-// TS tab placeholder rendering safety is handled server-side.
-</script>
 
 <!-- ══════════════ TAB 8: SMART INSIGHTS ══════════════ -->
-
-
-<div id="tab-insights" class="tab-content fade-in" style="display:none;">
+<div id="tab-insights" class="tab-content" style="display:none;">
     <div class="dashboard-header mb-4">
         <h2><i class="fas fa-lightbulb" style="color:#ffce20;"></i> Smart Insights</h2>
         <p class="text-muted">Automated data-driven conclusions from your dataset.</p>
     </div>
     <div class="insights-grid">
         {% for insight in insights %}
-        <div class="card insight-card" style="border-left: 4px solid var(--{{ insight.type }}, var(--blue));">
+        <div class="card insight-card" style="border-left:4px solid var(--{{ insight.type }}, var(--blue));">
             <div class="insight-header">
-                <div class="insight-icon" style="color: var(--{{ insight.type }}, var(--blue)); border-color: var(--{{ insight.type }}, var(--blue));">
+                <div class="insight-icon" style="color:var(--{{ insight.type }},var(--blue));border-color:var(--{{ insight.type }},var(--blue));">
                     <i class="fas {{ insight.icon }}"></i>
                 </div>
                 <h4>{{ insight.title }}</h4>
@@ -726,7 +619,7 @@
 </div>
 
 <!-- ══════════════ TAB 9: AI DATABOT ══════════════ -->
-<div id="tab-ai" class="tab-content fade-in" style="display:none;">
+<div id="tab-ai" class="tab-content" style="display:none;">
     <div class="dashboard-header mb-4">
         <h2><i class="fas fa-robot text-green"></i> DataBot AI Assistant</h2>
         <p class="text-muted">Ask anything about your dataset</p>
@@ -736,148 +629,136 @@
             <div class="chat-msg bot">
                 <div class="chat-avatar"><i class="fas fa-robot"></i></div>
                 <div class="chat-bubble">
-                    Halo! Saya <strong>DataBot</strong> 🤖 Saya siap membantu menganalisis dataset <em>{{ filename }}</em>.<br>
-                    Contoh: <em>"Kolom apa yang paling berkorelasi?"</em> atau <em>"Apa kesimpulan dari data ini?"</em>
+                    Halo! Saya <strong>DataBot</strong> 🤖 Siap membantu menganalisis dataset <em>{{ filename }}</em>.
                 </div>
             </div>
         </div>
         <div class="chat-input-row">
-            <input type="text" id="ai-input" class="chat-input"
-                   placeholder="Tanyakan sesuatu tentang dataset ini..." />
-            <button class="btn-send" id="btn-ai-send" onclick="sendAIMessage()">
-                <i class="fas fa-paper-plane"></i>
-            </button>
+            <input type="text" id="ai-input" class="chat-input" placeholder="Tanyakan sesuatu tentang dataset ini…" />
+            <button class="btn-send" onclick="sendAIMessage()"><i class="fas fa-paper-plane"></i></button>
         </div>
         <small class="text-muted" style="padding:8px 20px;display:block;">
-            💡 Requires <code>ANTHROPIC_API_KEY</code> in environment variables.
+            💡 Requires <code>ANTHROPIC_API_KEY</code> environment variable.
         </small>
     </div>
 </div>
 
-<!-- ══════════════ OVERVIEW + PLOTLY SCRIPTS ══════════════ -->
+<!-- ══════════════ SCRIPTS ══════════════ -->
 <script src="{{ url_for('static', filename='js/dashboardOverview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/visualizationsMaster.js') }}"></script>
+
 <script>
-var plotsData = null;
+/* ── Data passed from Flask ── */
+var plotsData      = null;
 var overviewPayload = null;
 var vizMeta = {
-    filename: {{ filename | tojson }},
-    num_cols: {{ num_cols | tojson }},
-    cat_cols: {{ cat_cols | tojson }},
-    dt_cols: {{ dt_cols | tojson }},
-    has_ts: {{ has_ts | tojson }},
+    filename : {{ filename | tojson }},
+    num_cols : {{ num_cols | tojson }},
+    cat_cols : {{ cat_cols | tojson }},
+    dt_cols  : {{ dt_cols  | tojson }},
+    has_ts   : {{ has_ts   | tojson }},
 };
-try { plotsData = {{ plots | tojson | safe }}; }
-catch(e) { console.error("Failed to load chart data:", e); }
-try { overviewPayload = {{ overview | tojson | safe }}; }
-catch(e) { console.error("Failed to load overview data:", e); }
 
-/* ── Chart map: Time Series tab only ── */
-var CHART_MAP = [
-    ['plot-ts-line',     'ts_line'],
-    ['plot-ts-trend',    'ts_trend'],
-    ['plot-ts-ma',       'ts_ma'],
-    ['plot-ts-rolling',  'ts_rolling'],
-    ['plot-ts-overview', 'ts_overview'],
-];
+try { plotsData      = {{ plots    | tojson | safe }}; } catch(e) { console.error('plots data error:', e); }
+try { overviewPayload = {{ overview | tojson | safe }}; } catch(e) { console.error('overview data error:', e); }
 
-var _rendered = new Set();
+/* ── AI chat context ── */
+var datasetContext = "Filename: {{ filename }}, Rows: {{ metrics.total_rows }}, Cols: {{ metrics.total_columns }}, Numeric: {{ num_cols|join(', ') }}, Categorical: {{ cat_cols|join(', ') }}{% if has_ts %}, DateTime: {{ dt_cols|join(', ') }}{% endif %}";
+
+/* ── Chart map for Time Series plots (pre-built server-side) ── */
+var TS_CHART_MAP = {
+    'ts-line'    : 'ts_line',
+    'ts-trend'   : 'ts_trend',
+    'ts-ma'      : 'ts_ma',
+    'ts-rolling' : 'ts_rolling',
+    'ts-overview': 'ts_overview',
+};
+
+/* Track which TS panels have been rendered */
+var _tsRendered = {};
 
 var PLOTLY_CFG = {
-    responsive: true, displayModeBar: true,
-    modeBarButtonsToRemove: ['lasso2d','select2d','autoScale2d'],
-    displaylogo: false, scrollZoom: false,
-    toImageButtonOptions: { format:'png', scale:2 },
+    responsive             : true,
+    displayModeBar         : true,
+    modeBarButtonsToRemove : ['lasso2d','select2d','autoScale2d'],
+    displaylogo            : false,
+    scrollZoom             : false,
+    toImageButtonOptions   : { format:'png', scale:2 },
 };
 
-function getLayoutPatch() {
-    const dark = document.body.getAttribute('data-theme') === 'dark';
+function _layoutPatch() {
+    var dark = document.body.getAttribute('data-theme') === 'dark';
     return {
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor:  'rgba(0,0,0,0)',
-        font: { color: dark ? '#c8d8f0' : '#2b3674', family: 'Inter, sans-serif' },
-        hoverlabel: {
-            bgcolor:'rgba(10,18,48,0.93)', bordercolor:'rgba(100,160,235,0.45)',
-            font:{ color:'#e8f4fc', size:13, family:'Inter, sans-serif' }, namelength:-1,
+        paper_bgcolor : 'rgba(0,0,0,0)',
+        plot_bgcolor  : 'rgba(0,0,0,0)',
+        font : { color: dark ? '#c8d8f0' : '#2b3674', family:'Inter, sans-serif' },
+        hoverlabel : {
+            bgcolor: 'rgba(10,18,48,0.93)',
+            bordercolor: 'rgba(100,160,235,0.45)',
+            font: { color:'#e8f4fc', size:13 },
         },
     };
 }
 
-function drawChart(divId, plotKey, force) {
+/* ── Draw a single TS chart safely ── */
+function drawTsChart(panelId, plotKey, force) {
     if (!plotsData) return;
-    const plotObj = plotsData[plotKey];
-    if (!plotObj) return;
-    const el = document.getElementById(divId);
+    var plotObj = plotsData[plotKey];
+    if (!plotObj) { console.warn('[TS] No data for key:', plotKey); return; }
+
+    var el = document.getElementById('plot-' + panelId);
     if (!el) return;
-    if (!force && _rendered.has(divId)) { Plotly.Plots.resize(el); return; }
-    const layout = Object.assign({}, plotObj.layout, getLayoutPatch());
-    const cfg    = Object.assign({}, PLOTLY_CFG, plotObj._config || {});
-    Plotly.react(el, plotObj.data, layout, cfg).then(() => {
-        _rendered.add(divId);
+
+    if (!force && _tsRendered[panelId]) {
+        if (typeof Plotly !== 'undefined' && el._fullLayout) Plotly.Plots.resize(el);
+        return;
+    }
+
+    try { if (typeof Plotly !== 'undefined') Plotly.purge(el); } catch(e) {}
+    el.innerHTML = '';
+
+    var layout = Object.assign({}, plotObj.layout || {}, _layoutPatch(), {
+        autosize : true,
+        margin   : { l:48, r:20, t:52, b:48 },
     });
+
+    if (typeof Plotly === 'undefined') {
+        el.innerHTML = '<div style="padding:20px;color:#7eacd0;">Plotly.js tidak dimuat.</div>';
+        return;
+    }
+
+    Plotly.newPlot(el, plotObj.data || [], layout, PLOTLY_CFG)
+        .then(function() { _tsRendered[panelId] = true; })
+        .catch(function(err) {
+            console.error('[TS] Plotly error for', panelId, err);
+            el.innerHTML = '<div style="padding:20px;color:#ee5d50;"><i class="fas fa-exclamation-circle"></i> Rendering error</div>';
+        });
 }
 
-function renderVisibleCharts() {
-    if (!plotsData || typeof Plotly === 'undefined') return;
-    CHART_MAP.forEach(([divId, plotKey]) => {
-        const el = document.getElementById(divId);
-        if (el && el.offsetParent !== null) drawChart(divId, plotKey, false);
-    });
-}
-
-/* ── Viz category (sidebar → master view) ── */
-function switchVizTab(category) {
-    if (typeof VizMaster !== 'undefined') VizMaster.openCategory(category || 'numerical');
-}
-
-/* ── TS sub-tab switcher (sidebar) ── */
+/* ── Switch TS sub-panel (called from sidebar) ── */
 function switchTsTab(tab) {
-    // tab: overview | line | trend | ma | rolling
     if (!tab) return;
 
-    // Toggle TS panels
-    document.querySelectorAll('.ts-subtab-content').forEach(function (el) {
+    document.querySelectorAll('.ts-subtab-content').forEach(function(el) {
         el.style.display = 'none';
-        el.classList.remove('active-viztab');
     });
 
     var target = document.getElementById('ts-' + tab);
-    if (target) {
-        target.style.display = 'block';
-        target.classList.add('active-viztab');
-    }
+    if (target) target.style.display = 'block';
 
-    // Render the selected plotly chart (if exists)
-    // Render the selected plotly chart (if exists)
-    if (typeof drawChart === 'function') {
-        // Map ts-* tab -> divId
-        var divIdMap = {
-            overview: 'plot-ts-overview',
-            line: 'plot-ts-line',
-            trend: 'plot-ts-trend',
-            ma: 'plot-ts-ma',
-            rolling: 'plot-ts-rolling'
-        };
-        var divId = divIdMap[tab];
-        if (divId) {
-            // force=true by deleting from _rendered if needed
-            try {
-                _rendered.delete(divId);
-            } catch (e) {}
-            var plotKeyMap = {
-                'plot-ts-overview': 'ts_overview',
-                'plot-ts-line': 'ts_line',
-                'plot-ts-trend': 'ts_trend',
-                'plot-ts-ma': 'ts_ma',
-                'plot-ts-rolling': 'ts_rolling'
-            };
-            drawChart(divId, plotKeyMap[divId], true);
-        }
-    }
+    /* Render the chart for this panel (lazy) */
+    var plotKey = TS_CHART_MAP['ts-' + tab];
+    if (plotKey) drawTsChart('ts-' + tab, plotKey, false);
 }
 
+/* ── Render overview charts (called on load) ── */
+function renderVisibleCharts() {
+    if (!plotsData || typeof Plotly === 'undefined') return;
+    /* Only render the default TS panel (line) if the tab is active */
+    /* Overview charts are handled by OverviewDashboard */
+}
 
-/* ── Main tab switch hook ── */
+/* ── switchTab override: hook into tab changes ── */
 var _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
     if (_origSwitchTab) _origSwitchTab(tab);
@@ -887,70 +768,100 @@ window.switchTab = function(tab) {
             if (typeof VizMaster !== 'undefined') VizMaster.onTabShow();
         }, 80);
     }
-
     if (tab === 'overview') {
         setTimeout(function() {
             if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onTabShow();
         }, 80);
     }
+    if (tab === 'timeseries') {
+        /* Render the default (line) panel when TS tab opens */
+        setTimeout(function() { switchTsTab('line'); }, 80);
+    }
 };
 
-/* ── Init on load ── */
+/* ── Init on DOMContentLoaded ── */
 document.addEventListener('DOMContentLoaded', function() {
+
+    /* Init OverviewDashboard */
     if (typeof OverviewDashboard !== 'undefined' && overviewPayload) {
         OverviewDashboard.init(overviewPayload);
     }
-    if (typeof VizMaster !== 'undefined' && vizMeta) {
+
+    /* Init VizMaster — do NOT trigger fetch yet (lazy) */
+    if (typeof VizMaster !== 'undefined') {
         VizMaster.init(vizMeta);
     }
-    setTimeout(renderVisibleCharts, 350);
+
+    /* Render overview charts after short delay */
+    setTimeout(function() {
+        if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.renderAll();
+    }, 350);
 });
 
 /* ── Resize handler ── */
 var _rsz;
 window.addEventListener('resize', function() {
     clearTimeout(_rsz);
-    _rsz = setTimeout(() => {
-        _rendered.forEach(divId => {
-            const el = document.getElementById(divId);
-            if (el && el._fullData) Plotly.Plots.resize(el);
+    _rsz = setTimeout(function() {
+        /* Resize overview charts */
+        document.querySelectorAll('[id^="ov_"]').forEach(function(el) {
+            if (el._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
         });
+        /* Resize TS charts */
+        Object.keys(_tsRendered).forEach(function(panelId) {
+            var el = document.getElementById('plot-' + panelId);
+            if (el && el._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
+        });
+        /* Resize viz master */
+        var vzEl = document.getElementById('viz-master-plot');
+        if (vzEl && vzEl._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(vzEl);
+        /* Notify modules */
         if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onResize();
-    }, 180);
+    }, 200);
 });
 
 /* ── AI Chat ── */
-var datasetContext = "Filename: {{ filename }}, Rows: {{ metrics.total_rows }}, Cols: {{ metrics.total_columns }}, Numeric: {{ num_cols|join(', ') }}, Categorical: {{ cat_cols|join(', ') }}{% if has_ts %}, DateTime cols: {{ dt_cols|join(', ') }}{% endif %}";
-
 function sendAIMessage() {
-    const input = document.getElementById('ai-input');
-    const msg   = input.value.trim();
+    var input = document.getElementById('ai-input');
+    if (!input) return;
+    var msg = input.value.trim();
     if (!msg) return;
     appendChatMsg(msg, 'user');
     input.value = '';
-    const typingEl = appendChatMsg('Sedang mengetik...', 'bot', true);
+    var typingEl = appendChatMsg('Sedang mengetik…', 'bot', true);
     fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, context: datasetContext })
+        method  : 'POST',
+        headers : { 'Content-Type':'application/json' },
+        body    : JSON.stringify({ message:msg, context:datasetContext }),
     })
-    .then(r => r.json())
-    .then(data => { typingEl.querySelector('.chat-bubble').innerHTML = data.reply || 'No response.'; })
-    .catch(() => { typingEl.querySelector('.chat-bubble').innerHTML = '⚠️ Failed to connect. Check API Key.'; });
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var b = typingEl.querySelector('.chat-bubble');
+        b.innerHTML = data.reply || 'No response.';
+        b.classList.remove('typing');
+    })
+    .catch(function() {
+        var b = typingEl.querySelector('.chat-bubble');
+        b.innerHTML = '⚠️ Failed to connect. Check API Key.';
+        b.classList.remove('typing');
+    });
 }
 
-function appendChatMsg(text, role, typing=false) {
-    const container = document.getElementById('chat-messages');
-    const div = document.createElement('div');
-    div.className = `chat-msg ${role}`;
-    div.innerHTML = `<div class="chat-avatar"><i class="fas fa-${role==='bot'?'robot':'user'}"></i></div>
-                     <div class="chat-bubble ${typing?'typing':''}">${text}</div>`;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-    return div;
+function appendChatMsg(text, role, typing) {
+    typing = typing || false;
+    var c = document.getElementById('chat-messages');
+    if (!c) return null;
+    var d = document.createElement('div');
+    d.className = 'chat-msg ' + role;
+    d.innerHTML = '<div class="chat-avatar"><i class="fas fa-' + (role==='bot'?'robot':'user') + '"></i></div>' +
+                  '<div class="chat-bubble' + (typing?' typing':'') + '">' + text + '</div>';
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
+    return d;
 }
-const aiInput = document.getElementById('ai-input');
-if (aiInput) aiInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendAIMessage(); });
+
+var _aiInput = document.getElementById('ai-input');
+if (_aiInput) _aiInput.addEventListener('keypress', function(e) { if (e.key==='Enter') sendAIMessage(); });
 </script>
 
 {% endblock %}

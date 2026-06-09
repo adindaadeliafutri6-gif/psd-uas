@@ -14,17 +14,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     <style>
-    /* ══════════════════════════════════════════════════
-       SIDEBAR MINIMIZE — clean rewrite
-    ══════════════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════════════════
+       SIDEBAR — Accordion + Mini Mode (Complete Rewrite)
+    ═══════════════════════════════════════════════════════ */
     :root {
         --sidebar-w:      260px;
-        --sidebar-mini-w: 68px;
+        --sidebar-mini-w: 64px;
         --ease:           cubic-bezier(.4, 0, .2, 1);
-        --dur:            .28s;
+        --dur:            .26s;
     }
 
-    /* ── Layout wrapper ────────────────────────────────── */
     .layout-wrapper {
         display: flex;
         height: 100vh;
@@ -33,7 +32,7 @@
         background: var(--bg);
     }
 
-    /* ── Sidebar shell ─────────────────────────────────── */
+    /* ── Sidebar shell ── */
     .sidebar {
         width: var(--sidebar-w);
         min-width: var(--sidebar-w);
@@ -42,11 +41,9 @@
         background: var(--sidebar-bg);
         display: flex;
         flex-direction: column;
-        padding: 20px 0 24px;
-        overflow: visible;               /* must be visible — toggle button
-                                            sticks out to the right          */
-        transition: width var(--dur) var(--ease),
-                    min-width var(--dur) var(--ease);
+        padding: 0;
+        overflow: visible;
+        transition: width var(--dur) var(--ease), min-width var(--dur) var(--ease);
         position: relative;
         z-index: 100;
     }
@@ -55,224 +52,205 @@
         min-width: var(--sidebar-mini-w);
     }
 
-    /* ── Brand row ─────────────────────────────────────── */
+    /* ── Brand ── */
     .sidebar-brand {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 0 16px;
-        margin-bottom: 28px;
+        gap: 10px;
+        padding: 20px 16px 16px;
         flex-shrink: 0;
-        overflow: hidden;   /* clip brand text during width transition */
-        position: relative;
+        overflow: hidden;
+        border-bottom: 1px solid rgba(255,255,255,.06);
+        margin-bottom: 8px;
     }
-
     .brand-logo {
-        width: 36px;
-        height: 36px;
-        border-radius: 9px;
-        overflow: hidden;
+        width: 34px; height: 34px; border-radius: 9px; overflow: hidden;
         flex-shrink: 0;
         background: linear-gradient(135deg, #868cff, #4318ff);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .logo-img  { width: 100%; height: 100%; object-fit: cover; }
-    .brand-icon {
-        width: 36px; height: 36px;
-        background: linear-gradient(135deg, #868cff, #4318ff);
-        border-radius: 9px;
         display: flex; align-items: center; justify-content: center;
-        color: #fff; font-size: 1.1rem; flex-shrink: 0;
     }
-
+    .logo-img  { width:100%; height:100%; object-fit:cover; }
+    .brand-icon {
+        width:34px; height:34px;
+        background: linear-gradient(135deg, #868cff, #4318ff);
+        border-radius:9px; display:flex; align-items:center; justify-content:center;
+        color:#fff; font-size:1rem; flex-shrink:0;
+    }
     .brand-text {
-        white-space: nowrap;
-        overflow: hidden;
-        transition: opacity var(--dur) var(--ease),
-                    max-width var(--dur) var(--ease);
-        max-width: 180px;
-        opacity: 1;
+        white-space: nowrap; overflow: hidden;
+        transition: opacity var(--dur) var(--ease), max-width var(--dur) var(--ease);
+        max-width: 180px; opacity: 1;
     }
-    .sidebar.mini .brand-text {
-        max-width: 0;
-        opacity: 0;
-        pointer-events: none;
-    }
-    .brand-text h2  { font-size: .95rem; font-weight: 700; color: #fff; }
-    .brand-text p   { font-size: .68rem; color: var(--muted); margin-top: 1px; }
+    .sidebar.mini .brand-text { max-width:0; opacity:0; pointer-events:none; }
+    .brand-text h2 { font-size:.92rem; font-weight:700; color:#fff; white-space:nowrap; }
+    .brand-text p  { font-size:.65rem; color:var(--muted); margin-top:1px; white-space:nowrap; }
 
-    /* ── Toggle button — positioned relative to .sidebar ── */
+    /* ── Toggle button ── */
     .sidebar-toggle {
         position: absolute;
-        right: -11px;           /* half outside the sidebar right edge */
-        top: 32px;              /* align with brand row vertically      */
-        width: 22px;
-        height: 22px;
+        right: -11px; top: 28px;
+        width: 22px; height: 22px;
         border-radius: 50%;
         background: var(--blue);
         border: 2px solid var(--sidebar-bg);
         display: flex; align-items: center; justify-content: center;
-        cursor: pointer;
-        color: #fff;
-        font-size: .55rem;
+        cursor: pointer; color: #fff; font-size: .52rem;
         z-index: 300;
         box-shadow: 0 2px 8px rgba(67,24,255,.4);
-        transition: background .2s,
-                    transform var(--dur) var(--ease);
+        transition: background .2s, transform var(--dur) var(--ease);
         flex-shrink: 0;
     }
-    .sidebar-toggle:hover { background: #3110c4; }
-    .sidebar.mini .sidebar-toggle {
-        transform: rotate(180deg);
-    }
+    .sidebar-toggle:hover { background:#3110c4; }
+    .sidebar.mini .sidebar-toggle { transform:rotate(180deg); }
 
-    /* ── Scrollable nav area ───────────────────────────── */
+    /* ── Nav scroll container ── */
     .nav-menu {
         list-style: none;
         flex: 1;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 0 8px;
+        padding: 0 8px 16px;
         scrollbar-width: thin;
         scrollbar-color: rgba(255,255,255,.08) transparent;
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: 1px;
     }
+    .nav-menu::-webkit-scrollbar { width:4px; }
+    .nav-menu::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:4px; }
 
-    /* ── Section labels ────────────────────────────────── */
+    /* ── Section labels ── */
     .nav-section-label {
-        font-size: .62rem;
+        font-size: .58rem;
         color: #4a5568;
         font-weight: 700;
         letter-spacing: 1.4px;
-        padding: 16px 10px 5px;
+        padding: 14px 8px 4px;
         text-transform: uppercase;
         white-space: nowrap;
         overflow: hidden;
-        transition: opacity var(--dur) var(--ease),
-                    max-height var(--dur) var(--ease),
-                    padding var(--dur) var(--ease);
-        max-height: 40px;
-        opacity: 1;
+        transition: opacity var(--dur), max-height var(--dur), padding var(--dur);
+        max-height: 40px; opacity: 1;
     }
     .sidebar.mini .nav-section-label {
-        opacity: 0;
-        max-height: 0;
-        padding-top: 0;
-        padding-bottom: 0;
-        pointer-events: none;
+        opacity:0; max-height:0;
+        padding-top:0; padding-bottom:0; pointer-events:none;
     }
 
-    /* ── Nav items ─────────────────────────────────────── */
-    .nav-item a {
+    /* ── Nav item base ── */
+    .nav-item { position: relative; }
+
+    .nav-item > a,
+    .nav-acc-trigger {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 9px 10px;
+        gap: 9px;
+        padding: 8px 10px;
         color: var(--muted);
         text-decoration: none;
-        border-radius: 10px;
-        font-size: .86rem;
+        border-radius: 9px;
+        font-size: .84rem;
         font-weight: 500;
         white-space: nowrap;
         overflow: hidden;
         transition: background .18s, color .18s;
-        position: relative;
+        cursor: pointer;
+        width: 100%;
+        background: none;
+        border: none;
+        font-family: inherit;
+        text-align: left;
     }
-    .nav-item a:hover,
-    .nav-item.active a {
+    .nav-item > a:hover,
+    .nav-item.active > a,
+    .nav-acc-trigger:hover,
+    .nav-acc-trigger.open {
         background: rgba(255,255,255,.10);
         color: #fff;
         font-weight: 600;
     }
 
-    /* Icon wrapper — always 20 px, never hides */
+    /* ── Icon — always 18px wide, never hides ── */
     .nav-icon {
-        width: 20px;
-        min-width: 20px;
+        width: 18px; min-width: 18px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0; font-size: .88rem;
+    }
+
+    /* ── Label — fades in mini mode ── */
+    .nav-label {
+        flex: 1; min-width: 0;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        transition: opacity var(--dur), max-width var(--dur);
+        max-width: 200px; opacity: 1;
+    }
+    .sidebar.mini .nav-label { max-width:0; opacity:0; pointer-events:none; }
+
+    /* ── Badges ── */
+    .nav-badge {
+        margin-left: auto;
+        font-size: .52rem; font-weight: 700;
+        padding: 2px 6px; border-radius: 6px;
+        white-space: nowrap; flex-shrink: 0;
+        transition: opacity var(--dur), max-width var(--dur);
+        overflow: hidden; max-width: 60px; opacity: 1;
+    }
+    .sidebar.mini .nav-badge { opacity:0; max-width:0; }
+    .badge-blue   { background: var(--blue);  color:#fff; }
+    .badge-green  { background: var(--green); color:#fff; }
+
+    /* ── Accordion chevron ── */
+    .acc-chevron {
+        margin-left: auto;
+        font-size: .6rem;
+        transition: transform var(--dur) var(--ease), opacity var(--dur);
+        flex-shrink: 0;
+    }
+    .nav-acc-trigger.open .acc-chevron { transform: rotate(180deg); }
+    .sidebar.mini .acc-chevron { opacity:0; }
+
+    /* ── Accordion body (sub-items) ── */
+    .nav-acc-body {
+        overflow: hidden;
+        max-height: 0;
+        transition: max-height .28s var(--ease);
+    }
+    .nav-acc-body.open { max-height: 400px; }
+    .sidebar.mini .nav-acc-body { max-height: 0 !important; }
+
+    .nav-sub-item > a {
         display: flex;
         align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        font-size: .95rem;
-    }
-
-    /* Label + badges — fade out when mini, ellipsis when narrow */
-    .nav-label {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        gap: 9px;
+        padding: 6px 10px 6px 20px;
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: 9px;
+        font-size: .78rem;
+        font-weight: 500;
         white-space: nowrap;
-        font-size: clamp(0.72rem, 1.8vw, 0.86rem);
-        transition: opacity var(--dur) var(--ease),
-                    max-width var(--dur) var(--ease);
-        max-width: 200px;
-        opacity: 1;
-    }
-    .badge-new,
-    .badge-ts,
-    .badge-ai {
-        transition: opacity var(--dur) var(--ease),
-                    max-width var(--dur) var(--ease);
         overflow: hidden;
-        max-width: 200px;
-        opacity: 1;
-        flex-shrink: 0;
+        transition: background .18s, color .18s;
     }
-    .sidebar.mini .nav-label,
-    .sidebar.mini .badge-new,
-    .sidebar.mini .badge-ts,
-    .sidebar.mini .badge-ai {
-        max-width: 0;
-        opacity: 0;
-        pointer-events: none;
+    .nav-sub-item > a:hover,
+    .nav-sub-item.active > a {
+        background: rgba(255,255,255,.08);
+        color: #fff;
     }
+    .nav-sub-item > a .nav-label { font-size:.78rem; }
 
-    /* Badges */
-    .badge-new {
-        margin-left: auto;
-        background: var(--blue); color: #fff;
-        font-size: .54rem; font-weight: 700;
-        padding: 2px 6px; border-radius: 6px;
-        flex-shrink: 0;
-    }
-    .badge-ts {
-        margin-left: auto;
-        background: #05cd99; color: #fff;
-        font-size: .54rem; font-weight: 700;
-        padding: 2px 6px; border-radius: 6px;
-        flex-shrink: 0;
-    }
-    .badge-ai {
-        margin-left: auto;
-        background: #05cd99; color: #fff;
-        font-size: .54rem; font-weight: 700;
-        padding: 2px 6px; border-radius: 6px;
-        flex-shrink: 0;
-    }
-
-    /* Sub-items slight indent */
-    .nav-item.sub-item a { padding-left: 14px; font-size: .82rem; }
-
-    /* ── Tooltip when mini ─────────────────────────────── */
-    .sidebar.mini .nav-item {
-        position: relative;
-    }
-    .sidebar.mini .nav-item a::after {
+    /* ── Tooltip (mini mode only) ── */
+    .sidebar.mini .nav-item { position: relative; }
+    .sidebar.mini .nav-item > a::after,
+    .sidebar.mini .nav-item .nav-acc-trigger::after {
         content: attr(data-tip);
         position: absolute;
-        left: calc(var(--sidebar-mini-w) - 4px);
-        top: 50%;
-        transform: translateY(-50%);
+        left: calc(var(--sidebar-mini-w) + 6px);
+        top: 50%; transform: translateY(-50%);
         background: #0b1437;
         color: #fff;
-        font-size: .75rem;
-        font-weight: 600;
-        padding: 5px 12px;
+        font-size: .72rem; font-weight: 600;
+        padding: 5px 11px;
         border-radius: 8px;
         white-space: nowrap;
         pointer-events: none;
@@ -281,17 +259,15 @@
         box-shadow: 0 4px 14px rgba(0,0,0,.35);
         z-index: 9999;
     }
-    .sidebar.mini .nav-item a:hover::after { opacity: 1; }
+    .sidebar.mini .nav-item > a:hover::after,
+    .sidebar.mini .nav-item .nav-acc-trigger:hover::after { opacity:1; }
 
-    /* ── Main wrapper ──────────────────────────────────── */
+    /* ── Main wrapper ── */
     .main-wrapper {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-        overflow: hidden;
+        flex: 1; display: flex; flex-direction: column;
+        height: 100vh; overflow: hidden;
         transition: all var(--dur) var(--ease);
-        min-width: 0;   /* allow flex child to shrink */
+        min-width: 0;
     }
     </style>
 </head>
@@ -301,10 +277,11 @@
 
     <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
     <aside class="sidebar" id="sidebar">
+
+        <!-- Brand -->
         <div class="sidebar-brand">
             <div class="brand-logo">
-                <img src="MASUKKAN_URL_LOGO_ITSB_DI_SINI"
-                     alt="ITSB" class="logo-img"
+                <img src="https://raw.githubusercontent.com/adindaadeliafutri6-gif/logo/main/logo%20itsb.png" alt="ITSB" class="logo-img"
                      onerror="this.style.display='none';
                               document.getElementById('logo-fallback').style.display='flex';">
                 <div id="logo-fallback" class="brand-icon" style="display:none;">
@@ -316,20 +293,20 @@
                 <p data-translate="subtitle">Descriptive Statistics</p>
             </div>
         </div>
-        <!-- Toggle button: child of .sidebar (not .sidebar-brand)
-             so it is NOT clipped by sidebar-brand's overflow:hidden -->
+
+        <!-- Toggle -->
         <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
             <i class="fas fa-chevron-left"></i>
         </button>
 
-        <ul class="nav-menu">
+        <ul class="nav-menu" id="nav-menu">
 
             <!-- ── MAIN ── -->
             <li class="nav-section-label">MAIN</li>
 
             <li class="nav-item {% if not filename %}active{% endif %}" id="menu-overview">
-                <a href="{% if filename %}#overview{% else %}javascript:void(0);{% endif %}"
-                   onclick="{% if filename %}switchTab('overview'){% endif %}"
+                <a href="{% if filename %}#{% endif %}"
+                   onclick="{% if filename %}switchTab('overview'); return false;{% endif %}"
                    data-tip="Dashboard">
                     <span class="nav-icon"><i class="fas fa-home"></i></span>
                     <span class="nav-label">Dashboard</span>
@@ -348,152 +325,160 @@
             <li class="nav-section-label">DATA</li>
 
             <li class="nav-item" id="menu-preview">
-                <a href="#preview" onclick="switchTab('preview')" data-tip="Data Preview">
+                <a href="#" onclick="switchTab('preview'); return false;" data-tip="Data Preview">
                     <span class="nav-icon"><i class="fas fa-table"></i></span>
                     <span class="nav-label">Data Preview</span>
                 </a>
             </li>
             <li class="nav-item" id="menu-cleaning">
-                <a href="#cleaning" onclick="switchTab('cleaning')" data-tip="Data Cleaning">
+                <a href="#" onclick="switchTab('cleaning'); return false;" data-tip="Data Cleaning">
                     <span class="nav-icon"><i class="fas fa-broom"></i></span>
                     <span class="nav-label">Data Cleaning</span>
                 </a>
             </li>
 
-            <!-- ── STATISTICS ── -->
+            <!-- ── STATISTICS — Accordion ── -->
             <li class="nav-section-label">STATISTICS</li>
 
-            <li class="nav-item sub-item" id="menu-numerical">
-                <a href="#numerical" onclick="switchTab('numerical')" data-tip="Numerical Stats">
-                    <span class="nav-icon"><i class="fas fa-hashtag"></i></span>
-                    <span class="nav-label">Numerical Stats</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-categorical">
-                <a href="#categorical" onclick="switchTab('categorical')" data-tip="Categorical Stats">
-                    <span class="nav-icon"><i class="fas fa-font"></i></span>
-                    <span class="nav-label">Categorical Stats</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-advanced">
-                <a href="#advanced" onclick="switchTab('advanced')" data-tip="Advanced Stats">
-                    <span class="nav-icon"><i class="fas fa-flask"></i></span>
-                    <span class="nav-label">Advanced Stats</span>
-                    <span class="badge-new">W15</span>
-                </a>
+            <li class="nav-item" id="menu-stats-acc">
+                <button class="nav-acc-trigger" id="acc-stats-btn"
+                        onclick="toggleAcc('acc-stats')" data-tip="Statistics">
+                    <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+                    <span class="nav-label">Statistics</span>
+                    <i class="fas fa-chevron-down acc-chevron"></i>
+                </button>
+                <div class="nav-acc-body" id="acc-stats">
+                    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:1px;">
+                        <li class="nav-sub-item" id="menu-numerical">
+                            <a href="#" onclick="switchTab('numerical'); return false;" data-tip="Numerical Stats">
+                                <span class="nav-icon"><i class="fas fa-hashtag"></i></span>
+                                <span class="nav-label">Numerical Stats</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-categorical">
+                            <a href="#" onclick="switchTab('categorical'); return false;" data-tip="Categorical Stats">
+                                <span class="nav-icon"><i class="fas fa-font"></i></span>
+                                <span class="nav-label">Categorical Stats</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-advanced">
+                            <a href="#" onclick="switchTab('advanced'); return false;" data-tip="Advanced Stats">
+                                <span class="nav-icon"><i class="fas fa-flask"></i></span>
+                                <span class="nav-label">Advanced Stats</span>
+                                <span class="nav-badge badge-blue">W15</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
 
-            <!-- ── VISUALIZATIONS ── -->
+            <!-- ── VISUALIZATIONS — Accordion ── -->
             <li class="nav-section-label">VISUALIZATIONS</li>
 
             <li class="nav-item" id="menu-visualizations">
-                <a href="#visualizations" onclick="switchTab('visualizations')" data-tip="Visualizations">
+                <button class="nav-acc-trigger" id="acc-viz-btn"
+                        onclick="toggleAcc('acc-viz')" data-tip="Visualizations">
                     <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
                     <span class="nav-label">Visualizations</span>
-                </a>
+                    <i class="fas fa-chevron-down acc-chevron"></i>
+                </button>
+                <div class="nav-acc-body" id="acc-viz">
+                    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:1px;">
+                        <li class="nav-sub-item" id="menu-viz-num">
+                            <a href="#" onclick="openVizCategory('numerical'); return false;" data-tip="Numerical">
+                                <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+                                <span class="nav-label">Numerical</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-viz-cat">
+                            <a href="#" onclick="openVizCategory('categorical'); return false;" data-tip="Categorical">
+                                <span class="nav-icon"><i class="fas fa-chart-pie"></i></span>
+                                <span class="nav-label">Categorical</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-viz-biv">
+                            <a href="#" onclick="openVizCategory('bivariate'); return false;" data-tip="Bivariate">
+                                <span class="nav-icon"><i class="fas fa-circle-dot"></i></span>
+                                <span class="nav-label">Bivariate &amp; Multi</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-viz-catnum">
+                            <a href="#" onclick="openVizCategory('catnum'); return false;" data-tip="Cat vs Num">
+                                <span class="nav-icon"><i class="fas fa-shuffle"></i></span>
+                                <span class="nav-label">Cat vs Num</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-viz-compare">
+                            <a href="#" onclick="openVizCategory('compare'); return false;" data-tip="Comparison">
+                                <span class="nav-icon"><i class="fas fa-scale-balanced"></i></span>
+                                <span class="nav-label">Comparison</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
 
-            <li class="nav-item sub-item" id="menu-viz-num">
-                <a href="#visualizations" onclick="openVizCategory('numerical'); return false;"
-                   data-tip="Numerical Charts">
-                    <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span class="nav-label">Numerical</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-viz-cat">
-                <a href="#visualizations" onclick="openVizCategory('categorical'); return false;"
-                   data-tip="Categorical Charts">
-                    <span class="nav-icon"><i class="fas fa-chart-pie"></i></span>
-                    <span class="nav-label">Categorical</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-viz-biv">
-                <a href="#visualizations" onclick="openVizCategory('bivariate'); return false;"
-                   data-tip="Bivariate & Multi">
-                    <span class="nav-icon"><i class="fas fa-circle-dot"></i></span>
-                    <span class="nav-label">Bivariate & Multi</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-viz-catnum">
-                <a href="#visualizations" onclick="openVizCategory('catnum'); return false;"
-                   data-tip="Cat vs Num">
-                    <span class="nav-icon"><i class="fas fa-shuffle"></i></span>
-                    <span class="nav-label">Cat vs Num</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-viz-compare">
-                <a href="#visualizations" onclick="openVizCategory('compare'); return false;"
-                   data-tip="Comparison">
-                    <span class="nav-icon"><i class="fas fa-scale-balanced"></i></span>
-                    <span class="nav-label">Comparison</span>
-                </a>
-            </li>
-
-            <!-- ── TIME SERIES (always visible) ── -->
+            <!-- ── TIME SERIES — Accordion ── -->
             <li class="nav-section-label">TIME SERIES</li>
+
             <li class="nav-item" id="menu-timeseries">
-                <a href="#timeseries" onclick="switchTab('timeseries')" data-tip="Time Series">
+                <button class="nav-acc-trigger" id="acc-ts-btn"
+                        onclick="toggleAcc('acc-ts')" data-tip="Time Series">
                     <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
                     <span class="nav-label">Time Series</span>
-                    <span class="badge-ts">AUTO</span>
-                </a>
+                    <span class="nav-badge badge-green">AUTO</span>
+                    <i class="fas fa-chevron-down acc-chevron" style="margin-left:4px;"></i>
+                </button>
+                <div class="nav-acc-body" id="acc-ts">
+                    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:1px;">
+                        <li class="nav-sub-item" id="menu-ts-overview">
+                            <a href="#" onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('overview'),80); return false;" data-tip="Overview Panel">
+                                <span class="nav-icon"><i class="fas fa-border-all"></i></span>
+                                <span class="nav-label">Overview Panel</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-ts-line">
+                            <a href="#" onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('line'),80); return false;" data-tip="Line Chart">
+                                <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
+                                <span class="nav-label">Line Chart</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-ts-trend">
+                            <a href="#" onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('trend'),80); return false;" data-tip="Trend Line">
+                                <span class="nav-icon"><i class="fas fa-arrow-trend-up"></i></span>
+                                <span class="nav-label">Trend Line</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-ts-ma">
+                            <a href="#" onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('ma'),80); return false;" data-tip="Moving Average">
+                                <span class="nav-icon"><i class="fas fa-wave-square"></i></span>
+                                <span class="nav-label">Moving Average</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-ts-rolling">
+                            <a href="#" onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('rolling'),80); return false;" data-tip="Rolling Mean">
+                                <span class="nav-icon"><i class="fas fa-redo"></i></span>
+                                <span class="nav-label">Rolling Mean</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
-            <li class="nav-item sub-item" id="menu-ts-overview">
-                <a href="#timeseries"
-                   onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('overview'),80);"
-                   data-tip="Overview Panel">
-                    <span class="nav-icon"><i class="fas fa-border-all"></i></span>
-                    <span class="nav-label">Overview Panel</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-ts-line">
-                <a href="#timeseries"
-                   onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('line'),80);"
-                   data-tip="Line Chart">
-                    <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
-                    <span class="nav-label">Line Chart</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-ts-trend">
-                <a href="#timeseries"
-                   onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('trend'),80);"
-                   data-tip="Trend Line">
-                    <span class="nav-icon"><i class="fas fa-arrow-trend-up"></i></span>
-                    <span class="nav-label">Trend Line</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-ts-ma">
-                <a href="#timeseries"
-                   onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('ma'),80);"
-                   data-tip="Moving Average">
-                    <span class="nav-icon"><i class="fas fa-wave-square"></i></span>
-                    <span class="nav-label">Moving Average</span>
-                </a>
-            </li>
-            <li class="nav-item sub-item" id="menu-ts-rolling">
-                <a href="#timeseries"
-                   onclick="switchTab('timeseries'); setTimeout(()=>switchTsTab('rolling'),80);"
-                   data-tip="Rolling Mean">
-                    <span class="nav-icon"><i class="fas fa-redo"></i></span>
-                    <span class="nav-label">Rolling Mean</span>
-                </a>
-            </li>
-
 
             <!-- ── INSIGHTS & AI ── -->
-            <li class="nav-section-label">INSIGHTS & AI</li>
+            <li class="nav-section-label">INSIGHTS &amp; AI</li>
 
             <li class="nav-item" id="menu-insights">
-                <a href="#insights" onclick="switchTab('insights')" data-tip="Smart Insights">
+                <a href="#" onclick="switchTab('insights'); return false;" data-tip="Smart Insights">
                     <span class="nav-icon"><i class="fas fa-lightbulb"></i></span>
                     <span class="nav-label">Smart Insights</span>
                 </a>
             </li>
             <li class="nav-item" id="menu-ai">
-                <a href="#ai" onclick="switchTab('ai')" data-tip="DataBot AI">
+                <a href="#" onclick="switchTab('ai'); return false;" data-tip="DataBot AI">
                     <span class="nav-icon"><i class="fas fa-robot"></i></span>
                     <span class="nav-label">DataBot AI</span>
-                    <span class="badge-ai">AI</span>
+                    <span class="nav-badge badge-green">AI</span>
                 </a>
             </li>
 
@@ -507,13 +492,13 @@
         <!-- TOP BAR -->
         <header class="topbar">
             <div class="topbar-left">
-            <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle menu">
-                <i class="fas fa-bars"></i>
-            </button>
-            <div class="page-title">
-                <h1 data-translate="title">Descriptive Statistics Generator</h1>
-                <p data-translate="desc">Upload, analyze, visualize and get insights automatically</p>
-            </div>
+                <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="page-title">
+                    <h1 data-translate="title">Descriptive Statistics Generator</h1>
+                    <p data-translate="desc">Upload, analyze, visualize and get insights automatically</p>
+                </div>
             </div>
             <div class="topbar-right">
                 <select id="lang-selector" class="lang-select">
@@ -558,7 +543,7 @@
                 </div>
             </div>
             <div class="id-card">
-                <img src="https://github.com/refantanjung23-wq.png" alt="Refantanur">
+                <img src="https://raw.githubusercontent.com/adindaadeliafutri6-gif/refan/main/Foto_refan-removebg-preview.png" alt="Refantanur">
                 <h4>Refantanur Husnul Haqib</h4><p class="nim">NIM: 52250052</p><p class="role-tag">Data Science</p>
                 <div class="card-links">
                     <a href="https://github.com/refantanjung23-wq" target="_blank"><i class="fab fa-github"></i></a>
@@ -612,34 +597,76 @@
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
 <script>
-/* ── Sidebar toggle ────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   ACCORDION NAV
+═══════════════════════════════════════════════════ */
+function toggleAcc(accId) {
+    var body = document.getElementById(accId);
+    var btn  = document.getElementById(accId.replace('acc-', 'acc-') + '-btn');
+    if (!body) return;
+
+    var isOpen = body.classList.contains('open');
+
+    // Close all others first
+    document.querySelectorAll('.nav-acc-body.open').forEach(function(el) {
+        el.classList.remove('open');
+    });
+    document.querySelectorAll('.nav-acc-trigger.open').forEach(function(el) {
+        el.classList.remove('open');
+    });
+
+    // Toggle clicked one
+    if (!isOpen) {
+        body.classList.add('open');
+        // Find and mark the trigger button
+        var trigger = body.previousElementSibling;
+        if (trigger) trigger.classList.add('open');
+    }
+}
+
+/* Auto-open accordion that contains active item */
+document.addEventListener('DOMContentLoaded', function() {
+    var activeSubItem = document.querySelector('.nav-sub-item.active');
+    if (activeSubItem) {
+        var body = activeSubItem.closest('.nav-acc-body');
+        if (body) {
+            body.classList.add('open');
+            var trigger = body.previousElementSibling;
+            if (trigger) trigger.classList.add('open');
+        }
+    }
+});
+
+/* ═══════════════════════════════════════════════════
+   SIDEBAR TOGGLE (mini/full)
+═══════════════════════════════════════════════════ */
 (function () {
     var sidebar  = document.getElementById('sidebar');
     var btn      = document.getElementById('sidebar-toggle');
     var MINI_KEY = 'ds_sidebar_mini';
 
-    /* Restore saved state on load */
     if (localStorage.getItem(MINI_KEY) === '1') {
         sidebar.classList.add('mini');
     }
 
-    btn.addEventListener('click', function () {
-        if (window.innerWidth <= 768) return;
-        sidebar.classList.toggle('mini');
-        localStorage.setItem(MINI_KEY,
-            sidebar.classList.contains('mini') ? '1' : '0');
+    if (btn) {
+        btn.addEventListener('click', function () {
+            if (window.innerWidth <= 768) return;
+            sidebar.classList.toggle('mini');
+            localStorage.setItem(MINI_KEY, sidebar.classList.contains('mini') ? '1' : '0');
 
-        /* Resize Plotly charts after CSS transition finishes */
-        setTimeout(function () {
-            if (typeof Plotly === 'undefined') return;
-            document.querySelectorAll('[id^="plot-"],[id^="ov-"],[id^="ts-"]')
-                .forEach(function (el) {
-                    if (el._fullLayout) Plotly.Plots.resize(el);
-                });
-        }, 320);
-    });
+            // Resize Plotly charts after transition
+            setTimeout(function () {
+                if (typeof Plotly === 'undefined') return;
+                document.querySelectorAll('[id^="plot-"],[id^="ov-"],[id^="ts-"],[id="viz-master-plot"]')
+                    .forEach(function (el) {
+                        if (el._fullLayout) Plotly.Plots.resize(el);
+                    });
+            }, 300);
+        });
+    }
 
-    /* Mobile sidebar toggle */
+    /* Mobile sidebar */
     var mobileBtn = document.getElementById('mobile-menu-btn');
     if (mobileBtn) {
         mobileBtn.addEventListener('click', function () {
@@ -662,10 +689,8 @@
     document.addEventListener("DOMContentLoaded", function () {
         {% for category, message in messages %}
         Swal.fire({
-            icon: '{{ category }}' === 'error' ? 'error'
-                : '{{ category }}' === 'info'  ? 'info' : 'success',
-            title: '{{ category }}' === 'error' ? 'Oops...'
-                 : '{{ category }}' === 'info'  ? '📂 Dataset Found' : '✅ Success!',
+            icon: '{{ category }}' === 'error' ? 'error' : '{{ category }}' === 'info' ? 'info' : 'success',
+            title: '{{ category }}' === 'error' ? 'Oops...' : '{{ category }}' === 'info' ? '📂 Dataset Found' : '✅ Success!',
             text: `{{ message }}`,
             confirmButtonColor: '#4318ff',
             timer: '{{ category }}' === 'info' ? 4000 : undefined,
