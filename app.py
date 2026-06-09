@@ -176,7 +176,7 @@ def dashboard(filename):
     )
 
     # ── Preview (100 baris pertama) ───────────────────────────────────────────
-    preview_html = df.head(100).to_html(
+    preview_html = df.to_html(
         classes='data-table display nowrap',
         index=False,
         table_id='preview-table',

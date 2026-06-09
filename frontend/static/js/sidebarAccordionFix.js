@@ -45,4 +45,3 @@
 
   window.toggleAccordion = toggleAccordion;
 })();
-

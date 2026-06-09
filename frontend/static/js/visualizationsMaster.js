@@ -123,8 +123,9 @@ var VizMaster = (function () {
             decoded.marker.size = _decodeBinaryField(decoded.marker.size);
         }
 
-        // ── parcoords: dimensions[i].values binary ────────────────────────────
-        if (decoded.type === 'parcoords' && Array.isArray(decoded.dimensions)) {
+        // ── parcoords + splom: dimensions[i].values binary ───────────────────
+        if ((decoded.type === 'parcoords' || decoded.type === 'splom') &&
+             Array.isArray(decoded.dimensions)) {
             decoded.dimensions = decoded.dimensions.map(function (dim) {
                 if (!dim || typeof dim !== 'object') return dim;
                 var d = Object.assign({}, dim);

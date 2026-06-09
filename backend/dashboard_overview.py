@@ -1,327 +1,421 @@
 """
 backend/dashboard_overview.py
-Dashboard utama — KPI cards + grid visualisasi dengan validasi kondisional.
+Dashboard Overview — KPI cards + grid visualisasi.
+
+SLOT RULES (tidak ada chart duplikat, semua slot punya toggle):
+  ov_hbar        → Pareto Chart            (cat_cols >= 1, toggle cat_cols)   ← ganti Count Plot
+  ov_center      → Pie/Donut Chart         (cat_cols >= 1, toggle cat_cols)
+  ov_top_right   → TS line / Scatter       (dt+num → TS tanpa toggle;
+                                            num>=2 → Scatter dengan toggle X & Y)
+  ov_vbar_left   → Histogram per num_col   (num_cols >= 1, toggle num_cols)
+  ov_area_bottom → Boxplot per num_col     (num_cols >= 1, toggle num_cols)
+  ov_vbar_right  → Bar Chart per cat_col   (cat_cols >= 1, toggle cat_cols)
 """
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
+
+from backend.viz_engine import (
+    _chart_bar,
+    _chart_pareto,
+    _chart_histogram,
+    _chart_boxplot,
+    _chart_pie,
+    _chart_scatter,
+    _json,
+    _axes,
+    _layout,
+    _to_list,
+    PALETTE,
+    PLOT_BG,
+)
 import plotly.graph_objects as go
 
-from backend.visualizations import COLORS, _layout, _safe_json, _apply_axes, _top_cats
 
+# ─── helpers ─────────────────────────────────────────────────────────────────
 
 def _fmt_num(val, decimals=2):
     try:
         f = float(val)
-        if abs(f) >= 1000:
+        if abs(f) >= 1_000_000:
+            return f"{f/1_000_000:,.2f}M"
+        if abs(f) >= 1_000:
             return f"{f:,.{decimals}f}"
         return round(f, decimals)
     except (TypeError, ValueError):
         return "N/A"
 
 
-def build_overview_kpis(df, num_cols, cat_cols, metrics):
-    """Maksimal 5 KPI cards — prioritas metrik yang tersedia di dataset."""
-    kpis = [
-        {'id': 'rows', 'label': 'Total Rows', 'value': metrics['total_rows'],
-         'icon': 'fa-list-ol', 'color': 'blue'},
-        {'id': 'cols', 'label': 'Total Columns', 'value': metrics['total_columns'],
-         'icon': 'fa-columns', 'color': 'green'},
-    ]
+def _safe(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        print(f"[overview] chart error in {fn.__name__}: {e}")
+        return None
 
-    missing_pct = metrics.get('missing_pct', '0%')
-    kpis.append({
-        'id': 'missing', 'label': 'Missing Ratio', 'value': missing_pct,
-        'icon': 'fa-exclamation-circle', 'color': 'red',
-    })
+
+# ─── KPI builder ─────────────────────────────────────────────────────────────
+
+def build_overview_kpis(df, num_cols, cat_cols, metrics):
+    kpis = [
+        {'id': 'rows',    'label': 'Total Rows',    'value': metrics.get('total_rows', len(df)),
+         'icon': 'fa-list-ol',  'color': 'blue'},
+        {'id': 'cols',    'label': 'Total Columns', 'value': metrics.get('total_columns', len(df.columns)),
+         'icon': 'fa-columns',  'color': 'green'},
+        {'id': 'missing', 'label': 'Missing Ratio', 'value': metrics.get('missing_pct', '0%'),
+         'icon': 'fa-exclamation-circle', 'color': 'red'},
+    ]
 
     if num_cols:
         col = num_cols[0]
-        mean_val = df[col].mean()
         kpis.append({
-            'id': 'mean', 'label': f'Avg — {col}', 'value': _fmt_num(mean_val),
+            'id': 'mean', 'label': f'Avg — {col}',
+            'value': _fmt_num(df[col].mean()),
             'icon': 'fa-chart-line', 'color': 'orange',
         })
         if len(num_cols) > 1:
             col2 = num_cols[1]
-            std_val = df[col2].std()
             kpis.append({
-                'id': 'std', 'label': f'Std — {col2}', 'value': _fmt_num(std_val),
+                'id': 'std', 'label': f'Std — {col2}',
+                'value': _fmt_num(df[col2].std()),
                 'icon': 'fa-ruler-horizontal', 'color': 'purple',
+            })
+        elif cat_cols:
+            kpis.append({
+                'id': 'cat_count', 'label': 'Categorical Cols',
+                'value': len(cat_cols),
+                'icon': 'fa-font', 'color': 'purple',
             })
     elif cat_cols:
         col = cat_cols[0]
         kpis.append({
-            'id': 'unique', 'label': f'Unique — {col}', 'value': df[col].nunique(),
+            'id': 'unique', 'label': f'Unique — {col}',
+            'value': df[col].nunique(),
             'icon': 'fa-tags', 'color': 'orange',
         })
-
-    if len(kpis) < 5 and cat_cols and num_cols:
         kpis.append({
-            'id': 'cat_count', 'label': 'Categorical Cols', 'value': len(cat_cols),
+            'id': 'cat_count', 'label': 'Categorical Cols',
+            'value': len(cat_cols),
             'icon': 'fa-font', 'color': 'purple',
         })
 
     return kpis[:5]
 
 
-def _hbar_cat(df, cat_col, top_n=10):
-    """Horizontal bar — perbandingan kategori."""
-    vc = df[cat_col].value_counts().head(top_n).sort_values()
-    fig = go.Figure(go.Bar(
-        x=vc.values, y=vc.index.astype(str), orientation='h',
-        marker_color=COLORS[0],
-        hovertemplate='%{y}<br>Count: %{x}<extra></extra>',
-    ))
-    fig.update_layout(_layout(
-        title=f'Category Comparison — {cat_col}',
-        margin=dict(l=100, r=20, t=48, b=40),
-    ))
-    _apply_axes(fig)
-    return _safe_json(fig)
+# ─── Stats preview builder ────────────────────────────────────────────────────
+
+def build_stats_preview(df, num_cols, cat_cols):
+    num_rows = []
+    for col in num_cols[:8]:
+        s = df[col].dropna()
+        if s.empty:
+            continue
+        q1, q3 = s.quantile(0.25), s.quantile(0.75)
+        iqr = q3 - q1
+        outliers = int(((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).sum())
+        num_rows.append({
+            'col':      col,
+            'mean':     round(float(s.mean()), 3),
+            'median':   round(float(s.median()), 3),
+            'std':      round(float(s.std()), 3),
+            'min':      round(float(s.min()), 3),
+            'max':      round(float(s.max()), 3),
+            'outliers': outliers,
+            'missing':  int(df[col].isna().sum()),
+        })
+
+    cat_rows = []
+    for col in cat_cols[:6]:
+        s = df[col].dropna()
+        if s.empty:
+            continue
+        vc = s.value_counts()
+        mode_val = str(vc.index[0]) if not vc.empty else 'N/A'
+        mode_pct = round(vc.iloc[0] / len(s) * 100, 1) if not vc.empty else 0
+        cat_rows.append({
+            'col':      col,
+            'unique':   int(s.nunique()),
+            'mode':     mode_val[:30],
+            'mode_pct': mode_pct,
+            'missing':  int(df[col].isna().sum()),
+        })
+
+    return {'num': num_rows, 'cat': cat_rows}
 
 
-def _treemap_cat(df, cat_col, top_n=10):
-    """Treemap — komposisi kategori."""
-    vc = df[cat_col].value_counts().head(top_n).reset_index()
-    vc.columns = ['category', 'count']
-    fig = px.treemap(
-        vc, path=['category'], values='count',
-        color='count', color_continuous_scale='Blues',
-    )
-    fig.update_layout(_layout(title=f'Composition — {cat_col}'))
-    fig.update_traces(hovertemplate='%{label}<br>Count: %{value}<extra></extra>')
-    return _safe_json(fig)
+# ─── Chart builders ──────────────────────────────────────────────────────────
+
+def _build_pareto_charts(df, cat_cols):
+    """
+    Pareto Chart per kolom kategorik (toggle semua cat_cols).
+    Identik dengan Visualizations > Categorical > Pareto Chart.
+    Unik: menampilkan bar frekuensi + garis kumulatif 80/20.
+    BERBEDA dari ov_center (Pie) dan ov_vbar_right (Bar Chart).
+    Return: dict {col_name: chart_json}
+    """
+    if not cat_cols:
+        return {}
+    result = {}
+    for col in cat_cols[:6]:
+        chart = _safe(_chart_pareto, df, col)
+        if chart:
+            result[col] = chart
+    return result
 
 
-def _pie_cat(df, cat_col, top_n=8):
-    """Fallback pie jika treemap tidak cocok."""
-    vc = df[cat_col].value_counts().head(top_n)
-    fig = go.Figure(go.Pie(
-        labels=vc.index.astype(str), values=vc.values,
-        hole=0.4, marker_colors=COLORS,
-        hovertemplate='%{label}<br>%{percent}<extra></extra>',
-    ))
-    fig.update_layout(_layout(title=f'Composition — {cat_col}'))
-    return _safe_json(fig)
+def _build_pie_charts(df, cat_cols):
+    """
+    Pie/Donut Chart per kolom kategorik (toggle semua cat_cols).
+    Identik dengan Visualizations > Categorical > Donut / Pie Chart.
+    Return: dict {col_name: chart_json}
+    """
+    if not cat_cols:
+        return {}
+    result = {}
+    for col in cat_cols[:6]:
+        chart = _safe(_chart_pie, df, col)
+        if chart:
+            result[col] = chart
+    return result
 
 
-def _area_ranking(df, num_col, top_n=20):
-    """Area/line — ranking nilai numerik terbesar → terkecil."""
-    s = df[num_col].dropna().nlargest(min(top_n, len(df))).sort_values(ascending=False)
-    if s.empty:
+def _build_scatter_charts(df, num_cols):
+    """
+    Scatter Plot dengan pasangan kolom X dan Y (toggle independent).
+    Identik dengan Visualizations > Bivariate > Scatter Plot.
+    Return: dict of dict { col_x: { col_y: chart_json } }
+    Digunakan saat tidak ada dt_cols (fallback dari TS).
+    """
+    if len(num_cols) < 2:
+        return {}
+    result = {}
+    cols = num_cols[:6]
+    for i, cx in enumerate(cols):
+        result[cx] = {}
+        for j, cy in enumerate(cols):
+            if cx == cy:
+                continue
+            chart = _safe(_chart_scatter, df, cx, cy)
+            if chart:
+                result[cx][cy] = chart
+    return result
+
+
+def _build_top_right_ts(df, num_cols, dt_cols):
+    """
+    Time-series line chart — hanya dipanggil jika dt_cols tersedia.
+    Tidak ada toggle (TS bersifat fixed ke dt_col × num_col utama).
+    Return: chart_json atau None
+    """
+    if not (dt_cols and num_cols):
         return None
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=list(range(1, len(s) + 1)), y=s.values,
-        mode='lines', fill='tozeroy',
-        line=dict(color=COLORS[1], width=2),
-        fillcolor='rgba(5,205,153,0.15)',
-        name=num_col,
-        hovertemplate='Rank %{x}<br>Value: %{y:,.2f}<extra></extra>',
-    ))
-    fig.update_layout(_layout(
-        title=f'Value Ranking — {num_col}',
-        xaxis_title='Rank', yaxis_title=num_col,
-    ))
-    _apply_axes(fig)
-    return _safe_json(fig)
-
-
-def _line_timeseries(df, dt_col, num_col, max_pts=100):
-    """Line chart — tren temporal."""
-    temp = df[[dt_col, num_col]].copy()
-    temp[dt_col] = pd.to_datetime(temp[dt_col], errors='coerce')
-    temp = temp.dropna().sort_values(dt_col)
-    if len(temp) < 2:
+    try:
+        from backend.time_series import prepare_ts
+        dt_col, num_col = dt_cols[0], num_cols[0]
+        ts, freq_label = prepare_ts(df, dt_col, num_col)
+        if ts is None or len(ts) < 4:
+            return None
+        x_vals = ts['ds'].astype(str).tolist()
+        y_vals = ts['y'].tolist()
+        fig = go.Figure(go.Scatter(
+            x=x_vals, y=y_vals,
+            mode='lines',
+            line=dict(color=PALETTE[0], width=2),
+            fill='tozeroy',
+            fillcolor='rgba(78,205,196,0.12)',
+            hovertemplate='%{x}<br>' + num_col + ': %{y:,.2f}<extra></extra>',
+        ))
+        fig.update_layout(_layout(
+            title=f'Trend — {num_col} ({freq_label})',
+            xaxis=dict(type='date'),
+        ))
+        _axes(fig)
+        return _json(fig)
+    except Exception as e:
+        print(f"[overview] ts top_right error: {e}")
         return None
-    if len(temp) > max_pts:
-        temp = temp.iloc[:: max(1, len(temp) // max_pts)]
-    fig = go.Figure(go.Scatter(
-        x=temp[dt_col], y=temp[num_col],
-        mode='lines', line=dict(color=COLORS[0], width=2),
-        hovertemplate='%{x|%Y-%m-%d}<br>%{y:,.2f}<extra></extra>',
-    ))
-    fig.update_layout(_layout(
-        title=f'Trend — {num_col}',
-        xaxis=dict(type='date'),
-    ))
-    _apply_axes(fig)
-    return _safe_json(fig)
 
 
-def _vbar_numeric(df, num_col, bins=20):
-    """Vertical bar — distribusi numerik (histogram sebagai bar)."""
-    clean = df[num_col].dropna()
-    if len(clean) < 2:
+def _build_vbar_left_charts(df, num_cols):
+    """
+    Histogram per kolom numerik (toggle semua num_cols).
+    Return: dict {col_name: chart_json}
+    """
+    if not num_cols:
+        return {}
+    result = {}
+    for col in num_cols[:6]:
+        chart = _safe(_chart_histogram, df, col)
+        if chart:
+            result[col] = chart
+    return result
+
+
+def _build_boxplot_charts(df, num_cols):
+    """
+    Box Plot per kolom numerik (toggle semua num_cols).
+    Default kolom: num_cols[1] jika ada (beda dari histogram default).
+    Return: dict {col_name: chart_json}
+    """
+    if not num_cols:
+        return {}
+    result = {}
+    for col in num_cols[:6]:
+        chart = _safe(_chart_boxplot, df, col)
+        if chart:
+            result[col] = chart
+    return result
+
+
+def _build_vbar_right_charts(df, cat_cols):
+    """
+    Bar Chart vertikal per kolom kategorik (toggle semua cat_cols).
+    Return: dict {col_name: chart_json}
+    """
+    if not cat_cols:
+        return {}
+    result = {}
+    for col in cat_cols[:6]:
+        chart = _safe(_chart_bar, df, col)
+        if chart:
+            result[col] = chart
+    return result
+
+
+# ─── Toggle data builder helper ──────────────────────────────────────────────
+
+def _make_toggle(charts_dict, default_col):
+    if not charts_dict:
         return None
-    counts, edges = np.histogram(clean, bins=min(bins, max(5, clean.nunique())))
-    labels = [f'{edges[i]:.1f}' for i in range(len(counts))]
-    fig = go.Figure(go.Bar(
-        x=labels, y=counts,
-        marker_color=COLORS[2],
-        hovertemplate='Range %{x}<br>Count: %{y}<extra></extra>',
-    ))
-    fig.update_layout(_layout(title=f'Distribution — {num_col}'))
-    _apply_axes(fig)
-    return _safe_json(fig)
+    keys    = list(charts_dict.keys())
+    default = default_col if default_col in charts_dict else keys[0]
+    return {
+        'options': keys,
+        'default': default,
+        'charts' : charts_dict,
+    }
 
 
-def _vbar_cat(df, cat_col, top_n=10):
-    """Vertical bar — frekuensi kategori."""
-    vc = df[cat_col].value_counts().head(top_n)
-    fig = go.Figure(go.Bar(
-        x=vc.index.astype(str), y=vc.values,
-        marker_color=COLORS[3],
-        hovertemplate='%{x}<br>Count: %{y}<extra></extra>',
-    ))
-    fig.update_layout(_layout(title=f'Category Count — {cat_col}'))
-    _apply_axes(fig)
-    return _safe_json(fig)
-
-
-def _area_cumulative(df, num_col):
-    """Area chart — kumulatif / urutan nilai."""
-    s = df[num_col].dropna().sort_values(ascending=False).reset_index(drop=True)
-    if len(s) < 2:
-        return None
-    cum = s.cumsum() / s.sum() * 100 if s.sum() != 0 else s.cumsum()
-    fig = go.Figure(go.Scatter(
-        x=list(range(1, len(cum) + 1)), y=cum,
-        mode='lines', fill='tozeroy',
-        line=dict(color=COLORS[4], width=2),
-        fillcolor='rgba(134,140,255,0.15)',
-        hovertemplate='Index %{x}<br>Cumulative %: %{y:.1f}<extra></extra>',
-    ))
-    fig.update_layout(_layout(
-        title=f'Cumulative Share — {num_col}',
-        xaxis_title='Sorted Index', yaxis_title='Cumulative %',
-    ))
-    _apply_axes(fig)
-    return _safe_json(fig)
-
+# ─── MAIN ENTRY POINT ────────────────────────────────────────────────────────
 
 def generate_overview_dashboard(df, num_cols, cat_cols, dt_cols=None, metrics=None):
     """
     Bangun payload lengkap untuk tab Dashboard Overview.
-
-    Returns
-    -------
-    dict dengan keys: kpis, slots, toggle_data, viz_links
     """
     dt_cols = dt_cols or []
     metrics = metrics or {}
 
     result = {
-        'kpis': build_overview_kpis(df, num_cols, cat_cols, metrics),
-        'slots': {},
-        'toggle_data': {},
-        'viz_links': {},
+        'kpis'         : build_overview_kpis(df, num_cols, cat_cols, metrics),
+        'slots'        : {},
+        'toggle_data'  : {},
+        'viz_links'    : {},
+        'stats_preview': build_stats_preview(df, num_cols, cat_cols),
     }
 
-    def _slot(key, chart_json, visible, title, viz_tab, viz_sub=None):
+    def _slot(key, chart_json, title, viz_tab, viz_sub=None):
         result['slots'][key] = {
-            'visible': visible and chart_json is not None,
-            'title': title,
-            'chart': chart_json,
+            'visible': chart_json is not None,
+            'title'  : title,
+            'chart'  : chart_json,
         }
-        result['viz_links'][key] = {'tab': 'visualizations', 'sub': viz_sub or 'numerical'}
-
-    # ── Baris tengah ──────────────────────────────────────────────────────────
-    if cat_cols:
-        c0 = cat_cols[0]
-        try:
-            hbar = _hbar_cat(df, c0)
-            _slot('ov_hbar', hbar, True, 'Category Comparison', 'categorical', 'categorical')
-        except Exception:
-            _slot('ov_hbar', None, False, 'Category Comparison', 'categorical')
-
-        try:
-            center = _treemap_cat(df, c0)
-            _slot('ov_center', center, True, 'Category Composition', 'categorical', 'categorical')
-        except Exception:
-            try:
-                center = _pie_cat(df, c0)
-                _slot('ov_center', center, True, 'Category Composition', 'categorical', 'categorical')
-            except Exception:
-                _slot('ov_center', None, False, 'Category Composition', 'categorical')
-    else:
-        _slot('ov_hbar', None, False, 'Category Comparison', 'categorical')
-        _slot('ov_center', None, False, 'Category Composition', 'categorical')
-
-    # Kanan atas: time series jika ada datetime + numeric, else ranking
-    top_right = None
-    top_right_visible = False
-    top_right_viz = 'numerical'
-    if dt_cols and num_cols:
-        try:
-            top_right = _line_timeseries(df, dt_cols[0], num_cols[0])
-            top_right_visible = top_right is not None
-            top_right_viz = 'numerical'
-        except Exception:
-            pass
-    if not top_right_visible and num_cols:
-        try:
-            top_right = _area_ranking(df, num_cols[0])
-            top_right_visible = top_right is not None
-        except Exception:
-            pass
-    _slot('ov_top_right', top_right, top_right_visible,
-          'Trend / Ranking', 'numerical' if not dt_cols else 'timeseries',
-          'numerical' if not dt_cols else None)
-
-    # ── Baris bawah ───────────────────────────────────────────────────────────
-    vbar_left_opts = {}
-    if num_cols:
-        for col in num_cols[:4]:
-            try:
-                vbar_left_opts[col] = _vbar_numeric(df, col)
-            except Exception:
-                pass
-        default_left = num_cols[0]
-        result['toggle_data']['ov_vbar_left'] = {
-            'options': list(vbar_left_opts.keys()),
-            'default': default_left,
-            'charts': vbar_left_opts,
+        result['viz_links'][key] = {
+            'tab': viz_tab,
+            'sub': viz_sub or 'numerical',
         }
-        _slot('ov_vbar_left', vbar_left_opts.get(default_left), bool(vbar_left_opts),
-              'Numeric Distribution', 'numerical', 'numerical')
-    else:
-        _slot('ov_vbar_left', None, False, 'Numeric Distribution', 'numerical')
 
-    area_bottom = None
-    if len(num_cols) >= 2:
-        try:
-            area_bottom = _area_cumulative(df, num_cols[1])
-        except Exception:
-            pass
-    elif num_cols:
-        try:
-            area_bottom = _area_ranking(df, num_cols[0])
-        except Exception:
-            pass
-    _slot('ov_area_bottom', area_bottom, area_bottom is not None,
-          'Cumulative / Trend', 'numerical', 'numerical')
+    def _reg(key, charts_dict, default_col):
+        td = _make_toggle(charts_dict, default_col)
+        if td:
+            result['toggle_data'][key] = td
 
-    vbar_right_opts = {}
-    if cat_cols:
-        for col in cat_cols[:4]:
-            try:
-                vbar_right_opts[col] = _vbar_cat(df, col)
-            except Exception:
-                pass
-        default_right = cat_cols[0] if len(cat_cols) == 1 else (cat_cols[1] if len(cat_cols) > 1 else cat_cols[0])
-        if default_right not in vbar_right_opts and vbar_right_opts:
-            default_right = list(vbar_right_opts.keys())[0]
-        result['toggle_data']['ov_vbar_right'] = {
-            'options': list(vbar_right_opts.keys()),
-            'default': default_right,
-            'charts': vbar_right_opts,
+    # ══════════════════════════════════════════════════════════════════
+    # BARIS TENGAH
+    # ══════════════════════════════════════════════════════════════════
+
+    # ov_hbar: Pareto Chart — toggle semua cat_cols
+    pareto_charts = _build_pareto_charts(df, cat_cols)
+    default_cat0  = cat_cols[0] if cat_cols else ''
+    _reg('ov_hbar', pareto_charts, default_cat0)
+    _slot('ov_hbar',
+          pareto_charts.get(default_cat0) if pareto_charts else None,
+          title   = f'Pareto — {default_cat0}' if default_cat0 else '',
+          viz_tab = 'visualizations',
+          viz_sub = 'categorical')
+
+    # ov_center: Pie/Donut — toggle semua cat_cols
+    pie_charts = _build_pie_charts(df, cat_cols)
+    _reg('ov_center', pie_charts, default_cat0)
+    _slot('ov_center',
+          pie_charts.get(default_cat0) if pie_charts else None,
+          title   = f'Composition — {default_cat0}' if default_cat0 else '',
+          viz_tab = 'visualizations',
+          viz_sub = 'categorical')
+
+    # ov_top_right: TS (fixed) → Scatter (toggle X & Y) → SKIP
+    has_ts = bool(dt_cols and num_cols)
+    if has_ts:
+        # TS: chart tunggal, tidak ada toggle kolom
+        ts_chart = _build_top_right_ts(df, num_cols, dt_cols)
+        _slot('ov_top_right', ts_chart,
+              title   = f'Trend — {num_cols[0]}' if ts_chart and num_cols else '',
+              viz_tab = 'timeseries',
+              viz_sub = None)
+        # Tidak perlu toggle_data untuk slot ini (TS fixed)
+    elif len(num_cols) >= 2:
+        # Scatter dengan toggle X dan Y terpisah
+        scatter_charts = _build_scatter_charts(df, num_cols)
+        default_x      = num_cols[0]
+        default_y      = num_cols[1]
+        # Struktur toggle khusus scatter: nested { col_x: { col_y: chart } }
+        default_chart  = (scatter_charts.get(default_x) or {}).get(default_y)
+        result['toggle_data']['ov_top_right'] = {
+            'type'    : 'scatter',          # penanda untuk JS
+            'options_x': list(scatter_charts.keys()),
+            'options_y': num_cols[:6],
+            'default_x': default_x,
+            'default_y': default_y,
+            'charts'   : scatter_charts,    # nested dict
         }
-        _slot('ov_vbar_right', vbar_right_opts.get(default_right), bool(vbar_right_opts),
-              'Category Frequency', 'categorical', 'categorical')
+        _slot('ov_top_right', default_chart,
+              title   = f'Scatter — {default_x} × {default_y}' if default_chart else '',
+              viz_tab = 'visualizations',
+              viz_sub = 'bivariate')
     else:
-        _slot('ov_vbar_right', None, False, 'Category Frequency', 'categorical')
+        _slot('ov_top_right', None, '', 'visualizations', 'bivariate')
+
+    # ══════════════════════════════════════════════════════════════════
+    # BARIS BAWAH
+    # ══════════════════════════════════════════════════════════════════
+
+    # ov_vbar_left: Histogram + toggle semua num_cols
+    vbar_left = _build_vbar_left_charts(df, num_cols)
+    default_num0 = num_cols[0] if num_cols else ''
+    _reg('ov_vbar_left', vbar_left, default_num0)
+    _slot('ov_vbar_left',
+          vbar_left.get(default_num0) if vbar_left else None,
+          title   = f'Distribution — {default_num0}' if default_num0 else '',
+          viz_tab = 'visualizations',
+          viz_sub = 'numerical')
+
+    # ov_area_bottom: Boxplot + toggle semua num_cols
+    # Default: num_cols[1] jika ada (beda dari histogram default di vbar_left)
+    boxplot_charts = _build_boxplot_charts(df, num_cols)
+    default_num1   = num_cols[1] if len(num_cols) >= 2 else default_num0
+    _reg('ov_area_bottom', boxplot_charts, default_num1)
+    _slot('ov_area_bottom',
+          boxplot_charts.get(default_num1) if boxplot_charts else None,
+          title   = f'Spread — {default_num1}' if default_num1 else '',
+          viz_tab = 'visualizations',
+          viz_sub = 'numerical')
+
+    # ov_vbar_right: Bar Chart + toggle semua cat_cols
+    vbar_right = _build_vbar_right_charts(df, cat_cols)
+    _reg('ov_vbar_right', vbar_right, default_cat0)
+    _slot('ov_vbar_right',
+          vbar_right.get(default_cat0) if vbar_right else None,
+          title   = f'Frequency — {default_cat0}' if default_cat0 else '',
+          viz_tab = 'visualizations',
+          viz_sub = 'categorical')
 
     return result

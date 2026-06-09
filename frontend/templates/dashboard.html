@@ -34,7 +34,57 @@
     border:1px solid var(--border); margin-left:4px;
 }
 .chart-grid-1 { display:grid; grid-template-columns:1fr; gap:18px; }
+
+/* ── Stats Preview Tables di Overview ── */
+.ov-stats-section { margin-top: 22px; }
+.ov-stats-section-title {
+    font-size: 0.95rem; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.ov-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 960px) { .ov-stats-grid { grid-template-columns: 1fr; } }
+.ov-stats-card { display: none; }
+.ov-stats-card-header {
+    padding: 14px 18px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.ov-stats-card-header h4 {
+    font-size: 0.88rem; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 7px;
+}
+.ov-stats-card-header small { font-size: 0.7rem; color: var(--muted); }
+.ov-stats-table-wrap {
+    display: none; overflow-x: auto; padding: 10px 14px 14px;
+    max-height: 300px; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.ov-stats-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; }
+.ov-stats-table thead th {
+    padding: 7px 12px; background: var(--bg); color: var(--text);
+    font-weight: 700; font-size: 0.7rem; text-transform: uppercase;
+    letter-spacing: 0.3px; border-bottom: 2px solid var(--border);
+    text-align: left; position: sticky; top: 0; z-index: 1;
+}
+.ov-stats-table tbody td {
+    padding: 6px 12px; border-bottom: 1px solid var(--border);
+    color: var(--text); vertical-align: middle;
+}
+.ov-stats-table tbody tr:hover td { background: var(--bg); }
+.ov-td-col    { color: var(--blue) !important; font-weight: 600; }
+.ov-td-warn   { color: #b8860b !important; font-weight: 600; }
+.ov-td-danger { color: var(--red) !important; font-weight: 700; }
+.ov-td-mode   { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.ov-stats-link {
+    font-size: 0.68rem; font-weight: 700; color: var(--blue);
+    cursor: pointer; opacity: 0.8; white-space: nowrap; text-decoration: none;
+}
+.ov-stats-link:hover { opacity: 1; text-decoration: underline; }
+
+/* Double toggle untuk scatter X & Y */
+.ov-toggle-wrap--double { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ov-toggle-wrap--double select { max-width: 130px; }
 </style>
+
 
 <!-- ══════════════ TAB 1: OVERVIEW ══════════════ -->
 <div id="tab-overview" class="tab-content active-tab">
@@ -45,6 +95,7 @@
         </div>
     </div>
 
+    <!-- KPI Row -->
     <div class="ov-kpi-row">
         {% for kpi in overview.kpis %}
         <div class="card kpi-card {{ kpi.color }}">
@@ -57,17 +108,31 @@
         {% endfor %}
     </div>
 
+    <!-- ── Chart Grid Baris Atas ── -->
     {% set mid_visible = overview.slots.ov_hbar.visible or overview.slots.ov_center.visible or overview.slots.ov_top_right.visible %}
     {% if mid_visible %}
     <div class="ov-viz-row ov-viz-row--3">
+
         {% if overview.slots.ov_hbar.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_hbar.tab }}"
              data-viz-sub="{{ overview.viz_links.ov_hbar.sub or 'categorical' }}">
             <div class="card-header-clean ov-slot-header">
-                <h4><i class="fas fa-bars text-blue"></i> {{ overview.slots.ov_hbar.title }}</h4>
+                <h4><i class="fas fa-chart-bar text-blue"></i>
+                    <span id="ov_hbar-title">{{ overview.slots.ov_hbar.title }}</span>
+                </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
+            {% if overview.toggle_data.ov_hbar and overview.toggle_data.ov_hbar.options|length > 1 %}
+            <div class="ov-toggle-wrap" onclick="event.stopPropagation()">
+                <label for="toggle-ov_hbar">Kolom:</label>
+                <select id="toggle-ov_hbar">
+                    {% for opt in overview.toggle_data.ov_hbar.options %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_hbar.default %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div id="ov_hbar" class="chart-area ov-chart-area"></div>
         </div>
         {% endif %}
@@ -77,36 +142,76 @@
              data-viz-tab="{{ overview.viz_links.ov_center.tab }}"
              data-viz-sub="{{ overview.viz_links.ov_center.sub or 'categorical' }}">
             <div class="card-header-clean ov-slot-header">
-                <h4><i class="fas fa-chart-pie text-purple"></i> {{ overview.slots.ov_center.title }}</h4>
+                <h4><i class="fas fa-chart-pie text-purple"></i>
+                    <span id="ov_center-title">{{ overview.slots.ov_center.title }}</span>
+                </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
+            {% if overview.toggle_data.ov_center and overview.toggle_data.ov_center.options|length > 1 %}
+            <div class="ov-toggle-wrap" onclick="event.stopPropagation()">
+                <label for="toggle-ov_center">Kolom:</label>
+                <select id="toggle-ov_center">
+                    {% for opt in overview.toggle_data.ov_center.options %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_center.default %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div id="ov_center" class="chart-area ov-chart-area"></div>
         </div>
         {% endif %}
 
         {% if overview.slots.ov_top_right.visible %}
         <div class="ov-chart-slot card chart-card"
-             data-viz-tab="{% if has_ts %}timeseries{% else %}{{ overview.viz_links.ov_top_right.tab }}{% endif %}"
-             data-viz-sub="{{ overview.viz_links.ov_top_right.sub or 'numerical' }}">
+             data-viz-tab="{% if has_ts %}timeseries{% else %}visualizations{% endif %}"
+             data-viz-sub="{% if has_ts %}numerical{% else %}bivariate{% endif %}">
             <div class="card-header-clean ov-slot-header">
-                <h4><i class="fas fa-chart-line text-green"></i> {{ overview.slots.ov_top_right.title }}</h4>
+                <h4>
+                    {% if has_ts %}
+                    <i class="fas fa-chart-line text-green"></i>
+                    {% else %}
+                    <i class="fas fa-circle-dot text-blue"></i>
+                    {% endif %}
+                    <span id="ov_top_right-title">{{ overview.slots.ov_top_right.title }}</span>
+                </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
+            {% if not has_ts and overview.toggle_data.ov_top_right and overview.toggle_data.ov_top_right.type == 'scatter' %}
+            <div class="ov-toggle-wrap ov-toggle-wrap--double" onclick="event.stopPropagation()">
+                <label for="scatter-col-x">X:</label>
+                <select id="scatter-col-x">
+                    {% for opt in overview.toggle_data.ov_top_right.options_x %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_top_right.default_x %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+                <label for="scatter-col-y" style="margin-left:10px;">Y:</label>
+                <select id="scatter-col-y">
+                    {% for opt in overview.toggle_data.ov_top_right.options_y %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_top_right.default_y %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div id="ov_top_right" class="chart-area ov-chart-area"></div>
         </div>
         {% endif %}
+
     </div>
     {% endif %}
 
+    <!-- ── Chart Grid Baris Bawah ── -->
     {% set bot_visible = overview.slots.ov_vbar_left.visible or overview.slots.ov_area_bottom.visible or overview.slots.ov_vbar_right.visible %}
     {% if bot_visible %}
     <div class="ov-viz-row ov-viz-row--3 mt-4">
+
         {% if overview.slots.ov_vbar_left.visible %}
         <div class="ov-chart-slot card chart-card"
              data-viz-tab="{{ overview.viz_links.ov_vbar_left.tab }}"
              data-viz-sub="numerical">
             <div class="card-header-clean ov-slot-header">
-                <h4><i class="fas fa-chart-bar text-orange"></i> {{ overview.slots.ov_vbar_left.title }}</h4>
+                <h4><i class="fas fa-chart-bar text-orange"></i>
+                    <span id="ov_vbar_left-title">{{ overview.slots.ov_vbar_left.title }}</span>
+                </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
             {% if overview.toggle_data.ov_vbar_left and overview.toggle_data.ov_vbar_left.options|length > 1 %}
@@ -128,9 +233,21 @@
              data-viz-tab="{{ overview.viz_links.ov_area_bottom.tab }}"
              data-viz-sub="numerical">
             <div class="card-header-clean ov-slot-header">
-                <h4><i class="fas fa-chart-area text-blue"></i> {{ overview.slots.ov_area_bottom.title }}</h4>
+                <h4><i class="fas fa-chart-simple text-blue"></i>
+                    <span id="ov_area_bottom-title">{{ overview.slots.ov_area_bottom.title }}</span>
+                </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
+            {% if overview.toggle_data.ov_area_bottom and overview.toggle_data.ov_area_bottom.options|length > 1 %}
+            <div class="ov-toggle-wrap" onclick="event.stopPropagation()">
+                <label for="toggle-ov_area_bottom">Kolom:</label>
+                <select id="toggle-ov_area_bottom">
+                    {% for opt in overview.toggle_data.ov_area_bottom.options %}
+                    <option value="{{ opt }}" {% if opt == overview.toggle_data.ov_area_bottom.default %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div id="ov_area_bottom" class="chart-area ov-chart-area"></div>
         </div>
         {% endif %}
@@ -140,7 +257,9 @@
              data-viz-tab="{{ overview.viz_links.ov_vbar_right.tab }}"
              data-viz-sub="categorical">
             <div class="card-header-clean ov-slot-header">
-                <h4><i class="fas fa-chart-bar text-red"></i> {{ overview.slots.ov_vbar_right.title }}</h4>
+                <h4><i class="fas fa-chart-column text-red"></i>
+                    <span id="ov_vbar_right-title">{{ overview.slots.ov_vbar_right.title }}</span>
+                </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
             </div>
             {% if overview.toggle_data.ov_vbar_right and overview.toggle_data.ov_vbar_right.options|length > 1 %}
@@ -156,16 +275,50 @@
             <div id="ov_vbar_right" class="chart-area ov-chart-area"></div>
         </div>
         {% endif %}
+
     </div>
     {% endif %}
 
+    <!-- Empty state -->
     {% if not mid_visible and not bot_visible %}
     <div class="card ov-empty-state mt-4">
         <i class="fas fa-chart-line"></i>
         <p>Dataset tidak memiliki kolom yang cukup untuk visualisasi ringkasan.</p>
     </div>
     {% endif %}
+
+    <!-- ── Stats Preview Tables ── -->
+    <div class="ov-stats-section">
+        <div class="ov-stats-section-title">
+            <i class="fas fa-table-list text-blue"></i>
+            Statistics Summary
+            <span style="font-size:0.75rem;color:var(--muted);font-weight:400;margin-left:4px;">— snapshot ringkasan dataset</span>
+        </div>
+        <div class="ov-stats-grid">
+            <div class="card ov-stats-card" id="ov-stats-num-card">
+                <div class="ov-stats-card-header">
+                    <h4><i class="fas fa-hashtag text-orange"></i> Numerical Variables</h4>
+                    <a class="ov-stats-link" href="#" onclick="switchTab('numerical'); return false;">
+                        <i class="fas fa-external-link-alt"></i> Full Stats
+                    </a>
+                </div>
+                <div class="ov-stats-table-wrap" id="ov-stats-num-wrap"></div>
+            </div>
+            <div class="card ov-stats-card" id="ov-stats-cat-card">
+                <div class="ov-stats-card-header">
+                    <h4><i class="fas fa-font text-purple"></i> Categorical Variables</h4>
+                    <a class="ov-stats-link" href="#" onclick="switchTab('categorical'); return false;">
+                        <i class="fas fa-external-link-alt"></i> Full Stats
+                    </a>
+                </div>
+                <div class="ov-stats-table-wrap" id="ov-stats-cat-wrap"></div>
+            </div>
+        </div>
+    </div>
+
 </div>
+<!-- ── END TAB 1: OVERVIEW ── -->
+
 
 <!-- ══════════════ TAB 2: DATA PREVIEW ══════════════ -->
 <div id="tab-preview" class="tab-content" style="display:none;">
@@ -178,6 +331,7 @@
         <div class="table-scroll-wrapper">{{ preview | safe }}</div>
     </div>
 </div>
+
 
 <!-- ══════════════ TAB: DATA CLEANING ══════════════ -->
 <div id="tab-cleaning" class="tab-content" style="display:none;">
@@ -287,6 +441,7 @@
     </div>
 </div>
 
+
 <!-- ══════════════ TAB 3: NUMERICAL STATS ══════════════ -->
 <div id="tab-numerical" class="tab-content" style="display:none;">
     <div class="card full-card">
@@ -327,6 +482,7 @@
     </div>
 </div>
 
+
 <!-- ══════════════ TAB 4: CATEGORICAL STATS ══════════════ -->
 <div id="tab-categorical" class="tab-content" style="display:none;">
     <div class="card full-card">
@@ -353,6 +509,7 @@
         </div>
     </div>
 </div>
+
 
 <!-- ══════════════ TAB 5: ADVANCED STATS ══════════════ -->
 <div id="tab-advanced" class="tab-content" style="display:none;">
@@ -463,7 +620,8 @@
     {% endif %}
 </div>
 
-<!-- ══════════════ TAB 6: VISUALIZATIONS (Master View) ══════════════ -->
+
+<!-- ══════════════ TAB 6: VISUALIZATIONS ══════════════ -->
 <div id="tab-visualizations" class="tab-content" style="display:none;">
     <div class="viz-master-page">
         <div class="viz-master-header">
@@ -502,7 +660,6 @@
                 </div>
             </div>
 
-            <!-- Plot area: empty on load, filled by VizMaster on tab open -->
             <div id="viz-master-plot" class="viz-master-plot">
                 <div class="viz-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:#7EA9FF;">
                     <i class="fas fa-chart-bar" style="font-size:2rem;opacity:.3;"></i>
@@ -522,6 +679,7 @@
         </div>
     </div>
 </div>
+
 
 <!-- ══════════════ TAB 7: TIME SERIES ══════════════ -->
 <div id="tab-timeseries" class="tab-content" style="display:none;">
@@ -549,7 +707,6 @@
     </div>
     {% endif %}
 
-    <!-- Sub-panels — all hidden, shown via switchTsTab() -->
     <div id="ts-line" class="ts-subtab-content">
         <div class="card chart-card">
             <div class="card-header-clean">
@@ -597,6 +754,7 @@
     {% endif %}
 </div>
 
+
 <!-- ══════════════ TAB 8: SMART INSIGHTS ══════════════ -->
 <div id="tab-insights" class="tab-content" style="display:none;">
     <div class="dashboard-header mb-4">
@@ -618,19 +776,13 @@
     </div>
 </div>
 
-<!-- ══════════════ TAB 9: AI DATABOT (disabled) ══════════════ -->
-
-<!-- Bagian AI DataBot dihapus agar dashboard tidak menampilkan fitur AI. -->
-
 
 <!-- ══════════════ SCRIPTS ══════════════ -->
-
 <script src="{{ url_for('static', filename='js/dashboardOverview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/visualizationsMaster.js') }}"></script>
 
 <script>
-/* ── Data passed from Flask ── */
-var plotsData      = null;
+var plotsData       = null;
 var overviewPayload = null;
 var vizMeta = {
     filename : {{ filename | tojson }},
@@ -640,13 +792,11 @@ var vizMeta = {
     has_ts   : {{ has_ts   | tojson }},
 };
 
-try { plotsData      = {{ plots    | tojson | safe }}; } catch(e) { console.error('plots data error:', e); }
+try { plotsData       = {{ plots    | tojson | safe }}; } catch(e) { console.error('plots data error:', e); }
 try { overviewPayload = {{ overview | tojson | safe }}; } catch(e) { console.error('overview data error:', e); }
 
-/* ── AI chat context ── */
 var datasetContext = "Filename: {{ filename }}, Rows: {{ metrics.total_rows }}, Cols: {{ metrics.total_columns }}, Numeric: {{ num_cols|join(', ') }}, Categorical: {{ cat_cols|join(', ') }}{% if has_ts %}, DateTime: {{ dt_cols|join(', ') }}{% endif %}";
 
-/* ── Chart map for Time Series plots (pre-built server-side) ── */
 var TS_CHART_MAP = {
     'ts-line'    : 'ts_line',
     'ts-trend'   : 'ts_trend',
@@ -655,7 +805,6 @@ var TS_CHART_MAP = {
     'ts-overview': 'ts_overview',
 };
 
-/* Track which TS panels have been rendered */
 var _tsRendered = {};
 
 var PLOTLY_CFG = {
@@ -681,33 +830,26 @@ function _layoutPatch() {
     };
 }
 
-/* ── Draw a single TS chart safely ── */
 function drawTsChart(panelId, plotKey, force) {
     if (!plotsData) return;
     var plotObj = plotsData[plotKey];
     if (!plotObj) { console.warn('[TS] No data for key:', plotKey); return; }
-
     var el = document.getElementById('plot-' + panelId);
     if (!el) return;
-
     if (!force && _tsRendered[panelId]) {
         if (typeof Plotly !== 'undefined' && el._fullLayout) Plotly.Plots.resize(el);
         return;
     }
-
     try { if (typeof Plotly !== 'undefined') Plotly.purge(el); } catch(e) {}
     el.innerHTML = '';
-
     var layout = Object.assign({}, plotObj.layout || {}, _layoutPatch(), {
         autosize : true,
         margin   : { l:48, r:20, t:52, b:48 },
     });
-
     if (typeof Plotly === 'undefined') {
         el.innerHTML = '<div style="padding:20px;color:#7eacd0;">Plotly.js tidak dimuat.</div>';
         return;
     }
-
     Plotly.newPlot(el, plotObj.data || [], layout, PLOTLY_CFG)
         .then(function() { _tsRendered[panelId] = true; })
         .catch(function(err) {
@@ -716,34 +858,24 @@ function drawTsChart(panelId, plotKey, force) {
         });
 }
 
-/* ── Switch TS sub-panel (called from sidebar) ── */
 function switchTsTab(tab) {
     if (!tab) return;
-
     document.querySelectorAll('.ts-subtab-content').forEach(function(el) {
         el.style.display = 'none';
     });
-
     var target = document.getElementById('ts-' + tab);
     if (target) target.style.display = 'block';
-
-    /* Render the chart for this panel (lazy) */
     var plotKey = TS_CHART_MAP['ts-' + tab];
     if (plotKey) drawTsChart('ts-' + tab, plotKey, false);
 }
 
-/* ── Render overview charts (called on load) ── */
 function renderVisibleCharts() {
     if (!plotsData || typeof Plotly === 'undefined') return;
-    /* Only render the default TS panel (line) if the tab is active */
-    /* Overview charts are handled by OverviewDashboard */
 }
 
-/* ── switchTab override: hook into tab changes ── */
 var _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
     if (_origSwitchTab) _origSwitchTab(tab);
-
     if (tab === 'visualizations') {
         setTimeout(function() {
             if (typeof VizMaster !== 'undefined') VizMaster.onTabShow();
@@ -755,80 +887,40 @@ window.switchTab = function(tab) {
         }, 80);
     }
     if (tab === 'timeseries') {
-        /* Render the default (line) panel when TS tab opens */
         setTimeout(function() { switchTsTab('line'); }, 80);
     }
 };
 
-/* ── Init on DOMContentLoaded ── */
 document.addEventListener('DOMContentLoaded', function() {
-
-    /* Init OverviewDashboard */
     if (typeof OverviewDashboard !== 'undefined' && overviewPayload) {
         OverviewDashboard.init(overviewPayload);
     }
-
-    /* Init VizMaster — do NOT trigger fetch yet (lazy) */
     if (typeof VizMaster !== 'undefined') {
         VizMaster.init(vizMeta);
     }
-
-    /* Render overview charts after short delay */
     setTimeout(function() {
         if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.renderAll();
     }, 350);
 });
 
-/* ── Resize handler ── */
 var _rsz;
 window.addEventListener('resize', function() {
     clearTimeout(_rsz);
     _rsz = setTimeout(function() {
-        /* Resize overview charts */
         document.querySelectorAll('[id^="ov_"]').forEach(function(el) {
             if (el._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
         });
-        /* Resize TS charts */
         Object.keys(_tsRendered).forEach(function(panelId) {
             var el = document.getElementById('plot-' + panelId);
             if (el && el._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
         });
-        /* Resize viz master */
         var vzEl = document.getElementById('viz-master-plot');
         if (vzEl && vzEl._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(vzEl);
-        /* Notify modules */
         if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onResize();
     }, 200);
 });
 
-/* ── AI Chat (disabled) ── */
-function sendAIMessage() {
-    return;
-
-    var input = document.getElementById('ai-input');
-    if (!input) return;
-    var msg = input.value.trim();
-    if (!msg) return;
-    appendChatMsg(msg, 'user');
-    input.value = '';
-    var typingEl = appendChatMsg('Sedang mengetik…', 'bot', true);
-    fetch('/api/ai-chat', {
-        method  : 'POST',
-        headers : { 'Content-Type':'application/json' },
-        body    : JSON.stringify({ message:msg, context:datasetContext }),
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        var b = typingEl.querySelector('.chat-bubble');
-        b.innerHTML = data.reply || 'No response.';
-        b.classList.remove('typing');
-    })
-    .catch(function() {
-        var b = typingEl.querySelector('.chat-bubble');
-        b.innerHTML = '⚠️ Failed to connect. Check API Key.';
-        b.classList.remove('typing');
-    });
-}
+function sendAIMessage() { return; }
 
 function appendChatMsg(text, role, typing) {
     typing = typing || false;
