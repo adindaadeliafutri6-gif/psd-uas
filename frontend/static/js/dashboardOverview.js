@@ -1,16 +1,20 @@
+'use strict';
+
 /**
  * dashboardOverview.js
- * Render & interaksi tab Dashboard Overview.
  *
- * SLOT MATRIX:
- *   ov_hbar        → Pareto Chart       (toggle cat_cols)
- *   ov_center      → Pie/Donut          (toggle cat_cols)
- *   ov_top_right   → TS (fixed) atau Scatter (toggle X & Y terpisah)
- *   ov_vbar_left   → Histogram          (toggle num_cols)
- *   ov_area_bottom → Box Plot           (toggle num_cols)
- *   ov_vbar_right  → Bar Chart          (toggle cat_cols)
+ * PERUBAHAN:
+ *  - Klik chart slot di Overview langsung membuka chart type yang TEPAT
+ *    di tab Visualizations (bukan hanya kategorinya).
+ *    Peta: ov_hbar → categorical/pareto
+ *          ov_center → categorical/pie
+ *          ov_top_right → timeseries (jika ada TS) atau bivariate/scatter
+ *          ov_vbar_left → numerical/histogram
+ *          ov_area_bottom → numerical/boxplot
+ *          ov_vbar_right → categorical/bar
+ *  - Toggle handler digeneralisasi untuk semua slot.
+ *  - Title header slot ikut update saat toggle kolom berubah.
  */
-'use strict';
 
 var OverviewDashboard = (function () {
     var data     = null;
@@ -21,6 +25,17 @@ var OverviewDashboard = (function () {
         displayModeBar : false,
         displaylogo    : false,
         scrollZoom     : false,
+    };
+
+    // ── Peta slot ke {tab, category, chartType} ───────────────────────────────
+    // Dipakai saat klik slot untuk membuka chart yang tepat di Visualizations.
+    var SLOT_VIZ_TARGET = {
+        'ov_hbar'        : { tab: 'visualizations', category: 'categorical', chartType: 'pareto'    },
+        'ov_center'      : { tab: 'visualizations', category: 'categorical', chartType: 'pie'       },
+        'ov_top_right'   : null,   // ditentukan dinamis (TS atau scatter)
+        'ov_vbar_left'   : { tab: 'visualizations', category: 'numerical',   chartType: 'histogram' },
+        'ov_area_bottom' : { tab: 'visualizations', category: 'numerical',   chartType: 'boxplot'   },
+        'ov_vbar_right'  : { tab: 'visualizations', category: 'categorical', chartType: 'bar'       },
     };
 
     var SLOT_TITLE_PREFIX = {
@@ -128,87 +143,6 @@ var OverviewDashboard = (function () {
         });
     }
 
-    // ── Title updater ─────────────────────────────────────────────────────────
-    function _updateSlotTitle(slotId, text) {
-        var el = document.getElementById(slotId + '-title');
-        if (el) el.textContent = text;
-    }
-
-    // ── Toggle: regular (single dropdown per slot) ────────────────────────────
-    function _bindRegularToggle(slotId, toggle) {
-        var select = document.getElementById('toggle-' + slotId);
-        if (!select || !toggle.charts) return;
-
-        select.addEventListener('change', function () {
-            var col   = select.value;
-            var chart = toggle.charts[col];
-            if (chart) {
-                rendered.delete(slotId);
-                drawSlot(slotId, chart, true);
-                var prefix = SLOT_TITLE_PREFIX[slotId] || '';
-                _updateSlotTitle(slotId, prefix + col);
-            }
-        });
-    }
-
-    // ── Toggle: scatter (dua dropdown X dan Y) ────────────────────────────────
-    function _bindScatterToggle(toggle) {
-        var selX = document.getElementById('scatter-col-x');
-        var selY = document.getElementById('scatter-col-y');
-        if (!selX || !selY) return;
-
-        function _redraw() {
-            var cx     = selX.value;
-            var cy     = selY.value;
-            var charts = toggle.charts || {};
-            var chart  = (charts[cx] || {})[cy];
-            if (chart) {
-                rendered.delete('ov_top_right');
-                drawSlot('ov_top_right', chart, true);
-                _updateSlotTitle('ov_top_right', 'Scatter — ' + cx + ' × ' + cy);
-            }
-        }
-
-        selX.addEventListener('change', function () {
-            // Saat X berubah, cek apakah Y saat ini masih valid; jika Y == X, pindah ke pilihan lain
-            var cx = selX.value;
-            var cy = selY.value;
-            if (cx === cy) {
-                // Pilih Y pertama yang bukan cx
-                var opts = Array.from(selY.options).map(function (o) { return o.value; });
-                var alt  = opts.find(function (v) { return v !== cx; });
-                if (alt) selY.value = alt;
-            }
-            _redraw();
-        });
-
-        selY.addEventListener('change', function () {
-            var cy = selY.value;
-            var cx = selX.value;
-            if (cx === cy) {
-                var opts = Array.from(selX.options).map(function (o) { return o.value; });
-                var alt  = opts.find(function (v) { return v !== cy; });
-                if (alt) selX.value = alt;
-            }
-            _redraw();
-        });
-    }
-
-    function bindToggles() {
-        if (!data || !data.toggle_data) return;
-
-        Object.keys(data.toggle_data).forEach(function (slotId) {
-            var toggle = data.toggle_data[slotId];
-            if (!toggle) return;
-
-            if (slotId === 'ov_top_right' && toggle.type === 'scatter') {
-                _bindScatterToggle(toggle);
-            } else {
-                _bindRegularToggle(slotId, toggle);
-            }
-        });
-    }
-
     // ── Stats Preview Tables ──────────────────────────────────────────────────
     function renderStatsPreview() {
         if (!data || !data.stats_preview) return;
@@ -226,7 +160,7 @@ var OverviewDashboard = (function () {
                 var outCls = r.outliers > 0 ? 'ov-td-warn' : '';
                 var misCls = r.missing  > 0 ? 'ov-td-warn' : '';
                 numHtml +=
-                    '<tr><td class="ov-td-col">' + r.col + '</td>' +
+                    '<tr><td class="ov-td-col">' + r.col    + '</td>' +
                     '<td>' + r.mean   + '</td><td>' + r.median + '</td>' +
                     '<td>' + r.std    + '</td><td>' + r.min    + '</td>' +
                     '<td>' + r.max    + '</td>' +
@@ -234,7 +168,7 @@ var OverviewDashboard = (function () {
                     '<td class="' + misCls + '">' + r.missing  + '</td></tr>';
             });
             numHtml += '</tbody></table>';
-            numWrap.innerHTML    = numHtml;
+            numWrap.innerHTML     = numHtml;
             numWrap.style.display = 'block';
             var nc = document.getElementById('ov-stats-num-card');
             if (nc) nc.style.display = 'block';
@@ -252,49 +186,145 @@ var OverviewDashboard = (function () {
                 var pctCls = r.mode_pct > 70 ? 'ov-td-danger' :
                              r.mode_pct > 50 ? 'ov-td-warn'   : '';
                 catHtml +=
-                    '<tr><td class="ov-td-col">' + r.col + '</td>' +
-                    '<td>' + r.unique + '</td>' +
-                    '<td class="ov-td-mode">' + r.mode + '</td>' +
-                    '<td class="' + pctCls + '">' + r.mode_pct + '%</td>' +
-                    '<td class="' + misCls + '">' + r.missing  + '</td></tr>';
+                    '<tr><td class="ov-td-col">'   + r.col     + '</td>' +
+                    '<td>'                         + r.unique  + '</td>' +
+                    '<td class="ov-td-mode">'      + r.mode    + '</td>' +
+                    '<td class="' + pctCls + '">'  + r.mode_pct + '%</td>' +
+                    '<td class="' + misCls + '">'  + r.missing  + '</td></tr>';
             });
             catHtml += '</tbody></table>';
-            catWrap.innerHTML    = catHtml;
+            catWrap.innerHTML     = catHtml;
             catWrap.style.display = 'block';
             var cc = document.getElementById('ov-stats-cat-card');
             if (cc) cc.style.display = 'block';
         }
     }
 
-    // ── Click-through to Visualizations ──────────────────────────────────────
+    // ── Toggle dropdowns ─────────────────────────────────────────────────────
+
+    function _updateSlotTitle(slotId, colName) {
+        var prefix  = SLOT_TITLE_PREFIX[slotId] || '';
+        var titleEl = document.getElementById(slotId + '-title');
+        if (titleEl) titleEl.textContent = prefix + colName;
+    }
+
+    function _bindRegularToggle(slotId, toggle) {
+        var select = document.getElementById('toggle-' + slotId);
+        if (!select || !toggle.charts) return;
+        select.addEventListener('change', function () {
+            var col   = select.value;
+            var chart = toggle.charts[col];
+            if (chart) {
+                rendered.delete(slotId);
+                drawSlot(slotId, chart, true);
+                _updateSlotTitle(slotId, col);
+            }
+        });
+    }
+
+    function _bindScatterToggle(toggle) {
+        var selX = document.getElementById('scatter-col-x');
+        var selY = document.getElementById('scatter-col-y');
+        if (!selX || !selY) return;
+
+        function _redraw() {
+            var cx    = selX.value;
+            var cy    = selY.value;
+            var chart = (toggle.charts[cx] || {})[cy];
+            if (chart) {
+                rendered.delete('ov_top_right');
+                drawSlot('ov_top_right', chart, true);
+                _updateSlotTitle('ov_top_right', cx + ' × ' + cy);
+                // Update judul di title span
+                var titleEl = document.getElementById('ov_top_right-title');
+                if (titleEl) titleEl.textContent = 'Scatter — ' + cx + ' × ' + cy;
+            }
+        }
+
+        selX.addEventListener('change', function () {
+            var cx = selX.value;
+            if (cx === selY.value) {
+                var opts = Array.from(selY.options).map(function(o) { return o.value; });
+                var alt  = opts.find(function(v) { return v !== cx; });
+                if (alt) selY.value = alt;
+            }
+            _redraw();
+        });
+
+        selY.addEventListener('change', function () {
+            var cy = selY.value;
+            if (cy === selX.value) {
+                var opts = Array.from(selX.options).map(function(o) { return o.value; });
+                var alt  = opts.find(function(v) { return v !== cy; });
+                if (alt) selX.value = alt;
+            }
+            _redraw();
+        });
+    }
+
+    function bindToggles() {
+        if (!data || !data.toggle_data) return;
+        Object.keys(data.toggle_data).forEach(function (slotId) {
+            var toggle = data.toggle_data[slotId];
+            if (!toggle) return;
+            if (slotId === 'ov_top_right' && toggle.type === 'scatter') {
+                _bindScatterToggle(toggle);
+            } else {
+                _bindRegularToggle(slotId, toggle);
+            }
+        });
+    }
+
+    // ── Click-through ke Visualizations (chart type spesifik) ────────────────
+
     function bindVizNavigation() {
         document.querySelectorAll('.ov-chart-slot[data-viz-tab]').forEach(function (el) {
             el.addEventListener('click', function (e) {
                 if (e.target.closest('.ov-toggle-wrap')) return;
-                goToVisualizations(
-                    el.getAttribute('data-viz-tab'),
-                    el.getAttribute('data-viz-sub')
-                );
+                var slotId  = el.querySelector('[id^="ov_"]') ?
+                              el.querySelector('[id^="ov_"]').id : null;
+
+                // Cari slotId dari elemen chart di dalam card
+                var chartEl = el.querySelector('.ov-chart-area');
+                var sid     = chartEl ? chartEl.id : null;
+
+                _navigateToSlot(sid, el);
             });
         });
     }
 
-    function goToVisualizations(tab, subTab) {
-        if (tab === 'timeseries') {
-            if (typeof switchTab === 'function') switchTab('timeseries');
-            setTimeout(function () {
-                if (typeof switchTsTab === 'function') switchTsTab('line');
-            }, 90);
+    function _navigateToSlot(slotId, cardEl) {
+        // Slot ov_top_right: cek apakah TS atau scatter
+        if (slotId === 'ov_top_right') {
+            var vizTab = cardEl ? cardEl.getAttribute('data-viz-tab') : 'visualizations';
+            if (vizTab === 'timeseries') {
+                if (typeof switchTab === 'function') switchTab('timeseries');
+                setTimeout(function () {
+                    if (typeof switchTsTab === 'function') switchTsTab('line');
+                }, 90);
+            } else {
+                // Scatter di bivariate
+                openVizCategory('bivariate', 'scatter');
+            }
             return;
         }
-        if (typeof openVizCategory === 'function') {
-            openVizCategory(subTab || 'numerical');
-        } else if (typeof switchTab === 'function') {
-            switchTab('visualizations');
+
+        var target = SLOT_VIZ_TARGET[slotId];
+        if (!target) {
+            // Fallback: gunakan data-viz-tab & data-viz-sub dari card
+            if (cardEl) {
+                var tab = cardEl.getAttribute('data-viz-tab') || 'visualizations';
+                var sub = cardEl.getAttribute('data-viz-sub') || 'numerical';
+                openVizCategory(sub, null);
+            }
+            return;
         }
+
+        openVizCategory(target.category, target.chartType);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
+
     function init(overviewPayload) {
         data = overviewPayload || null;
         if (!data) return;
@@ -329,12 +359,7 @@ var OverviewDashboard = (function () {
         init              : init,
         onTabShow         : onTabShow,
         onResize          : onResize,
-        goToVisualizations: goToVisualizations,
         renderAll         : renderAll,
         renderStatsPreview: renderStatsPreview,
     };
 })();
-
-function goToVisualizations(tab, subTab) {
-    OverviewDashboard.goToVisualizations(tab, subTab);
-}

@@ -405,6 +405,14 @@ html, body {
     -webkit-overflow-scrolling: touch;
 }
 
+/* Data Preview biasanya cuma menampilkan 10 baris/pagination snapshot.
+   Buat kontainer lebih tinggi supaya tidak terlalu cepat muncul scroll vertikal. */
+#tab-preview .table-scroll-wrapper {
+    max-height: calc(100vh - var(--topbar-h) - 60px);
+    padding: 10px 14px 14px;
+}
+
+
 /*
    Tabel di dalam wrapper (khusus preview HTML dari pandas to_html):
    - min-width: 100%   → minimal selebar container
@@ -442,6 +450,22 @@ html, body {
 
 /* ─── DATATABLES OVERRIDES ───────────────────────────────────── */
 .dataTables_wrapper { font-size: 0.85rem; }
+
+/* Supaya dropdown pilihan kolom di Visualizations seragam dengan dropdown chart type */
+#viz-master-controls select#viz-chart-type-select,
+#viz-master-controls select#viz-col-x,
+#viz-master-controls select#viz-col-y,
+#viz-master-controls select#viz-col-z {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(126,169,255,.25);
+    background: #172254;
+    color: #E8F0FF;
+    font-size: 0.82rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
 
 /*
    PERBAIKAN UTAMA:

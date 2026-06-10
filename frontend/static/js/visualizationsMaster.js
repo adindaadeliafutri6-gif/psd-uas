@@ -1,14 +1,13 @@
 'use strict';
 
 /**
- * visualizationsMaster.js — Fixed & Complete
+ * visualizationsMaster.js
  *
- * Chart type names MUST match backend viz_engine.py CATEGORY_CHARTS exactly:
- *   numerical   : histogram, boxplot, density, qq, violin
- *   categorical : bar, pie, count, pareto
- *   bivariate   : scatter, heatmap, scatter_matrix, regression_plot, bubble_chart
- *   catnum      : box_cat_num, violin_cat_num, grouped_bar, strip_plot
- *   compare     : violin_compare, grouped_bar_compare, parallel_coords
+ * PERUBAHAN:
+ *  - Navigasi chart type DIUBAH dari tombol Next/Prev menjadi dropdown select.
+ *  - Dropdown chart type muncul di toolbar, berisi semua tipe chart dalam kategori aktif.
+ *  - Tombol viz-btn-next dan viz-btn-prev disembunyikan (tidak dihapus dari HTML agar tidak break).
+ *  - openCategory(cat, chartType) menerima parameter chartType opsional.
  */
 var VizMaster = (function () {
 
@@ -24,6 +23,7 @@ var VizMaster = (function () {
     };
 
     var _activeController = null;
+    var _pendingOpen      = false;
 
     var CHART_TYPES = {
         numerical   : ['histogram', 'boxplot', 'density', 'qq', 'violin'],
@@ -53,41 +53,38 @@ var VizMaster = (function () {
         grouped_bar         : 'Grouped Bar Chart',
         strip_plot          : 'Strip Plot',
         violin_compare      : 'Violin Comparison',
-        grouped_bar_compare : 'Mean Std Comparison',
+        grouped_bar_compare : 'Mean ± Std Comparison',
         parallel_coords     : 'Parallel Coordinates',
     };
 
+    // ── UPDATED: catnum pakai 'all', compare pakai 'multi-num' ──────────────
     var CATEGORY_CONFIG = {
-        numerical   : { needsX: 'num', needsY: false, needsZ: false },
-        categorical : { needsX: 'cat', needsY: false, needsZ: false },
-        bivariate   : { needsX: 'num', needsY: 'num', needsZ: 'num' },
-        catnum      : { needsX: 'cat', needsY: 'num', needsZ: false },
-        compare     : { needsX: false, needsY: false, needsZ: false },
+        numerical   : { needsX: 'num',       needsY: false, needsZ: false },
+        categorical : { needsX: 'cat',       needsY: false, needsZ: false },
+        bivariate   : { needsX: 'num',       needsY: 'num', needsZ: 'num' },
+        catnum      : { needsX: 'all',       needsY: 'all', needsZ: false },
+        compare     : { needsX: 'multi-num', needsY: false, needsZ: false },
     };
 
     var NO_DROPDOWN_CHARTS = {
         heatmap             : true,
         scatter_matrix      : true,
-        parallel_coords     : true,
-        violin_compare      : true,
-        grouped_bar_compare : true,
+        parallel_coords     : false,  // compare charts now support subset via col_x
+        violin_compare      : false,
+        grouped_bar_compare : false,
     };
 
     function $$(id) { return document.getElementById(id); }
 
-    // ── Binary decode: handle Plotly's bdata+dtype format ──────────────────────
-    // Plotly serialises large numeric arrays as base64 binary to save bandwidth.
-    // We must decode them back to JS arrays before passing to Plotly.newPlot.
+    // ── Binary decode ──────────────────────────────────────────────────────────
     function _decodeBinaryField(field) {
         if (!field || typeof field !== 'object' || !field.bdata) return field;
-
         var dtype  = field.dtype || 'f8';
         var binary = atob(field.bdata);
         var len    = binary.length;
         var buf    = new ArrayBuffer(len);
         var view   = new Uint8Array(buf);
         for (var i = 0; i < len; i++) view[i] = binary.charCodeAt(i);
-
         var arr;
         if      (dtype === 'f8')  arr = new Float64Array(buf);
         else if (dtype === 'f4')  arr = new Float32Array(buf);
@@ -97,33 +94,24 @@ var VizMaster = (function () {
         else if (dtype === 'u4')  arr = new Uint32Array(buf);
         else if (dtype === 'u2')  arr = new Uint16Array(buf);
         else if (dtype === 'u1')  arr = new Uint8Array(buf);
-        else                      arr = new Float64Array(buf); // fallback
-
-        // Convert TypedArray to plain JS array for Plotly compatibility
+        else                      arr = new Float64Array(buf);
         return Array.from(arr);
     }
 
     function _decodeTrace(trace) {
         if (!trace || typeof trace !== 'object') return trace;
         var decoded = Object.assign({}, trace);
-
-        // ── Standard x/y/z fields ────────────────────────────────────────────
-        var fields = ['x', 'y', 'z', 'values', 'labels', 'ids',
-                      'open', 'high', 'low', 'close', 'lat', 'lon'];
-        fields.forEach(function (f) {
+        ['x', 'y', 'z', 'values', 'labels', 'ids',
+         'open', 'high', 'low', 'close', 'lat', 'lon'].forEach(function (f) {
             if (decoded[f] && typeof decoded[f] === 'object' && decoded[f].bdata) {
                 decoded[f] = _decodeBinaryField(decoded[f]);
             }
         });
-
-        // ── marker.size binary ────────────────────────────────────────────────
         if (decoded.marker && decoded.marker.size &&
             typeof decoded.marker.size === 'object' && decoded.marker.size.bdata) {
             decoded.marker = Object.assign({}, decoded.marker);
             decoded.marker.size = _decodeBinaryField(decoded.marker.size);
         }
-
-        // ── parcoords + splom: dimensions[i].values binary ───────────────────
         if ((decoded.type === 'parcoords' || decoded.type === 'splom') &&
              Array.isArray(decoded.dimensions)) {
             decoded.dimensions = decoded.dimensions.map(function (dim) {
@@ -135,8 +123,6 @@ var VizMaster = (function () {
                 return d;
             });
         }
-
-        // ── parcoords: line.color binary ──────────────────────────────────────
         if (decoded.line && typeof decoded.line === 'object') {
             var line = Object.assign({}, decoded.line);
             if (line.color && typeof line.color === 'object' && line.color.bdata) {
@@ -144,7 +130,6 @@ var VizMaster = (function () {
             }
             decoded.line = line;
         }
-
         return decoded;
     }
 
@@ -154,7 +139,6 @@ var VizMaster = (function () {
             data: chartObj.data.map(_decodeTrace),
         });
     }
-    // ── End binary decode ──────────────────────────────────────────────────────
 
     function isAvailable(category) {
         var n = (meta.num_cols || []).length;
@@ -171,7 +155,9 @@ var VizMaster = (function () {
 
     function defaultX(cat) {
         var cfg = CATEGORY_CONFIG[cat] || {};
-        if (cfg.needsX === 'cat') return (meta.cat_cols || [])[0] || null;
+        if (cfg.needsX === 'cat')   return (meta.cat_cols || [])[0] || null;
+        if (cfg.needsX === 'all')   return (meta.cat_cols || [])[0] || (meta.num_cols || [])[0] || null;
+        if (cfg.needsX === 'multi-num') return (meta.num_cols || []).join(',');
         return (meta.num_cols || [])[0] || null;
     }
     function defaultY(cat) {
@@ -185,11 +171,183 @@ var VizMaster = (function () {
         return nums[2] || nums[1] || nums[0] || null;
     }
 
+    // ── Chart Type Dropdown ────────────────────────────────────────────────────
+    function _buildChartTypeDropdown() {
+        var sel = $$('viz-chart-type-select');
+        if (!sel) return;
+        var types = CHART_TYPES[state.category] || [];
+        sel.innerHTML = '';
+        types.forEach(function (t) {
+            var opt = document.createElement('option');
+            opt.value       = t;
+            opt.textContent = CHART_LABELS[t] || t;
+            sel.appendChild(opt);
+        });
+        sel.value = state.chartType || (types[0] || '');
+        var footer = document.querySelector('.viz-master-footer');
+        if (footer) footer.style.display = 'none';
+    }
+
+    function _syncChartTypeDropdown() {
+        var sel = $$('viz-chart-type-select');
+        if (!sel) return;
+        var exists = Array.from(sel.options).some(function(o){ return o.value === state.chartType; });
+        if (!exists) _buildChartTypeDropdown();
+        sel.value = state.chartType || '';
+    }
+
+    // ── populateDropdowns (UPDATED) ────────────────────────────────────────────
+    /**
+     * _buildCheckboxDropdown
+     * Membangun custom checkbox-dropdown di dalam wrapEl untuk compare.
+     * Menggantikan <select multiple> yang terlalu besar di toolbar.
+     *
+     * UI: [Tombol bertuliskan "n kolom dipilih ▾"] → klik → panel checkbox floating
+     * Setiap kali checkbox berubah: update state.colX dan fetchAndRender().
+     */
+    function _buildCheckboxDropdown(wrapEl, cols, selectedArr) {
+        if (!wrapEl) return;
+
+        // Hapus container lama jika sudah ada
+        var existing = wrapEl.querySelector('.viz-cb-dropdown');
+        if (existing) existing.remove();
+
+        var container = document.createElement('div');
+        container.className = 'viz-cb-dropdown';
+        container.style.cssText = 'position:relative;display:inline-block;';
+
+        // ── Tombol trigger ────────────────────────────────────────────────────
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'viz-cb-btn';
+        btn.style.cssText = [
+            'display:flex;align-items:center;gap:6px;',
+            'padding:5px 10px;border-radius:8px;',
+            'border:1px solid var(--border,rgba(255,255,255,0.12));',
+            'background:var(--bg,#172254);color:var(--text,#c8d8f0);',
+            'font-size:0.78rem;font-weight:600;cursor:pointer;',
+            'white-space:nowrap;font-family:inherit;min-width:110px;',
+            'transition:border-color .2s;',
+        ].join('');
+
+        function _updateBtnLabel() {
+            var sel = selectedArr.filter(function(c){ return cols.indexOf(c) >= 0; });
+            btn.innerHTML = sel.length === cols.length
+                ? 'Semua kolom <i class="fas fa-chevron-down" style="font-size:.65rem;opacity:.7;"></i>'
+                : sel.length + ' kolom dipilih <i class="fas fa-chevron-down" style="font-size:.65rem;opacity:.7;"></i>';
+        }
+        _updateBtnLabel();
+
+        // ── Panel checkbox ─────────────────────────────────────────────────────
+        var panel = document.createElement('div');
+        panel.className = 'viz-cb-panel';
+        panel.style.cssText = [
+            'display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:9999;',
+            'min-width:180px;max-height:240px;overflow-y:auto;',
+            'background:var(--card-bg,#1a2660);border:1px solid var(--border,rgba(255,255,255,0.12));',
+            'border-radius:10px;padding:8px 4px;',
+            'box-shadow:0 8px 24px rgba(0,0,0,.4);',
+            'scrollbar-width:thin;',
+        ].join('');
+
+        // Tombol select all / clear
+        var actRow = document.createElement('div');
+        actRow.style.cssText = 'display:flex;gap:6px;padding:4px 8px 8px;border-bottom:1px solid var(--border,rgba(255,255,255,0.1));margin-bottom:4px;';
+        var btnAll   = document.createElement('button');
+        var btnClear = document.createElement('button');
+        var _cbStyle = 'flex:1;padding:3px 0;font-size:.7rem;font-weight:700;border-radius:6px;cursor:pointer;border:1px solid var(--border,rgba(255,255,255,.1));font-family:inherit;';
+        btnAll.type   = 'button'; btnAll.textContent   = 'Semua';
+        btnClear.type = 'button'; btnClear.textContent = 'Kosongkan';
+        btnAll.style.cssText   = _cbStyle + 'background:var(--blue,#4364f7);color:#fff;';
+        btnClear.style.cssText = _cbStyle + 'background:transparent;color:var(--muted,#8899bb);';
+        actRow.appendChild(btnAll);
+        actRow.appendChild(btnClear);
+        panel.appendChild(actRow);
+
+        // Checkbox items
+        cols.forEach(function(col) {
+            var row = document.createElement('label');
+            row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;border-radius:6px;font-size:.78rem;color:var(--text,#c8d8f0);';
+            row.onmouseover = function(){ row.style.background = 'rgba(126,169,255,0.1)'; };
+            row.onmouseout  = function(){ row.style.background = ''; };
+
+            var cb = document.createElement('input');
+            cb.type  = 'checkbox';
+            cb.value = col;
+            cb.style.cssText = 'accent-color:var(--blue,#4364f7);width:14px;height:14px;cursor:pointer;';
+            cb.checked = selectedArr.indexOf(col) >= 0;
+
+            cb.addEventListener('change', function() {
+                if (cb.checked) {
+                    if (selectedArr.indexOf(col) < 0) selectedArr.push(col);
+                } else {
+                    var idx = selectedArr.indexOf(col);
+                    if (idx >= 0) selectedArr.splice(idx, 1);
+                }
+                // Minimal 1 kolom harus terpilih
+                if (selectedArr.length === 0) {
+                    cb.checked = true;
+                    selectedArr.push(col);
+                }
+                state.colX = selectedArr.join(',');
+                _updateBtnLabel();
+                fetchAndRender();
+            });
+
+            row.appendChild(cb);
+            row.appendChild(document.createTextNode(col));
+            panel.appendChild(row);
+        });
+
+        // Select all / clear handlers
+        btnAll.addEventListener('click', function(e) {
+            e.stopPropagation();
+            selectedArr.length = 0;
+            cols.forEach(function(c){ selectedArr.push(c); });
+            panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
+            state.colX = selectedArr.join(',');
+            _updateBtnLabel();
+            fetchAndRender();
+        });
+        btnClear.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Sisakan kolom pertama agar chart tetap bisa render
+            selectedArr.length = 0;
+            selectedArr.push(cols[0]);
+            panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+                cb.checked = (cb.value === cols[0]);
+            });
+            state.colX = selectedArr.join(',');
+            _updateBtnLabel();
+            fetchAndRender();
+        });
+
+        // Toggle panel on btn click
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var open = panel.style.display !== 'none';
+            // Tutup semua panel lain
+            document.querySelectorAll('.viz-cb-panel').forEach(function(p){ p.style.display = 'none'; });
+            panel.style.display = open ? 'none' : 'block';
+            btn.style.borderColor = open ? '' : 'var(--blue,#4364f7)';
+        });
+
+        // Tutup panel klik di luar
+        document.addEventListener('click', function() {
+            panel.style.display = 'none';
+            btn.style.borderColor = '';
+        });
+        panel.addEventListener('click', function(e){ e.stopPropagation(); });
+
+        container.appendChild(btn);
+        container.appendChild(panel);
+        wrapEl.appendChild(container);
+    }
+
     function populateDropdowns() {
         var cfg  = CATEGORY_CONFIG[state.category] || {};
         var ct   = state.chartType;
         var noDD = NO_DROPDOWN_CHARTS[ct] || false;
-        var isCompare = (state.category === 'compare');
 
         var wrapX = $$('viz-dd-x-wrap');
         var wrapY = $$('viz-dd-y-wrap');
@@ -199,7 +357,8 @@ var VizMaster = (function () {
         var selZ  = $$('viz-col-z');
         if (!selX) return;
 
-        var showX = !!(cfg.needsX) && !noDD && !isCompare;
+        var isMultiNum = (cfg.needsX === 'multi-num');
+        var showX = !!(cfg.needsX) && !noDD;
         var showY = !!(cfg.needsY) && !noDD;
         var showZ = !!(cfg.needsZ) && (ct === 'bubble_chart');
 
@@ -207,7 +366,12 @@ var VizMaster = (function () {
         if (wrapY) wrapY.style.display = showY ? 'flex' : 'none';
         if (wrapZ) wrapZ.style.display = showZ ? 'flex' : 'none';
 
+        var labelX = wrapX ? wrapX.querySelector('label') : null;
+        var labelY = wrapY ? wrapY.querySelector('label') : null;
+
         function fill(sel, cols, selected) {
+            sel.multiple = false;
+            sel.size = 1;
             sel.innerHTML = '';
             (cols || []).forEach(function (c) {
                 var opt = document.createElement('option');
@@ -217,16 +381,56 @@ var VizMaster = (function () {
             });
         }
 
+        // fillMulti: replaced by checkbox-dropdown, kept as no-op
+        function fillMulti(sel, cols, selectedArr) { /* unused */ }
+
         if (showX && selX) {
-            var colsX = cfg.needsX === 'cat' ? (meta.cat_cols || []) : (meta.num_cols || []);
-            if (!state.colX || colsX.indexOf(state.colX) < 0) state.colX = colsX[0] || null;
-            fill(selX, colsX, state.colX);
+            if (isMultiNum) {
+                // compare: custom checkbox-dropdown (bukan <select multiple>)
+                // Sembunyikan selX native, tampilkan/rebuild #viz-col-x-multi
+                selX.style.display = 'none';
+                selX.multiple = false;
+                if (labelX) labelX.textContent = 'Pilih Kolom:';
+                var allNums = meta.num_cols || [];
+                var selectedCols = state.colX
+                    ? state.colX.split(',').map(function(s){ return s.trim(); }).filter(Boolean)
+                    : allNums.slice();
+                if (!selectedCols.length) selectedCols = allNums.slice();
+                state.colX = selectedCols.join(',');
+                _buildCheckboxDropdown(wrapX, allNums, selectedCols);
+            } else if (cfg.needsX === 'all') {
+                // catnum: semua kolom (cat + num)
+                if (labelX) labelX.textContent = 'Kolom X:';
+                var allCols = (meta.cat_cols || []).concat(meta.num_cols || []);
+                if (!state.colX || allCols.indexOf(state.colX) < 0) {
+                    state.colX = (meta.cat_cols || [])[0] || allCols[0] || null;
+                }
+                fill(selX, allCols, state.colX);
+            } else {
+                if (labelX) labelX.textContent = 'Kolom X';
+                var colsX = cfg.needsX === 'cat' ? (meta.cat_cols || []) : (meta.num_cols || []);
+                if (!state.colX || colsX.indexOf(state.colX) < 0) state.colX = colsX[0] || null;
+                fill(selX, colsX, state.colX);
+            }
         }
+
         if (showY && selY) {
-            var colsY = meta.num_cols || [];
-            if (!state.colY || colsY.indexOf(state.colY) < 0) state.colY = defaultY(state.category);
-            fill(selY, colsY, state.colY);
+            if (cfg.needsY === 'all') {
+                // catnum Y: semua kolom (cat + num)
+                if (labelY) labelY.textContent = 'Kolom Y:';
+                var allColsY = (meta.cat_cols || []).concat(meta.num_cols || []);
+                if (!state.colY || allColsY.indexOf(state.colY) < 0) {
+                    state.colY = (meta.num_cols || [])[0] || allColsY[0] || null;
+                }
+                fill(selY, allColsY, state.colY);
+            } else {
+                if (labelY) labelY.textContent = 'Kolom Y';
+                var colsY = meta.num_cols || [];
+                if (!state.colY || colsY.indexOf(state.colY) < 0) state.colY = defaultY(state.category);
+                fill(selY, colsY, state.colY);
+            }
         }
+
         if (showZ && selZ) {
             var colsZ = meta.num_cols || [];
             if (!state.colZ || colsZ.indexOf(state.colZ) < 0) state.colZ = defaultZ();
@@ -262,13 +466,8 @@ var VizMaster = (function () {
     function updateLabel(data) {
         var el  = $$('viz-chart-type-label');
         var ctr = $$('viz-chart-counter');
-        var types = CHART_TYPES[state.category] || [];
-        if (el)  el.textContent  = CHART_LABELS[state.chartType] || (data && data.chart_label) || '';
-        if (ctr) {
-            var idx = (data && data.chart_index != null) ? data.chart_index : types.indexOf(state.chartType);
-            var tot = (data && data.chart_total)  ? data.chart_total  : types.length;
-            ctr.textContent = (idx + 1) + ' / ' + tot;
-        }
+        if (ctr) ctr.style.display = 'none';
+        if (el)  el.style.display  = 'none';
         var titles = {
             numerical   : 'Numerical',
             categorical : 'Categorical',
@@ -350,6 +549,8 @@ var VizMaster = (function () {
             state.chartIndex = types.indexOf(state.chartType);
         }
 
+        _syncChartTypeDropdown();
+
         if (_activeController) try { _activeController.abort(); } catch (e) {}
         var controller = null, signal = undefined;
         if (typeof AbortController !== 'undefined') {
@@ -362,9 +563,13 @@ var VizMaster = (function () {
             category  : state.category,
             chart_type: state.chartType,
         });
-        if (state.colX && !NO_DROPDOWN_CHARTS[state.chartType]) params.set('col_x', state.colX);
-        if (state.colY && !NO_DROPDOWN_CHARTS[state.chartType]) params.set('col_y', state.colY);
-        if (state.colZ && state.chartType === 'bubble_chart')   params.set('col_z', state.colZ);
+
+        var noDD = NO_DROPDOWN_CHARTS[state.chartType] || false;
+        // col_x: kirim untuk semua kecuali chart yang benar2 no-dropdown (heatmap, scatter_matrix)
+        var strictNoDD = (state.chartType === 'heatmap' || state.chartType === 'scatter_matrix');
+        if (state.colX && !strictNoDD) params.set('col_x', state.colX);
+        if (state.colY && !strictNoDD && state.category !== 'compare') params.set('col_y', state.colY);
+        if (state.colZ && state.chartType === 'bubble_chart') params.set('col_z', state.colZ);
 
         var url = '/api/viz-chart/' + encodeURIComponent(meta.filename) + '?' + params.toString();
 
@@ -397,6 +602,7 @@ var VizMaster = (function () {
                 state.chartType  = data.chart_type  || state.chartType;
                 state.chartIndex = data.chart_index != null ? data.chart_index : state.chartIndex;
                 updateLabel(data);
+                _syncChartTypeDropdown();
 
                 if (typeof Plotly === 'undefined') {
                     setError(plotEl, 'Plotly.js belum dimuat.');
@@ -407,9 +613,7 @@ var VizMaster = (function () {
                     return;
                 }
 
-                // ── Decode binary data sebelum render ────────────────────────
                 var chartDecoded = _decodeChartData(data.chart);
-                // ────────────────────────────────────────────────────────────
 
                 try { Plotly.purge(plotEl); } catch (e) {}
                 plotEl.innerHTML = '';
@@ -442,24 +646,6 @@ var VizMaster = (function () {
             });
     }
 
-    function nextChart() {
-        var types = CHART_TYPES[state.category] || [];
-        if (!types.length) return;
-        state.chartIndex = (state.chartIndex + 1) % types.length;
-        state.chartType  = types[state.chartIndex];
-        populateDropdowns();
-        fetchAndRender();
-    }
-
-    function prevChart() {
-        var types = CHART_TYPES[state.category] || [];
-        if (!types.length) return;
-        state.chartIndex = (state.chartIndex - 1 + types.length) % types.length;
-        state.chartType  = types[state.chartIndex];
-        populateDropdowns();
-        fetchAndRender();
-    }
-
     function highlightSidebar(category) {
         document.querySelectorAll('.nav-sub-item').forEach(function (li) { li.classList.remove('active'); });
         var MAP = {
@@ -471,7 +657,6 @@ var VizMaster = (function () {
         };
         var el = document.getElementById(MAP[category]);
         if (el) el.classList.add('active');
-
         var accBody = document.getElementById('acc-viz');
         var accBtn  = document.getElementById('acc-viz-btn');
         if (accBody && !accBody.classList.contains('open')) {
@@ -480,18 +665,36 @@ var VizMaster = (function () {
         }
     }
 
-    function openCategory(category) {
+    function openCategory(category, chartType) {
         if (state.loading && _activeController) try { _activeController.abort(); } catch (e) {}
         state.category   = category || 'numerical';
         var types        = CHART_TYPES[state.category] || [];
-        state.chartType  = types[0] || null;
-        state.chartIndex = 0;
-        state.colX       = defaultX(state.category);
-        state.colY       = defaultY(state.category);
-        state.colZ       = defaultZ();
+
+        if (chartType && types.indexOf(chartType) >= 0) {
+            state.chartType  = chartType;
+            state.chartIndex = types.indexOf(chartType);
+        } else {
+            state.chartType  = types[0] || null;
+            state.chartIndex = 0;
+        }
+
+        // Reset kolom sesuai kategori
+        if (category === 'compare') {
+            state.colX = (meta.num_cols || []).join(',');
+            state.colY = null;
+        } else {
+            state.colX = defaultX(state.category);
+            state.colY = defaultY(state.category);
+        }
+        state.colZ = defaultZ();
+
+        _pendingOpen = true;
+        setTimeout(function () { _pendingOpen = false; }, 600);
+
         populateDropdowns();
         updateLabel(null);
         highlightSidebar(state.category);
+        _buildChartTypeDropdown();
         fetchAndRender();
     }
 
@@ -499,20 +702,24 @@ var VizMaster = (function () {
         var selX = $$('viz-col-x');
         var selY = $$('viz-col-y');
         var selZ = $$('viz-col-z');
-        if (selX) selX.addEventListener('change', function () { state.colX = selX.value; fetchAndRender(); });
+        var selT = $$('viz-chart-type-select');
+
+        if (selX) selX.addEventListener('change', function () {
+            // Native select (non-compare): update state.colX langsung
+            if (!selX.multiple) {
+                state.colX = selX.value;
+                fetchAndRender();
+            }
+            // compare checkbox-dropdown langsung update state.colX via _buildCheckboxDropdown
+        });
         if (selY) selY.addEventListener('change', function () { state.colY = selY.value; fetchAndRender(); });
         if (selZ) selZ.addEventListener('change', function () { state.colZ = selZ.value; fetchAndRender(); });
-
-        var btnNext = $$('viz-btn-next');
-        var btnPrev = $$('viz-btn-prev');
-        if (btnNext) btnNext.addEventListener('click', function (e) { e.stopPropagation(); nextChart(); });
-        if (btnPrev) btnPrev.addEventListener('click', function (e) { e.stopPropagation(); prevChart(); });
-
-        document.addEventListener('keydown', function (e) {
-            var vizTab = document.getElementById('tab-visualizations');
-            if (!vizTab || vizTab.style.display === 'none') return;
-            if (e.key === 'ArrowRight') nextChart();
-            if (e.key === 'ArrowLeft')  prevChart();
+        if (selT) selT.addEventListener('change', function () {
+            var types = CHART_TYPES[state.category] || [];
+            state.chartType  = selT.value;
+            state.chartIndex = types.indexOf(selT.value);
+            populateDropdowns();
+            fetchAndRender();
         });
 
         var _rsz;
@@ -532,10 +739,11 @@ var VizMaster = (function () {
 
     function onTabShow() {
         if (!meta.filename) return;
+        if (_pendingOpen) return;
         var plotEl = $$('viz-master-plot');
         var hasPlotly = plotEl && plotEl._fullLayout && plotEl.data && plotEl.data.length > 0;
         if (!hasPlotly) {
-            openCategory(state.category || 'numerical');
+            openCategory(state.category || 'numerical', state.chartType || null);
         } else if (plotEl && typeof Plotly !== 'undefined') {
             Plotly.Plots.resize(plotEl);
         }
@@ -547,13 +755,11 @@ var VizMaster = (function () {
         init        : init,
         openCategory: openCategory,
         onTabShow   : onTabShow,
-        nextChart   : nextChart,
-        prevChart   : prevChart,
         retry       : retry,
     };
 })();
 
-function openVizCategory(cat) {
+function openVizCategory(cat, chartType) {
+    VizMaster.openCategory(cat, chartType || null);
     if (typeof switchTab === 'function') switchTab('visualizations');
-    setTimeout(function () { VizMaster.openCategory(cat); }, 80);
 }

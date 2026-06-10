@@ -568,8 +568,11 @@ def _chart_strip_plot(df, cat_col, num_col):
 # ─── e) COMPARISON ───────────────────────────────────────────────────────────
 
 def _chart_violin_compare(df, num_cols):
+    cols = [c for c in num_cols if c in df.columns]
+    if not cols:
+        return None
     fig = go.Figure()
-    for i, col in enumerate(num_cols[:8]):
+    for i, col in enumerate(cols[:8]):
         fig.add_trace(go.Violin(
             y=_to_list(df[col].dropna()), name=col,
             line_color=PALETTE[i % len(PALETTE)],
@@ -577,17 +580,20 @@ def _chart_violin_compare(df, num_cols):
             opacity=0.75, box_visible=True, meanline_visible=True,
             hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
         ))
-    fig.update_layout(_layout(title=f'🎻 {CHART_LABELS["violin_compare"]} — All Numeric Variables'))
+    suffix = ', '.join(cols[:4]) + ('…' if len(cols) > 4 else '')
+    fig.update_layout(_layout(title=f'🎻 {CHART_LABELS["violin_compare"]} — {suffix}'))
     return _json(_axes(fig))
 
 
 def _chart_grouped_bar_compare(df, num_cols):
-    cols  = num_cols[:10]
+    cols  = [c for c in num_cols if c in df.columns][:10]
+    if not cols:
+        return None
     means = [float(df[c].mean()) for c in cols]
     stds  = [float(df[c].std())  for c in cols]
+    suffix = ', '.join(cols[:4]) + ('…' if len(cols) > 4 else '')
     fig = go.Figure(go.Bar(
-        x=cols,                        # plain list of strings — safe
-        y=means,                       # plain Python list of floats — safe
+        x=cols, y=means,
         error_y=dict(
             type='data', array=stds, visible=True,
             color='rgba(200,216,240,0.6)', thickness=1.5, width=6,
@@ -595,14 +601,18 @@ def _chart_grouped_bar_compare(df, num_cols):
         marker_color=PALETTE[0], opacity=0.9,
         hovertemplate='%{x}<br>Mean: %{y:,.3f}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'📊 {CHART_LABELS["grouped_bar_compare"]}'))
+    fig.update_layout(_layout(title=f'📊 {CHART_LABELS["grouped_bar_compare"]} — {suffix}'))
     return _json(_axes(fig))
 
 
 def _chart_parallel_coords(df, num_cols):
-    cols = num_cols[:6]
-    sub  = df[cols].dropna().sample(min(500, len(df)), random_state=42)
-    # FIX: each dimension values must be plain list
+    cols = [c for c in num_cols if c in df.columns][:6]
+    if not cols:
+        return None
+    sub  = df[cols].dropna()
+    if sub.empty:
+        return None
+    sub  = sub.sample(min(500, len(sub)), random_state=42)
     dims = [dict(label=c, values=sub[c].tolist()) for c in cols]
     color_vals = list(range(len(sub)))
     fig = go.Figure(go.Parcoords(
@@ -638,13 +648,39 @@ def generate_master_chart(df, num_cols, cat_cols, category, chart_type,
 
     if category in ('numerical', 'categorical') and not col_x:
         col_x = num_cols[0] if category == 'numerical' else cat_cols[0]
+
     if category == 'bivariate':
         col_x = col_x or (num_cols[0] if num_cols else None)
         col_y = col_y or (num_cols[1] if len(num_cols) > 1 else num_cols[0])
         col_z = col_z or (num_cols[2] if len(num_cols) > 2 else num_cols[0])
+
     if category == 'catnum':
-        col_x = col_x or cat_cols[0]
-        col_y = col_y or num_cols[0]
+        # Default jika belum ada
+        if not col_x or col_x not in df.columns:
+            col_x = cat_cols[0] if cat_cols else None
+        if not col_y or col_y not in df.columns:
+            col_y = num_cols[0] if num_cols else None
+        # Smart swap: builder butuh (cat_col, num_col)
+        # Jika user pilih X=numeric dan Y=categorical → swap dulu
+        x_is_num = (col_x in num_cols) if col_x else False
+        y_is_cat = (col_y in cat_cols) if col_y else False
+        if x_is_num and y_is_cat:
+            col_x, col_y = col_y, col_x
+        # Fallback: jika keduanya numeric → X = cat[0]
+        if col_x in num_cols and col_y in num_cols:
+            col_x = cat_cols[0] if cat_cols else col_x
+        # Fallback: jika keduanya categorical → Y = num[0]
+        if col_x in cat_cols and col_y in cat_cols:
+            col_y = num_cols[0] if num_cols else col_y
+
+    if category == 'compare':
+        # col_x bisa berisi comma-separated kolom yang dipilih user
+        # Contoh: "age,salary,score" → pakai sebagai subset num_cols
+        if col_x:
+            selected = [c.strip() for c in col_x.split(',')
+                        if c.strip() in df.columns and c.strip() in num_cols]
+            if selected:
+                num_cols = selected
 
     def _valid(c):
         return c and c in df.columns

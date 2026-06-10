@@ -83,6 +83,7 @@
 /* Double toggle untuk scatter X & Y */
 .ov-toggle-wrap--double { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ov-toggle-wrap--double select { max-width: 130px; }
+
 </style>
 
 
@@ -641,6 +642,11 @@
         <div id="viz-master-chart" class="viz-master-container">
             <div id="viz-master-controls" class="viz-master-toolbar">
                 <div class="viz-toolbar-left">
+                    <!-- Chart Type dropdown — selalu di HTML, options diisi JS sesuai kategori -->
+                    <div id="viz-chart-type-select-wrap" class="viz-dd-wrap">
+                        <label for="viz-chart-type-select">Chart Type</label>
+                        <select id="viz-chart-type-select"></select>
+                    </div>
                     <div id="viz-dd-x-wrap" class="viz-dd-wrap">
                         <label for="viz-col-x">Kolom X</label>
                         <select id="viz-col-x"></select>
@@ -654,10 +660,6 @@
                         <select id="viz-col-z"></select>
                     </div>
                 </div>
-                <div class="viz-toolbar-right">
-                    <span id="viz-chart-type-label" class="viz-type-label"></span>
-                    <span id="viz-chart-counter" class="viz-type-counter"></span>
-                </div>
             </div>
 
             <div id="viz-master-plot" class="viz-master-plot">
@@ -665,16 +667,6 @@
                     <i class="fas fa-chart-bar" style="font-size:2rem;opacity:.3;"></i>
                     <span style="margin-left:12px;font-size:.9rem;opacity:.5;">Pilih kategori dari sidebar untuk mulai</span>
                 </div>
-            </div>
-
-            <div class="viz-master-footer">
-                <button type="button" id="viz-btn-prev" class="viz-nav-btn">
-                    <i class="fas fa-chevron-left"></i> Previous
-                </button>
-                <span class="viz-footer-hint">Ganti tipe grafik pada kolom terpilih</span>
-                <button type="button" id="viz-btn-next" class="viz-nav-btn">
-                    Next <i class="fas fa-chevron-right"></i>
-                </button>
             </div>
         </div>
     </div>

@@ -80,7 +80,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
     if total_missing == 0:
         insights.append({
             'type': 'success', 'icon': 'fa-check-circle',
-            'title': '✅ Excellent Data Quality — Zero Missing Values',
+            'title': ' Excellent Data Quality — Zero Missing Values',
             'desc': ('Tidak ditemukan missing values sama sekali. '
                      'Dataset bersih dan siap digunakan untuk analisis statistik '
                      'maupun pemodelan machine learning tanpa preprocessing tambahan.')
@@ -88,7 +88,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
     elif miss_pct < 5:
         insights.append({
             'type': 'warning', 'icon': 'fa-exclamation-triangle',
-            'title': f'⚠️ Minor Missing Values ({miss_pct}%)',
+            'title': f' Minor Missing Values ({miss_pct}%)',
             'desc': (f'Terdapat {total_missing:,} sel kosong ({miss_pct}% dari total data). '
                      'Tingkat ini masih tergolong aman, namun disarankan melakukan imputasi '
                      '(mean/median/modus) sebelum pemodelan.')
@@ -96,7 +96,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
     else:
         insights.append({
             'type': 'danger', 'icon': 'fa-times-circle',
-            'title': f'🚨 High Missing Rate ({miss_pct}%)',
+            'title': f' High Missing Rate ({miss_pct}%)',
             'desc': (f'Dataset memiliki {total_missing:,} missing values ({miss_pct}% dari total data). '
                      'Tingkat ini cukup tinggi dan dapat mempengaruhi validitas analisis. '
                      'Pertimbangkan strategi penanganan missing data yang lebih agresif '
@@ -117,7 +117,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
 
     insights.append({
         'type': 'info', 'icon': 'fa-database',
-        'title': f'📊 Dataset: {total_rows:,} Rows × {len(df.columns)} Columns',
+        'title': f' Dataset: {total_rows:,} Rows × {len(df.columns)} Columns',
         'desc': (f'{size_note} '
                  f'Terdiri dari {len(num_cols)} kolom numerik dan {len(cat_cols)} kolom kategorik.')
     })
@@ -130,7 +130,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
             top_mean_val = round(means[top_mean_col], 2)
             insights.append({
                 'type': 'primary', 'icon': 'fa-arrow-up',
-                'title': f'📈 Highest Average Value: {top_mean_col}',
+                'title': f' Highest Average Value: {top_mean_col}',
                 'desc': (f'Kolom <strong>{top_mean_col}</strong> memiliki nilai rata-rata tertinggi '
                          f'sebesar <strong>{top_mean_val:,}</strong>. '
                          f'Median: {round(df[top_mean_col].median(), 2):,}, '
@@ -145,7 +145,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
         worst_pct   = _pct(worst_count, total_rows)
         insights.append({
             'type': 'danger', 'icon': 'fa-exclamation',
-            'title': f'🔍 Most Missing Values: {worst_col}',
+            'title': f' Most Missing Values: {worst_col}',
             'desc': (f'Kolom <strong>{worst_col}</strong> memiliki missing values terbanyak: '
                      f'<strong>{worst_count:,} baris ({worst_pct}%)</strong>. '
                      f'{"Disarankan untuk membuang kolom ini jika >50% hilang." if worst_pct > 50 else "Pertimbangkan imputasi untuk kolom ini."}')
@@ -161,7 +161,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
         if max_out_val > 0:
             insights.append({
                 'type': 'warning', 'icon': 'fa-dot-circle',
-                'title': f'⚡ Most Outliers: {max_out_col}',
+                'title': f' Most Outliers: {max_out_col}',
                 'desc': (f'Kolom <strong>{max_out_col}</strong> memiliki outlier terbanyak: '
                          f'<strong>{max_out_val:,} titik data ({max_out_pct}%)</strong> '
                          f'berdasarkan metode IQR (±1.5×IQR). '
@@ -170,7 +170,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
         else:
             insights.append({
                 'type': 'success', 'icon': 'fa-bullseye',
-                'title': '✅ No Outliers Detected',
+                'title': ' No Outliers Detected',
                 'desc': ('Tidak ditemukan outlier pada seluruh kolom numerik '
                          'menggunakan metode IQR. Data terdistribusi dalam rentang yang wajar.')
             })
@@ -184,7 +184,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
             cv = round(top_std_val / df[top_std_col].mean() * 100, 1) if df[top_std_col].mean() != 0 else 0
             insights.append({
                 'type': 'orange', 'icon': 'fa-ruler-horizontal',
-                'title': f'📏 Highest Std Deviation: {top_std_col}',
+                'title': f' Highest Std Deviation: {top_std_col}',
                 'desc': (f'Kolom <strong>{top_std_col}</strong> memiliki standar deviasi terbesar '
                          f'sebesar <strong>{top_std_val:,}</strong> (CV={cv}%). '
                          f'Variabilitas {"sangat tinggi" if cv > 30 else ("tinggi" if cv > 15 else "wajar")} '
@@ -207,7 +207,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
                          else 'Lemah')
             insights.append({
                 'type': 'primary', 'icon': 'fa-link',
-                'title': f'🔗 Strongest Correlation: {col_a} ↔ {col_b} (r={r_val})',
+                'title': f' Strongest Correlation: {col_a} ↔ {col_b} (r={r_val})',
                 'desc': (f'Korelasi {strength} ({direction}) ditemukan antara '
                          f'<strong>{col_a}</strong> dan <strong>{col_b}</strong> dengan r = {r_val}. '
                          f'{"Hubungan ini sangat signifikan dan layak diinvestigasi lebih lanjut." if abs(r_val) > 0.6 else "Hubungan ini moderat dan mungkin dipengaruhi variabel lain."}'
@@ -235,7 +235,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
 
             insights.append({
                 'type': 'info', 'icon': 'fa-bell',
-                'title': f'🔔 Normality Test — {len(normal_cols)}/{total_tested} Columns Normal',
+                'title': f' Normality Test — {len(normal_cols)}/{total_tested} Columns Normal',
                 'desc': (
                     (f'Kolom berdistribusi normal: {n_list}. ' if normal_cols else '') +
                     (f'Kolom TIDAK normal: {nn_list}. ' if not_normal_cols else '') +
@@ -256,7 +256,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
         if skewed:
             insights.append({
                 'type': 'warning', 'icon': 'fa-chart-line',
-                'title': f'📐 Skewed Distributions: {len(skewed)} Column(s)',
+                'title': f' Skewed Distributions: {len(skewed)} Column(s)',
                 'desc': (f'Kolom berikut memiliki skewness > 1: {", ".join(skewed[:4])}. '
                          'Distribusi miring ini dapat memengaruhi hasil analisis parametrik. '
                          'Pertimbangkan transformasi log atau Box-Cox.')
@@ -283,7 +283,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
 
         insights.append({
             'type': balance_type, 'icon': 'fa-tags',
-            'title': f'🏷️ Categorical Balance ({col}): {balance_label}',
+            'title': f' Categorical Balance ({col}): {balance_label}',
             'desc': (f'{balance_note} '
                      f'Total {df[col].nunique()} kategori unik pada kolom {col}.')
         })
@@ -309,7 +309,7 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
     if recs:
         insights.append({
             'type': 'success', 'icon': 'fa-rocket',
-            'title': '🚀 Rekomendasi Analisis Lanjut',
+            'title': '24n Rekomendasi Analisis Lanjut',
             'desc': 'Berdasarkan struktur dataset ini, teknik yang disarankan: ' + '; '.join(recs) + '.'
         })
 
