@@ -55,6 +55,7 @@ class CleaningSession:
         self.df_raw     = df_raw.copy()
         self._history   : list[_Snapshot] = []   # history[0] = state paling awal setelah upload
         self.is_cleaned = False
+        self.ignored_cols = []
 
         # Push initial state (raw) ke history sebagai titik awal
         self._history.append(_Snapshot(
@@ -280,14 +281,16 @@ def _dispatch_op(df: pd.DataFrame, op_type: str, params: dict):
     Return: (df_result, label_str, log_list)
     """
     handlers = {
-        'handle_missing'   : _op_handle_missing,
-        'remove_outliers'  : _op_remove_outliers,
-        'normalize'        : _op_normalize,
-        'drop_duplicates'  : _op_drop_duplicates,
-        'strip_whitespace' : _op_strip_whitespace,
-        'drop_high_missing': _op_drop_high_missing,
-        'drop_col'         : _op_drop_col,
-        'empty_to_nan'     : _op_empty_to_nan,
+        'handle_missing'     : _op_handle_missing,
+        'remove_outliers'    : _op_remove_outliers,
+        'normalize'          : _op_normalize,
+        'drop_duplicates'    : _op_drop_duplicates,
+        'strip_whitespace'   : _op_strip_whitespace,
+        'drop_high_missing'  : _op_drop_high_missing,
+        'drop_col'           : _op_drop_col,
+        'empty_to_nan'       : _op_empty_to_nan,
+        'fix_inconsistencies': _op_fix_inconsistencies,
+        'drop_irrelevant_cols': _op_drop_irrelevant_cols,
     }
     fn = handlers.get(op_type)
     if fn is None:
@@ -555,6 +558,100 @@ def _op_empty_to_nan(df: pd.DataFrame, params: dict):
     return df, label, log
 
 
+def _op_fix_inconsistencies(df: pd.DataFrame, params: dict):
+    """
+    Fix text inconsistencies: strip whitespace dan/atau normalisasi casing.
+    params:
+      method: 'strip' | 'lower' | 'upper' | 'title'
+    """
+    method = params.get('method', 'strip')
+    df     = df.copy()
+    log    = []
+    cols   = df.select_dtypes(include=['object', 'string']).columns.tolist()
+    total_fixed = 0
+
+    method_labels = {
+        'strip' : 'Strip Whitespace',
+        'lower' : 'Strip + Lowercase',
+        'upper' : 'Strip + Uppercase',
+        'title' : 'Strip + Title Case',
+    }
+
+    for col in cols:
+        s_orig = df[col].astype(str)
+        if method == 'strip':
+            df[col] = df[col].apply(lambda x: x.strip() if isinstance(x, str) else x)
+        elif method == 'lower':
+            df[col] = df[col].apply(lambda x: x.strip().lower() if isinstance(x, str) else x)
+        elif method == 'upper':
+            df[col] = df[col].apply(lambda x: x.strip().upper() if isinstance(x, str) else x)
+        elif method == 'title':
+            df[col] = df[col].apply(lambda x: x.strip().title() if isinstance(x, str) else x)
+        changed = int((df[col].astype(str) != s_orig).sum())
+        if changed:
+            log.append(f'{col}: {changed} nilai diperbaiki ({method_labels.get(method, method)})')
+            total_fixed += changed
+
+    if not log:
+        log.append('Tidak ada inkonsistensi teks yang ditemukan pada kolom yang dipilih.')
+    label = f'Fix Inconsistencies ({method_labels.get(method, method)}) — {total_fixed} nilai diperbaiki'
+    return df, label, log
+
+
+def detect_irrelevant_cols(df: pd.DataFrame, threshold: float = 0.95) -> list:
+    """
+    Return a list of column names that are deemed irrelevant based on uniqueness threshold or zero variance.
+    Also detects columns with zero variance (single unique value).
+    """
+    irrelevant = []
+    total_rows = len(df)
+    for col in df.columns:
+        n_unique = df[col].nunique()
+        # 1. Zero variance column (constant values)
+        if n_unique <= 1:
+            irrelevant.append(col)
+            continue
+        # 2. High uniqueness ratio (likely ID/UUID/free text)
+        unique_ratio = n_unique / max(total_rows, 1)
+        if unique_ratio > threshold and n_unique > 50:
+            irrelevant.append(col)
+    return irrelevant
+
+
+def _op_drop_irrelevant_cols(df: pd.DataFrame, params: dict):
+    """
+    Drop kolom yang kemungkinan tidak relevan (ID / free text).
+    params:
+      columns   : list[str] kolom spesifik yang ingin di-drop (opsional)
+      threshold : float 0-1, unique ratio threshold (default 0.95)
+    """
+    threshold     = float(params.get('threshold', 0.95))
+    selected_cols = params.get('columns') or []
+    df  = df.copy()
+    log = []
+
+    if selected_cols:
+        to_drop = [c for c in selected_cols if c in df.columns]
+    else:
+        to_drop = detect_irrelevant_cols(df, threshold)
+
+    if to_drop:
+        # Log specific reasons for each column dropped
+        for col in to_drop:
+            if col in df.columns:
+                n_unique = df[col].nunique()
+                if n_unique <= 1:
+                    log.append(f"Kolom {col} dihapus karena variansi nol")
+                else:
+                    log.append(f"Kolom {col} dihapus karena tingkat keunikan tinggi")
+        df = df.drop(columns=[c for c in to_drop if c in df.columns])
+    else:
+        log.append('Tidak ada kolom irrelevant yang terdeteksi untuk dihapus.')
+    
+    label = f'Drop Irrelevant Columns — {len(to_drop)} kolom dihapus'
+    return df, label, log
+
+
 # ─── Quality Report ───────────────────────────────────────────────────────────
 
 def get_quality_report(df: pd.DataFrame) -> dict:
@@ -591,12 +688,12 @@ def get_quality_report(df: pd.DataFrame) -> dict:
         iqr = q3 - q1
         total_outliers += int(((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).sum())
 
-    # Irrelevant columns: unique ratio > 0.95 (kemungkinan ID/free text)
+    # Irrelevant columns: unique ratio > 0.95 (kemungkinan ID/free text) OR unique values <= 1 (constant)
     irrelevant_count = 0
     for col in df.columns:
         n_unique     = df[col].nunique()
         unique_ratio = n_unique / max(total_rows, 1)
-        if unique_ratio > 0.95 and n_unique > 50:
+        if (unique_ratio > 0.95 and n_unique > 50) or (n_unique <= 1):
             irrelevant_count += 1
 
     # Data types breakdown
@@ -695,3 +792,29 @@ def get_quality_report(df: pd.DataFrame) -> dict:
         'columns'  : columns_detail,
         'warnings' : warnings,
     }
+
+
+def detect_data_status(df) -> str:
+    """
+    Auto-detect whether the dataset is 'clean' or 'raw'.
+    Criteria for 'clean' (all must be met):
+      - No missing values (missing_cells == 0)
+      - No duplicate rows (duplicate_rows == 0)
+      - No text inconsistencies (whitespace issues or mixed casing in object/string columns)
+    Otherwise, it is 'raw'.
+    """
+    import pandas as pd
+    missing_cells  = int(df.isna().sum().sum())
+    duplicate_rows = int(df.duplicated().sum())
+
+    inconsistency_count = 0
+    for col in df.select_dtypes(include=['object', 'string']).columns:
+        s = df[col].dropna().astype(str)
+        if (s != s.str.strip()).any():
+            inconsistency_count += 1
+        elif (s != s.str.lower()).any() and (s != s.str.upper()).any():
+            inconsistency_count += 1
+
+    if missing_cells == 0 and duplicate_rows == 0 and inconsistency_count == 0:
+        return 'clean'
+    return 'raw'

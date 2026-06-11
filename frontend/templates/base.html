@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DS Generator — Kelompok 2 ITSB</title>
 
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/plotly.min.js') }}"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -85,23 +85,7 @@
     .brand-text h2 { font-size:.92rem; font-weight:700; color:#fff; white-space:nowrap; }
     .brand-text p  { font-size:.65rem; color:var(--muted); margin-top:1px; white-space:nowrap; }
 
-    /* ── Toggle button ── */
-    .sidebar-toggle {
-        position: absolute;
-        right: -11px; top: 28px;
-        width: 22px; height: 22px;
-        border-radius: 50%;
-        background: var(--blue);
-        border: 2px solid var(--sidebar-bg);
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer; color: #fff; font-size: .52rem;
-        z-index: 300;
-        box-shadow: 0 2px 8px rgba(67,24,255,.4);
-        transition: background .2s, transform var(--dur) var(--ease);
-        flex-shrink: 0;
-    }
-    .sidebar-toggle:hover { background:#3110c4; }
-    .sidebar.mini .sidebar-toggle { transform:rotate(180deg); }
+    /* Sidebar toggle button removed - hover-based toggle implemented */
 
     /* ── Nav scroll container ── */
     .nav-menu {
@@ -295,10 +279,7 @@
             </div>
         </div>
 
-        <!-- Toggle -->
-        <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
-            <i class="fas fa-chevron-left"></i>
-        </button>
+        <!-- Sidebar toggle button removed (hover-based auto expansion active) -->
 
         <ul class="nav-menu" id="nav-menu">
 
@@ -475,6 +456,46 @@
                 </a>
             </li>
 
+            <!-- ── REPORTING SYSTEM — Accordion ── -->
+            <li class="nav-section-label">REPORTING</li>
+
+            <li class="nav-item" id="menu-reporting">
+                <button class="nav-acc-trigger" id="acc-report-btn"
+                        onclick="toggleAcc('acc-report')" data-tip="Reporting System">
+                    <span class="nav-icon"><i class="fas fa-file-export"></i></span>
+                    <span class="nav-label">Reporting System</span>
+                    <i class="fas fa-chevron-down acc-chevron"></i>
+                </button>
+                <div class="nav-acc-body" id="acc-report">
+                    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:1px;">
+                        <li class="nav-sub-item" id="menu-report-pdf">
+                            <a href="{{ url_for('download_report_pdf', filename=filename) }}" target="_blank" onclick="showDownloadToast('PDF Report')" data-tip="Download Report PDF">
+                                <span class="nav-icon"><i class="fas fa-file-pdf" style="color:#ff3b30;"></i></span>
+                                <span class="nav-label">Download Report PDF</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-report-html">
+                            <a href="{{ url_for('download_report_html', filename=filename) }}" target="_blank" onclick="showDownloadToast('HTML Dashboard')" data-tip="Download HTML Dashboard">
+                                <span class="nav-icon"><i class="fas fa-file-code" style="color:#007aff;"></i></span>
+                                <span class="nav-label">Download HTML Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-export-excel">
+                            <a href="{{ url_for('export_excel', filename=filename) }}" onclick="showDownloadToast('Excel Report')" data-tip="Export to Excel">
+                                <span class="nav-icon"><i class="fas fa-file-excel" style="color:#34c759;"></i></span>
+                                <span class="nav-label">Export to Excel</span>
+                            </a>
+                        </li>
+                        <li class="nav-sub-item" id="menu-export-csv">
+                            <a href="{{ url_for('export_csv', filename=filename) }}" onclick="showDownloadToast('CSV Report')" data-tip="Export to CSV">
+                                <span class="nav-icon"><i class="fas fa-file-csv" style="color:#ff9500;"></i></span>
+                                <span class="nav-label">Export to CSV</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+
 
 
             {% endif %}
@@ -582,7 +603,7 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -592,6 +613,17 @@
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
 <script>
+function showDownloadToast(reportType) {
+    if (typeof showToast === 'function') {
+        showToast("Generating " + reportType + "... Please wait.", "info");
+        setTimeout(function() {
+            showToast("Successfully generated and downloaded " + reportType + "!", "success");
+        }, 2500);
+    } else {
+        console.log("Generating report: " + reportType);
+    }
+}
+
 /* ═══════════════════════════════════════════════════
    ACCORDION NAV
 ═══════════════════════════════════════════════════ */
@@ -637,33 +669,48 @@ document.addEventListener('DOMContentLoaded', function() {
 ═══════════════════════════════════════════════════ */
 (function () {
     var sidebar  = document.getElementById('sidebar');
-    var btn      = document.getElementById('sidebar-toggle');
     var MINI_KEY = 'ds_sidebar_mini';
 
-    if (localStorage.getItem(MINI_KEY) === '1') {
+    // Set default state to collapsed on desktop
+    if (sidebar && window.innerWidth > 768) {
         sidebar.classList.add('mini');
     }
 
-    if (btn) {
-        btn.addEventListener('click', function () {
+    // Hover-based auto expand/collapse
+    if (sidebar) {
+        sidebar.addEventListener('mouseenter', function () {
             if (window.innerWidth <= 768) return;
-            sidebar.classList.toggle('mini');
-            localStorage.setItem(MINI_KEY, sidebar.classList.contains('mini') ? '1' : '0');
-
-            // Resize Plotly charts after transition
-            setTimeout(function () {
-                if (typeof Plotly === 'undefined') return;
-                document.querySelectorAll('[id^="plot-"],[id^="ov-"],[id^="ts-"],[id="viz-master-plot"]')
-                    .forEach(function (el) {
-                        if (el._fullLayout) Plotly.Plots.resize(el);
-                    });
-            }, 300);
+            sidebar.classList.remove('mini');
+            _triggerResize();
         });
+
+        sidebar.addEventListener('mouseleave', function () {
+            if (window.innerWidth <= 768) return;
+            // Tutup semua sub-accordion menu yang terbuka agar rapi saat minimize
+            document.querySelectorAll('.nav-acc-body.open').forEach(function(el) {
+                el.classList.remove('open');
+            });
+            document.querySelectorAll('.nav-acc-trigger.open').forEach(function(el) {
+                el.classList.remove('open');
+            });
+            sidebar.classList.add('mini');
+            _triggerResize();
+        });
+    }
+
+    function _triggerResize() {
+        setTimeout(function () {
+            if (typeof Plotly === 'undefined') return;
+            document.querySelectorAll('[id^="plot-"],[id^="ov-"],[id^="ts-"],[id="viz-master-plot"]')
+                .forEach(function (el) {
+                    if (el._fullLayout) Plotly.Plots.resize(el);
+                });
+        }, 300);
     }
 
     /* Mobile sidebar */
     var mobileBtn = document.getElementById('mobile-menu-btn');
-    if (mobileBtn) {
+    if (mobileBtn && sidebar) {
         mobileBtn.addEventListener('click', function () {
             sidebar.classList.toggle('mobile-open');
         });

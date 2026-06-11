@@ -266,11 +266,9 @@ html, body {
 /* ─── KPI GRID ───────────────────────────────────────────────── */
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px;
 }
-@media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 800px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* ─── DASHBOARD OVERVIEW GRID ────────────────────────────────── */
 .ov-kpi-row {
@@ -1280,7 +1278,7 @@ table.data-table tbody tr:hover { background: var(--bg); }
     display: grid;
     grid-template-columns: 300px 1fr 260px;
     gap: 18px;
-    align-items: start;
+    align-items: stretch;
 }
 @media (max-width: 1280px) { .dc-layout { grid-template-columns: 280px 1fr; } }
 @media (max-width: 1280px) .dc-layout > .dc-history-card { grid-column: 1 / -1; }

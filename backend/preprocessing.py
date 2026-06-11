@@ -13,6 +13,7 @@ Logika deteksi:
 import pandas as pd
 import numpy as np
 import re
+from backend.data_sanitizer import clean_and_parse_numeric
 
 # ── Threshold ────────────────────────────────────────────────────────────────
 # Kolom numerik dengan unique ratio < ini DAN unique count < MAX_CAT_UNIQUE
@@ -103,7 +104,8 @@ def _try_numeric_conversion(series):
     Return series numerik jika berhasil, None jika tidak.
     """
     try:
-        converted = pd.to_numeric(series, errors='coerce')
+        cleaned = series.map(clean_and_parse_numeric)
+        converted = pd.to_numeric(cleaned, errors='coerce')
         # Jika lebih dari 80% nilai berhasil dikonversi → anggap numerik
         success_rate = converted.notna().sum() / max(len(series), 1)
         if success_rate >= 0.80:

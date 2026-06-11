@@ -15,6 +15,7 @@ SLOT RULES (tidak ada chart duplikat, semua slot punya toggle):
 import numpy as np
 import pandas as pd
 
+from backend.data_sanitizer import sanitize_series, safe_iqr_outliers
 from backend.viz_engine import (
     _chart_bar,
     _chart_pareto,
@@ -68,16 +69,18 @@ def build_overview_kpis(df, num_cols, cat_cols, metrics):
 
     if num_cols:
         col = num_cols[0]
+        s0  = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
         kpis.append({
             'id': 'mean', 'label': f'Avg — {col}',
-            'value': _fmt_num(df[col].mean()),
+            'value': _fmt_num(s0.mean()) if not s0.empty else 'N/A',
             'icon': 'fa-chart-line', 'color': 'orange',
         })
         if len(num_cols) > 1:
             col2 = num_cols[1]
+            s1   = sanitize_series(df[col2] if col2 in df.columns else pd.Series(dtype=float), col2)
             kpis.append({
                 'id': 'std', 'label': f'Std — {col2}',
-                'value': _fmt_num(df[col2].std()),
+                'value': _fmt_num(s1.std()) if (not s1.empty and len(s1) >= 2) else 'N/A',
                 'icon': 'fa-ruler-horizontal', 'color': 'purple',
             })
         elif cat_cols:
@@ -107,22 +110,30 @@ def build_overview_kpis(df, num_cols, cat_cols, metrics):
 def build_stats_preview(df, num_cols, cat_cols):
     num_rows = []
     for col in num_cols[:8]:
-        s = df[col].dropna()
-        if s.empty:
-            continue
-        q1, q3 = s.quantile(0.25), s.quantile(0.75)
-        iqr = q3 - q1
-        outliers = int(((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).sum())
-        num_rows.append({
-            'col':      col,
-            'mean':     round(float(s.mean()), 3),
-            'median':   round(float(s.median()), 3),
-            'std':      round(float(s.std()), 3),
-            'min':      round(float(s.min()), 3),
-            'max':      round(float(s.max()), 3),
-            'outliers': outliers,
-            'missing':  int(df[col].isna().sum()),
-        })
+        try:
+            # Sanitize: force numeric conversion, drop NaN
+            s = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
+            if s.empty:
+                continue
+
+            # IQR outlier detection — safe subtraction
+            outliers = 0
+            iqr_result = safe_iqr_outliers(s)
+            if iqr_result is not None:
+                _, _, _, outliers = iqr_result
+
+            num_rows.append({
+                'col':      col,
+                'mean':     round(float(s.mean()), 3),
+                'median':   round(float(s.median()), 3),
+                'std':      round(float(s.std()), 3) if len(s) >= 2 else 0.0,
+                'min':      round(float(s.min()), 3),
+                'max':      round(float(s.max()), 3),
+                'outliers': outliers,
+                'missing':  int(df[col].isna().sum()) if col in df.columns else 0,
+            })
+        except Exception as exc:
+            print(f"[overview] stats_preview num col '{col}' error: {exc}")
 
     cat_rows = []
     for col in cat_cols[:6]:

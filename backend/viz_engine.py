@@ -23,6 +23,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy import stats as scipy_stats
+from backend.data_sanitizer import sanitize_series, filter_numeric_cols
 
 # ─── High Visual Dark Palette ────────────────────────────────────────────────
 PALETTE = ['#4ECDC4', '#7EA9FF', '#A8E6CF', '#C9B8FF', '#88D4E8', '#F4A9C8']
@@ -216,7 +217,10 @@ def build_kpis(category, df, col_x=None, col_y=None, num_cols=None):
 # ─── a) NUMERICAL ────────────────────────────────────────────────────────────
 
 def _chart_histogram(df, col):
-    clean = df[col].dropna()
+    raw   = df[col] if col in df.columns else pd.Series(dtype=float)
+    clean = sanitize_series(raw, col)   # forced numeric conversion
+    if clean.empty:
+        return None
     fig   = go.Figure()
     # FIX: .tolist() prevents bdata encoding
     fig.add_trace(go.Histogram(
@@ -225,23 +229,29 @@ def _chart_histogram(df, col):
         hovertemplate='%{x}<br>Count: %{y}<extra></extra>',
     ))
     if len(clean) >= 3:
-        kde_x = np.linspace(float(clean.min()), float(clean.max()), 200)
-        kde   = scipy_stats.gaussian_kde(clean)
-        scale = len(clean) * (float(clean.max()) - float(clean.min())) / 30
-        # FIX: .tolist() on both kde_x and kde values
-        fig.add_trace(go.Scatter(
-            x=kde_x.tolist(), y=(kde(kde_x) * scale).tolist(),
-            mode='lines', name='KDE',
-            line=dict(color=PALETTE[1], width=2.5),
-            hovertemplate='%{x:.2f}<br>Density: %{y:.4f}<extra></extra>',
-        ))
+        try:
+            kde_x = np.linspace(float(clean.min()), float(clean.max()), 200)
+            kde   = scipy_stats.gaussian_kde(clean)
+            scale = len(clean) * (float(clean.max()) - float(clean.min())) / 30
+            # FIX: .tolist() on both kde_x and kde values
+            fig.add_trace(go.Scatter(
+                x=kde_x.tolist(), y=(kde(kde_x) * scale).tolist(),
+                mode='lines', name='KDE',
+                line=dict(color=PALETTE[1], width=2.5),
+                hovertemplate='%{x:.2f}<br>Density: %{y:.4f}<extra></extra>',
+            ))
+        except Exception:
+            pass  # KDE failed (e.g. constant data), skip overlay
     fig.update_layout(_layout(title=f'📊 {CHART_LABELS["histogram"]}: {col}'))
     return _json(_axes(fig))
 
 
 def _chart_boxplot(df, col):
+    clean = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
+    if clean.empty:
+        return None
     fig = go.Figure(go.Box(
-        y=_to_list(df[col].dropna()), name=col,
+        y=_to_list(clean), name=col,
         marker_color=PALETTE[0],
         boxmean='sd', line_color=PALETTE[1],
         hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
@@ -251,51 +261,61 @@ def _chart_boxplot(df, col):
 
 
 def _chart_density(df, col):
-    clean = df[col].dropna()
+    clean = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
     if len(clean) < 3:
         return None
-    kde_x = np.linspace(float(clean.min()), float(clean.max()), 300)
-    kde   = scipy_stats.gaussian_kde(clean)
-    fig   = go.Figure(go.Scatter(
-        x=kde_x.tolist(), y=(kde(kde_x)).tolist(),
-        fill='tozeroy', mode='lines',
-        line=dict(color=PALETTE[0], width=2.5),
-        fillcolor='rgba(78,205,196,0.18)', name=col,
-        hovertemplate='%{x:.2f}<br>Density: %{y:.4f}<extra></extra>',
-    ))
-    fig.update_layout(_layout(title=f'🌊 {CHART_LABELS["density"]}: {col}'))
-    return _json(_axes(fig))
+    try:
+        kde_x = np.linspace(float(clean.min()), float(clean.max()), 300)
+        kde   = scipy_stats.gaussian_kde(clean)
+        fig   = go.Figure(go.Scatter(
+            x=kde_x.tolist(), y=(kde(kde_x)).tolist(),
+            fill='tozeroy', mode='lines',
+            line=dict(color=PALETTE[0], width=2.5),
+            fillcolor='rgba(78,205,196,0.18)', name=col,
+            hovertemplate='%{x:.2f}<br>Density: %{y:.4f}<extra></extra>',
+        ))
+        fig.update_layout(_layout(title=f'🌊 {CHART_LABELS["density"]}: {col}'))
+        return _json(_axes(fig))
+    except Exception:
+        return None
 
 
 def _chart_qq(df, col):
-    clean = df[col].dropna().values
+    clean = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
     if len(clean) < 4:
         return None
-    (osm, osr), (slope, intercept, _) = scipy_stats.probplot(clean, dist='norm')
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=osm.tolist(), y=osr.tolist(), mode='markers',
-        marker=dict(color=PALETTE[1], size=5, opacity=0.7),
-        name='Data Points',
-        hovertemplate='Theoretical: %{x:.3f}<br>Sample: %{y:.3f}<extra></extra>',
-    ))
-    x_line = np.array([osm.min(), osm.max()])
-    fig.add_trace(go.Scatter(
-        x=x_line.tolist(), y=(slope * x_line + intercept).tolist(),
-        mode='lines', name='Normal Reference',
-        line=dict(color=PALETTE[2], dash='dash', width=2),
-    ))
-    fig.update_layout(_layout(
-        title=f'📐 {CHART_LABELS["qq"]}: {col}',
-        xaxis_title='Theoretical Quantiles',
-        yaxis_title='Sample Quantiles',
-    ))
-    return _json(_axes(fig))
+    try:
+        clean_arr = clean.values
+        (osm, osr), (slope, intercept, _) = scipy_stats.probplot(clean_arr, dist='norm')
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=osm.tolist(), y=osr.tolist(), mode='markers',
+            marker=dict(color=PALETTE[1], size=5, opacity=0.7),
+            name='Data Points',
+            hovertemplate='Theoretical: %{x:.3f}<br>Sample: %{y:.3f}<extra></extra>',
+        ))
+        x_line = np.array([osm.min(), osm.max()])
+        fig.add_trace(go.Scatter(
+            x=x_line.tolist(), y=(slope * x_line + intercept).tolist(),
+            mode='lines', name='Normal Reference',
+            line=dict(color=PALETTE[2], dash='dash', width=2),
+        ))
+        fig.update_layout(_layout(
+            title=f'📐 {CHART_LABELS["qq"]}: {col}',
+            xaxis_title='Theoretical Quantiles',
+            yaxis_title='Sample Quantiles',
+        ))
+        return _json(_axes(fig))
+    except Exception:
+        return None
 
 
 def _chart_violin(df, col):
+    clean = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
+    if clean.empty:
+        return None
     fig = go.Figure(go.Violin(
-        y=_to_list(df[col].dropna()), name=col,
+        y=_to_list(clean), name=col,
         fillcolor=PALETTE[0], line_color=PALETTE[1],
         box_visible=True, meanline_visible=True, opacity=0.8,
         hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
@@ -394,28 +414,38 @@ def _chart_scatter(df, col_x, col_y):
 
 def _chart_heatmap(df, num_cols):
     """
-    Correlation heatmap.
-    FIX: corr.values.tolist() prevents bdata binary serialization.
+    Correlation heatmap — only valid numeric cols enter df.corr().
+    FIX: filter_numeric_cols guards against TypeError in df.corr().
     """
-    if len(num_cols) < 2:
+    # Safe: keep only truly numeric, non-empty, non-constant columns
+    valid_cols = filter_numeric_cols(df, num_cols[:12])
+    if len(valid_cols) < 2:
         return None
-    corr = df[num_cols[:12]].corr()
-    z_values = corr.values.tolist()
-    z_text   = [[f'{v:.2f}' for v in row] for row in corr.values.tolist()]
-    col_list = corr.columns.tolist()
+    try:
+        # Work on coerced copy to handle any remaining string-encoded numbers
+        from backend.data_sanitizer import sanitize_df_numeric_cols
+        df2  = sanitize_df_numeric_cols(df, valid_cols)
+        corr = df2[valid_cols].corr()
+        z_values = corr.values.tolist()
+        z_text   = [[f'{v:.2f}' if not (isinstance(v, float) and (v != v)) else 'N/A'
+                     for v in row] for row in corr.values.tolist()]
+        col_list = corr.columns.tolist()
 
-    fig = go.Figure(go.Heatmap(
-        z=z_values,
-        x=col_list,
-        y=col_list,
-        colorscale=[[0, PLOT_BG], [0.5, PALETTE[1]], [1, PALETTE[0]]],
-        zmid=0,
-        text=z_text,
-        texttemplate='%{text}',
-        hovertemplate='%{x} × %{y}<br>r = %{z:.3f}<extra></extra>',
-    ))
-    fig.update_layout(_layout(title=f'🔥 {CHART_LABELS["heatmap"]}'))
-    return _json(fig)
+        fig = go.Figure(go.Heatmap(
+            z=z_values,
+            x=col_list,
+            y=col_list,
+            colorscale=[[0, PLOT_BG], [0.5, PALETTE[1]], [1, PALETTE[0]]],
+            zmid=0,
+            text=z_text,
+            texttemplate='%{text}',
+            hovertemplate='%{x} × %{y}<br>r = %{z:.3f}<extra></extra>',
+        ))
+        fig.update_layout(_layout(title=f'🔥 {CHART_LABELS["heatmap"]}'))
+        return _json(fig)
+    except Exception as exc:
+        print(f"[viz_engine] heatmap error: {exc}")
+        return None
 
 
 def _chart_scatter_matrix(df, num_cols):
@@ -586,14 +616,26 @@ def _chart_violin_compare(df, num_cols):
 
 
 def _chart_grouped_bar_compare(df, num_cols):
-    cols  = [c for c in num_cols if c in df.columns][:10]
+    cols = [c for c in num_cols if c in df.columns][:10]
     if not cols:
         return None
-    means = [float(df[c].mean()) for c in cols]
-    stds  = [float(df[c].std())  for c in cols]
-    suffix = ', '.join(cols[:4]) + ('…' if len(cols) > 4 else '')
+    means = []
+    stds  = []
+    valid_cols = []
+    for c in cols:
+        try:
+            s = sanitize_series(df[c], c)
+            if not s.empty:
+                means.append(float(s.mean()))
+                stds.append(float(s.std()) if len(s) >= 2 else 0.0)
+                valid_cols.append(c)
+        except Exception:
+            pass
+    if not valid_cols:
+        return None
+    suffix = ', '.join(valid_cols[:4]) + ('…' if len(valid_cols) > 4 else '')
     fig = go.Figure(go.Bar(
-        x=cols, y=means,
+        x=valid_cols, y=means,
         error_y=dict(
             type='data', array=stds, visible=True,
             color='rgba(200,216,240,0.6)', thickness=1.5, width=6,
@@ -627,6 +669,163 @@ def _chart_parallel_coords(df, num_cols):
     ))
     fig.update_layout(_layout(title=f'🔗 {CHART_LABELS["parallel_coords"]} — Multivariable Pattern'))
     return _json(fig)
+
+
+def _chart_all_numerical(df, num_cols, chart_type):
+    import math
+    cols_to_plot = [c for c in num_cols if c in df.columns]
+    n_cols = len(cols_to_plot)
+    if n_cols == 0:
+        return None
+    
+    n_plot_cols = 2 if n_cols > 1 else 1
+    n_plot_rows = math.ceil(n_cols / n_plot_cols)
+    
+    fig = make_subplots(
+        rows=n_plot_rows, cols=n_plot_cols,
+        subplot_titles=cols_to_plot,
+        vertical_spacing=0.15 / max(1, n_plot_rows - 1) if n_plot_rows > 1 else 0.1,
+    )
+    
+    for i, col in enumerate(cols_to_plot):
+        r = (i // n_plot_cols) + 1
+        c = (i % n_plot_cols) + 1
+        clean = df[col].dropna()
+        if clean.empty:
+            continue
+        
+        color = PALETTE[i % len(PALETTE)]
+        
+        if chart_type == 'boxplot':
+            fig.add_trace(go.Box(
+                y=_to_list(clean), name=col,
+                marker_color=color, boxmean='sd',
+                hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
+            ), row=r, col=c)
+        elif chart_type == 'violin':
+            fig.add_trace(go.Violin(
+                y=_to_list(clean), name=col,
+                fillcolor=color, line_color=color,
+                box_visible=True, meanline_visible=True, opacity=0.8,
+                hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
+            ), row=r, col=c)
+        elif chart_type == 'density':
+            if len(clean) >= 3:
+                kde_x = np.linspace(float(clean.min()), float(clean.max()), 100)
+                kde = scipy_stats.gaussian_kde(clean)
+                fig.add_trace(go.Scatter(
+                    x=kde_x.tolist(), y=(kde(kde_x)).tolist(),
+                    fill='tozeroy', mode='lines',
+                    line=dict(color=color, width=2),
+                    name=col,
+                    hovertemplate='%{x:.2f}<br>Density: %{y:.4f}<extra></extra>',
+                ), row=r, col=c)
+        elif chart_type == 'qq':
+            if len(clean) >= 4:
+                (osm, osr), (slope, intercept, _) = scipy_stats.probplot(clean, dist='norm')
+                fig.add_trace(go.Scatter(
+                    x=osm.tolist(), y=osr.tolist(), mode='markers',
+                    marker=dict(color=color, size=4, opacity=0.6),
+                    name=f'{col} Points',
+                    showlegend=False,
+                ), row=r, col=c)
+                x_line = np.array([osm.min(), osm.max()])
+                fig.add_trace(go.Scatter(
+                    x=x_line.tolist(), y=(slope * x_line + intercept).tolist(),
+                    mode='lines', line=dict(color='#FF7A00', dash='dash', width=1.5),
+                    name=f'{col} Ref',
+                    showlegend=False,
+                ), row=r, col=c)
+        else: # default histogram
+            fig.add_trace(go.Histogram(
+                x=_to_list(clean), nbinsx=20,
+                marker_color=color, opacity=0.8, name=col,
+                hovertemplate='%{x}<br>Count: %{y}<extra></extra>',
+            ), row=r, col=c)
+            
+    height = max(450, n_plot_rows * 300)
+    fig.update_layout(_layout(
+        title=f'📊 Visualisasi Semua Variabel Numerik ({CHART_LABELS.get(chart_type, chart_type)})',
+        height=height,
+        showlegend=False,
+    ))
+    return _json(_axes(fig))
+
+
+def _chart_all_categorical(df, cat_cols, chart_type):
+    import math
+    cols_to_plot = [c for c in cat_cols if c in df.columns]
+    n_cols = len(cols_to_plot)
+    if n_cols == 0:
+        return None
+        
+    n_plot_cols = 2 if n_cols > 1 else 1
+    n_plot_rows = math.ceil(n_cols / n_plot_cols)
+    
+    fig = make_subplots(
+        rows=n_plot_rows, cols=n_plot_cols,
+        subplot_titles=cols_to_plot,
+        vertical_spacing=0.15 / max(1, n_plot_rows - 1) if n_plot_rows > 1 else 0.1,
+    )
+    
+    for i, col in enumerate(cols_to_plot):
+        r = (i // n_plot_cols) + 1
+        c = (i % n_plot_cols) + 1
+        
+        vc = df[col].value_counts().head(10)
+        if vc.empty:
+            continue
+            
+        color = PALETTE[i % len(PALETTE)]
+        
+        if chart_type == 'pie':
+            fig.add_trace(go.Pie(
+                labels=vc.index.astype(str).tolist(),
+                values=vc.values.tolist(),
+                hole=0.4,
+                name=col,
+                showlegend=False,
+            ), row=r, col=c)
+        elif chart_type == 'count':
+            vc_sorted = vc.sort_values()
+            fig.add_trace(go.Bar(
+                x=vc_sorted.values.tolist(),
+                y=vc_sorted.index.astype(str).tolist(),
+                orientation='h',
+                marker_color=color, opacity=0.85, name=col,
+                hovertemplate='%{y}<br>Count: %{x:,}<extra></extra>',
+            ), row=r, col=c)
+        elif chart_type == 'pareto':
+            cum = (vc.cumsum() / vc.sum() * 100)
+            x_labels = vc.index.astype(str).tolist()
+            fig.add_trace(go.Bar(
+                x=x_labels,
+                y=vc.values.tolist(),
+                marker_color=color, opacity=0.85,
+                name=col,
+            ), row=r, col=c)
+            fig.add_trace(go.Scatter(
+                x=x_labels,
+                y=vc.values.tolist(),
+                mode='lines+markers',
+                line=dict(color='#FF7A00', width=1.5),
+                showlegend=False,
+            ), row=r, col=c)
+        else: # default bar
+            fig.add_trace(go.Bar(
+                x=vc.index.astype(str).tolist(),
+                y=vc.values.tolist(),
+                marker_color=color, opacity=0.85, name=col,
+                hovertemplate='%{x}<br>Count: %{y:,}<extra></extra>',
+            ), row=r, col=c)
+            
+    height = max(450, n_plot_rows * 300)
+    fig.update_layout(_layout(
+        title=f'📋 Visualisasi Semua Variabel Kategorik ({CHART_LABELS.get(chart_type, chart_type)})',
+        height=height,
+        showlegend=False,
+    ))
+    return _json(_axes(fig))
 
 
 # ─── MASTER ENTRY POINT ──────────────────────────────────────────────────────
@@ -681,6 +880,55 @@ def generate_master_chart(df, num_cols, cat_cols, category, chart_type,
                         if c.strip() in df.columns and c.strip() in num_cols]
             if selected:
                 num_cols = selected
+
+    if col_x == '__all__':
+        try:
+            if category == 'numerical':
+                chart = _chart_all_numerical(df, num_cols, chart_type)
+                kpis = [
+                    {'label': 'Numerical Cols', 'value': str(len(num_cols)), 'icon': 'fa-columns'},
+                    {'label': 'Total Rows', 'value': f'{len(df):,}', 'icon': 'fa-list'},
+                    {'label': 'Missing Cells', 'value': f'{int(df[num_cols].isna().sum().sum()):,}', 'icon': 'fa-exclamation'},
+                ]
+            elif category == 'categorical':
+                chart = _chart_all_categorical(df, cat_cols, chart_type)
+                kpis = [
+                    {'label': 'Categorical Cols', 'value': str(len(cat_cols)), 'icon': 'fa-columns'},
+                    {'label': 'Total Rows', 'value': f'{len(df):,}', 'icon': 'fa-list'},
+                    {'label': 'Missing Cells', 'value': f'{int(df[cat_cols].isna().sum().sum()):,}', 'icon': 'fa-exclamation'},
+                ]
+            else:
+                chart = None
+                kpis = []
+            
+            if chart is None:
+                return {
+                    'ok'         : False,
+                    'placeholder': f'Gagal membuat grafik untuk semua variabel.',
+                    'kpis'       : kpis,
+                }
+            
+            idx = types.index(chart_type)
+            return {
+                'ok'          : True,
+                'chart'       : chart,
+                'kpis'        : kpis,
+                'chart_type'  : chart_type,
+                'chart_label' : CHART_LABELS.get(chart_type, chart_type),
+                'chart_index' : idx,
+                'chart_total' : len(types),
+                'col_x'       : col_x,
+                'col_y'       : col_y,
+                'col_z'       : col_z,
+            }
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {
+                'ok'         : False,
+                'placeholder': f'Gagal membuat grafik semua variabel: {str(e)}',
+                'kpis'       : [],
+            }
 
     def _valid(c):
         return c and c in df.columns

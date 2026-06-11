@@ -132,6 +132,58 @@
 }
 .db-banner-close:hover { opacity: 1; }
 @keyframes bannerIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
+
+/* Toast Notification System */
+#toast-container {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+}
+.toast-msg {
+    min-width: 300px;
+    max-width: 500px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--blue);
+    border-radius: 10px;
+    padding: 12px 20px;
+    color: var(--text);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    animation: toastSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    opacity: 0;
+}
+.toast-msg.success { border-top-color: var(--green); }
+.toast-msg.warning { border-top-color: var(--orange); }
+.toast-msg.error { border-top-color: var(--red); }
+.toast-msg.info { border-top-color: var(--blue); }
+.toast-close {
+    margin-left: auto;
+    cursor: pointer;
+    opacity: 0.5;
+    font-size: 1.1rem;
+    transition: opacity 0.15s;
+}
+.toast-close:hover { opacity: 1; }
+
+@keyframes toastSlideIn {
+    from { transform: translateY(-30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes toastSlideOut {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-30px); opacity: 0; }
+}
 </style>
 
 
@@ -170,6 +222,93 @@
         </div>
     </div>
 
+    {% if data_status == 'raw' %}
+    <!-- OVERVIEW RAW MODE -->
+    <div class="db-global-banner warning" style="display:flex; margin-bottom: 24px;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span class="db-banner-msg">
+            ⚠️ Dataset terdeteksi belum bersih (Raw Mode). Beberapa visualisasi dinonaktifkan hingga data dibersihkan.
+        </span>
+        <button class="db-banner-cta" onclick="switchTab('cleaning')">
+            <i class="fas fa-broom"></i> Cleaning Sekarang
+        </button>
+    </div>
+
+    <!-- DC Summary Cards -->
+    <div class="dc-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        <div class="dc-stat-card">
+            <span class="dc-stat-label"><i class="fas fa-list-ol"></i> Rows</span>
+            <span class="dc-stat-value">{{ quality_full.summary.total_rows }}</span>
+        </div>
+        <div class="dc-stat-card">
+            <span class="dc-stat-label"><i class="fas fa-columns"></i> Columns</span>
+            <span class="dc-stat-value">{{ quality_full.summary.total_cols }}</span>
+        </div>
+        <div class="dc-stat-card {% if quality_full.summary.duplicate_rows > 0 %}has-issue{% else %}all-good{% endif %}">
+            <span class="dc-stat-label"><i class="fas fa-copy"></i> Duplicates</span>
+            <span class="dc-stat-value">{{ quality_full.summary.duplicate_rows }}</span>
+        </div>
+        <div class="dc-stat-card {% if quality_full.summary.missing_cells > 0 %}has-issue{% else %}all-good{% endif %}">
+            <span class="dc-stat-label"><i class="fas fa-question-circle"></i> Missing</span>
+            <span class="dc-stat-value">{{ quality_full.summary.missing_cells }}</span>
+        </div>
+        <div class="dc-stat-card {% if quality_full.summary.total_outliers > 0 %}has-issue{% else %}all-good{% endif %}">
+            <span class="dc-stat-label"><i class="fas fa-exclamation"></i> Outliers</span>
+            <span class="dc-stat-value">{{ quality_full.summary.total_outliers }}</span>
+        </div>
+        <div class="dc-stat-card {% if quality_full.summary.inconsistency_count > 0 %}has-issue{% else %}all-good{% endif %}">
+            <span class="dc-stat-label"><i class="fas fa-random"></i> Inconsistencies</span>
+            <span class="dc-stat-value">{{ quality_full.summary.inconsistency_count }}</span>
+        </div>
+        <div class="dc-stat-card {% if quality_full.summary.irrelevant_count > 0 %}has-issue{% else %}all-good{% endif %}">
+            <span class="dc-stat-label"><i class="fas fa-filter"></i> Irrelevant Cols</span>
+            <span class="dc-stat-value">{{ quality_full.summary.irrelevant_count }}</span>
+        </div>
+        <div class="dc-stat-card">
+            <span class="dc-stat-label"><i class="fas fa-code"></i> Data Types</span>
+            <span class="dc-stat-value" style="font-size:.8rem;font-weight:600;">
+                {% for k,v in quality_full.summary.dtypes.items() %}{{ k }}:{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Quality Report Table -->
+    <div class="card dc-quality-card" style="margin-bottom: 24px;">
+        <div class="quality-col-header">
+            <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report</h4>
+        </div>
+        <div class="table-scroll-wrapper" style="max-height:520px;">
+            <table class="data-table" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th>
+                        <th>Unique</th><th>Outliers</th><th>Issues</th><th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in quality_full.columns %}
+                    <tr>
+                        <td class="var-name">{{ row.column }}</td>
+                        <td>{{ row.dtype }}</td>
+                        <td class="{% if row.missing > 0 %}text-warning{% endif %}">{{ row.missing }}</td>
+                        <td class="{% if row.missing_pct > 0 %}text-warning{% endif %}">{{ row.missing_pct }}%</td>
+                        <td>{{ row.unique }}</td>
+                        <td class="{% if row.outliers > 0 %}text-danger{% endif %}">{{ row.outliers }}</td>
+                        <td style="font-size:.78rem;">{{ row.issues }}</td>
+                        <td>
+                            {% if row.status == 'ok' %}
+                            <span class="dc-badge dc-badge-success"><i class="fas fa-check"></i> OK</span>
+                            {% else %}
+                            <span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation"></i> Issue</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
     <!-- KPI Row -->
     <div class="ov-kpi-row">
         {% for kpi in overview.kpis %}
@@ -388,6 +527,31 @@
         </div>
     </div>
 
+    <!-- ── Smart Insights Preview ── -->
+    {% if insights %}
+    <div class="ov-stats-section mt-4">
+        <div class="ov-stats-section-title">
+            <i class="fas fa-lightbulb text-yellow"></i>
+            Key Insights
+            <span style="font-size:0.75rem;color:var(--muted);font-weight:400;margin-left:4px;">— hasil analisis otomatis</span>
+        </div>
+        <div class="insights-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            {% for insight in insights[:4] %}
+            <div class="card insight-card" style="border-left:4px solid var(--{{ insight.type }}, var(--blue));margin-bottom:0;">
+                <div class="insight-header">
+                    <div class="insight-icon" style="color:var(--{{ insight.type }},var(--blue));border-color:var(--{{ insight.type }},var(--blue));">
+                        <i class="fas {{ insight.icon }}"></i>
+                    </div>
+                    <h4>{{ insight.title }}</h4>
+                </div>
+                <p>{{ insight.desc | safe }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
 </div>
 <!-- ── END TAB 1: OVERVIEW ── -->
 
@@ -433,16 +597,18 @@
     </div>
     {% endif %}
 
+    {% if is_cleaned %}
     <!-- Clean data pane -->
-    <div id="preview-pane-clean" class="card full-card" {% if not is_cleaned %}style="display:none;"{% endif %}>
+    <div id="preview-pane-clean" class="card full-card">
         <div class="card-header-clean">
             <h3><i class="fas fa-check-circle text-green"></i> Cleaned Data
-                <span class="text-muted" style="font-size:.8rem;font-weight:400;">(100 Baris Pertama)</span>
                 <span class="badge badge-success" style="font-size:.7rem;margin-left:8px;">Clean</span>
+                <span class="badge badge-info" style="font-size:.7rem;margin-left:4px;">{{ dataset_info.rows }} Rows</span>
             </h3>
         </div>
         <div class="table-scroll-wrapper">{{ preview_clean | safe }}</div>
     </div>
+    {% endif %}
 
     <!-- Raw data pane -->
     <div id="preview-pane-raw" class="card full-card" {% if is_cleaned %}style="display:none;"{% endif %}>
@@ -453,10 +619,10 @@
                 {% else %}
                 <i class="fas fa-database text-blue"></i> Data Preview
                 {% endif %}
-                <span class="text-muted" style="font-size:.8rem;font-weight:400;">(100 Baris Pertama)</span>
                 {% if not is_cleaned %}
                 <span class="badge badge-warning" style="font-size:.7rem;margin-left:8px;">Belum di-cleaning</span>
                 {% endif %}
+                <span class="badge badge-info" style="font-size:.7rem;margin-left:4px;">{{ dataset_info.rows }} Rows</span>
             </h3>
         </div>
         <div class="table-scroll-wrapper">{{ preview_raw | safe }}</div>
@@ -501,8 +667,12 @@
 [data-theme="dark"] .dc-badge-warning { background:rgba(255,206,32,.12); color:#fcd34d; border-color:rgba(255,206,32,.3); }
 
 /* ── DC Layout ── */
-.dc-layout { display:grid; grid-template-columns:300px 1fr 260px; gap:18px; align-items:start; }
-@media (max-width:1280px) { .dc-layout { grid-template-columns:280px 1fr; } }
+.dc-layout { display:grid; grid-template-columns:300px 1fr 260px; gap:18px; align-items:stretch; }
+.dc-ops-card, .dc-quality-card, .dc-history-card { display:flex; flex-direction:column; height:100%; }
+@media (max-width:1280px) { 
+    .dc-layout { grid-template-columns:280px 1fr; }
+    .dc-layout > .dc-history-card { grid-column: 1 / -1; }
+}
 @media (max-width:800px)  { .dc-layout { grid-template-columns:1fr; } }
 
 /* ── DC Ops panel ── */
@@ -544,7 +714,7 @@
 .dc-btn-reset:hover { background:var(--red); color:#fff; border-color:var(--red); }
 [data-theme="dark"] .dc-btn-reset { background:rgba(238,93,80,.15); color:#fca5a5; border-color:rgba(238,93,80,.3); }
 [data-theme="dark"] .dc-btn-reset:hover { background:var(--red); color:#fff; border-color:var(--red); }
-.dc-history-list { max-height:380px; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px; scrollbar-width:thin; }
+.dc-history-list { flex: 1; min-height: 350px; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
 .dc-history-item { display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:9px; border:1px solid var(--border); background:var(--bg); font-size:0.78rem; cursor:pointer; transition:.18s; }
 .dc-history-item:hover { border-color:var(--blue); background:var(--blue-light); }
 .dc-history-item.current { border-color:var(--green); background:var(--green-light); }
@@ -595,17 +765,7 @@
 @media (max-width:700px) { .dc-diff-grid { grid-template-columns:1fr; } }
 </style>
 
-<!-- DC Notification Banners -->
-<div id="dc-banner-warning" class="dc-banner warning">
-    <i class="fas fa-exclamation-triangle"></i>
-    <span id="dc-banner-warning-text">Data perlu di cleaning!</span>
-    <button class="dc-banner-close" onclick="document.getElementById('dc-banner-warning').style.display='none'"><i class="fas fa-times"></i></button>
-</div>
-<div id="dc-banner-success" class="dc-banner success">
-    <i class="fas fa-check-circle"></i>
-    <span id="dc-banner-success-text">Berhasil melakukan cleaning! Data siap digunakan.</span>
-    <button class="dc-banner-close" onclick="document.getElementById('dc-banner-success').style.display='none'"><i class="fas fa-times"></i></button>
-</div>
+<!-- Unified top-center toast system active -->
 
 <!-- DC Header -->
 <div class="dashboard-header mb-4">
@@ -789,6 +949,53 @@
             </div>
         </div>
 
+        <!-- Fix Inconsistencies -->
+        <div class="dc-ops-section">
+            <div class="dc-section-title"><i class="fas fa-random text-blue"></i> Fix Inconsistencies</div>
+            <button class="dc-op-btn" onclick="DCleaning.togglePanel('panel-inconsistencies')">
+                <span><i class="fas fa-magic" style="margin-right:7px;"></i>Perbaiki Inkonsistensi</span>
+                <i class="fas fa-chevron-down" id="icon-panel-inconsistencies"></i>
+            </button>
+            <div class="dc-sub-panel" id="panel-inconsistencies">
+                <div class="dc-field">
+                    <label>Metode Perbaikan</label>
+                    <select id="inconsistencies-method">
+                        <option value="strip">Strip Whitespace</option>
+                        <option value="lower">Strip & Lowercase (Kecil semua)</option>
+                        <option value="upper">Strip & Uppercase (Besar semua)</option>
+                        <option value="title">Strip & Title Case (Kapital Awal)</option>
+                    </select>
+                </div>
+                <div class="dc-action-row">
+                    <button class="dc-btn-preview" onclick="DCleaning.preview('fix_inconsistencies')"><i class="fas fa-eye"></i> Preview</button>
+                    <button class="dc-btn-apply"   onclick="DCleaning.apply('fix_inconsistencies')"><i class="fas fa-check"></i> Apply</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Irrelevant Columns -->
+        <div class="dc-ops-section">
+            <div class="dc-section-title"><i class="fas fa-filter text-orange"></i> Irrelevant Columns</div>
+            <button class="dc-op-btn" onclick="DCleaning.togglePanel('panel-irrelevant')">
+                <span><i class="fas fa-trash-can" style="margin-right:7px;"></i>Drop Irrelevant Cols</span>
+                <i class="fas fa-chevron-down" id="icon-panel-irrelevant"></i>
+            </button>
+            <div class="dc-sub-panel" id="panel-irrelevant">
+                <div class="dc-field">
+                    <label>Threshold Keunikan (default 95%)</label>
+                    <select id="irrelevant-threshold">
+                        <option value="0.95">95% unik (ID/Teks Bebas)</option>
+                        <option value="0.90">90% unik</option>
+                        <option value="0.80">80% unik</option>
+                    </select>
+                </div>
+                <div class="dc-action-row">
+                    <button class="dc-btn-preview" onclick="DCleaning.preview('drop_irrelevant_cols')"><i class="fas fa-eye"></i> Preview</button>
+                    <button class="dc-btn-apply"   onclick="DCleaning.apply('drop_irrelevant_cols')"><i class="fas fa-check"></i> Apply</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Quick Actions -->
         <div class="dc-ops-section">
             <div class="dc-section-title"><i class="fas fa-bolt text-orange"></i> Quick Actions</div>
@@ -822,48 +1029,117 @@
         </div>
     </div><!-- end ops card -->
 
-    <!-- TENGAH: Quality Report -->
-    <div class="card dc-quality-card">
-        <div class="quality-col-header">
-            <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report</h4>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <span id="dc-quality-badge-wrap"></span>
-                <button class="dc-btn-refresh-q" onclick="DCleaning.refreshQuality()">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
+    <!-- TENGAH: Column Wrapper -->
+    <div class="dc-middle-col" style="display:flex; flex-direction:column; gap:18px; flex:1; min-width: 0;">
+        <!-- Card 1: Data Quality Report -->
+        <div class="card dc-quality-card" style="display:flex; flex-direction:column; height:auto;">
+            <div class="quality-col-header">
+                <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report</h4>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <span id="dc-quality-badge-wrap"></span>
+                    <button class="dc-btn-refresh-q" onclick="DCleaning.refreshQuality()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
             </div>
-        </div>
-        <div class="table-scroll-wrapper" style="max-height:520px;">
-            <table class="data-table" id="dc-quality-table" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th>
-                        <th>Unique</th><th>Outliers</th><th>Issues</th><th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="dc-quality-tbody">
-                    {% for row in quality_full.columns %}
-                    <tr>
-                        <td class="var-name">{{ row.column }}</td>
-                        <td>{{ row.dtype }}</td>
-                        <td class="{% if row.missing > 0 %}text-warning{% endif %}">{{ row.missing }}</td>
-                        <td class="{% if row.missing_pct > 0 %}text-warning{% endif %}">{{ row.missing_pct }}%</td>
-                        <td>{{ row.unique }}</td>
-                        <td class="{% if row.outliers > 0 %}text-danger{% endif %}">{{ row.outliers }}</td>
-                        <td style="font-size:.78rem;">{{ row.issues }}</td>
-                        <td>
-                            {% if row.status == 'ok' %}
-                            <span class="dc-badge dc-badge-success"><i class="fas fa-check"></i> OK</span>
-                            {% else %}
-                            <span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation"></i> Issue</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+            <div class="table-scroll-wrapper" style="max-height: 250px; overflow-y: auto;">
+                <table class="data-table" id="dc-quality-table" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th>
+                            <th>Unique</th><th>Outliers</th><th>Issues</th><th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dc-quality-tbody">
+                        {% for row in quality_full.columns %}
+                        <tr>
+                            <td class="var-name">{{ row.column }}</td>
+                            <td>{{ row.dtype }}</td>
+                            <td class="{% if row.missing > 0 %}text-warning{% endif %}">{{ row.missing }}</td>
+                            <td class="{% if row.missing_pct > 0 %}text-warning{% endif %}">{{ row.missing_pct }}%</td>
+                            <td>{{ row.unique }}</td>
+                            <td class="{% if row.outliers > 0 %}text-danger{% endif %}">{{ row.outliers }}</td>
+                            <td style="font-size:.78rem;">{{ row.issues }}</td>
+                            <td>
+                                {% if row.status == 'ok' %}
+                                <span class="dc-badge dc-badge-success"><i class="fas fa-check"></i> OK</span>
+                                {% else %}
+                                <span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation"></i> Issue</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div><!-- end quality card -->
+
+        <!-- Card 2: Data Health & Cleanliness Score Card -->
+        <div class="card dc-health-card" style="display:flex; flex-direction:column; flex:1; padding: 20px;">
+            <div style="padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom: 14px;">
+                <h4 style="font-size:.93rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-heartbeat text-red"></i> Data Health & Cleanliness Summary
+                </h4>
+            </div>
+            
+            <div class="dc-health-content" style="display:flex; gap:20px; align-items:center; justify-content:space-around; flex-wrap:wrap; flex: 1;">
+                <!-- Ring / Score Gauge -->
+                <div style="text-align:center; position:relative; width: 140px; height: 140px; display:flex; align-items:center; justify-content:center; flex-shrink: 0;">
+                    <!-- Circular Progress -->
+                    <svg width="120" height="120" viewBox="0 0 120 120" style="transform: rotate(-90deg);">
+                        <circle cx="60" cy="60" r="50" fill="transparent" stroke="var(--border)" stroke-width="10"></circle>
+                        <circle id="health-score-circle" cx="60" cy="60" r="50" fill="transparent" stroke="var(--green)" stroke-width="10" 
+                                stroke-dasharray="314.16" stroke-dashoffset="314.16" style="transition: stroke-dashoffset 0.8s ease-in-out;"></circle>
+                    </svg>
+                    <div style="position:absolute; display:flex; flex-direction:column; align-items:center;">
+                        <span id="health-score-val" style="font-size:1.8rem; font-weight:800; color:var(--text);">100%</span>
+                        <span style="font-size:0.6rem; font-weight:700; color:var(--muted); text-transform:uppercase;">Health Score</span>
+                    </div>
+                </div>
+                
+                <!-- Health Details / Progress Bars -->
+                <div style="flex:1; min-width: 200px; display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700; color:var(--text); margin-bottom: 4px;">
+                            <span>Completeness (Bebas Missing Value)</span>
+                            <span id="completeness-val">100%</span>
+                        </div>
+                        <div style="height:8px; border-radius:4px; background:var(--border); overflow:hidden;">
+                            <div id="completeness-bar" style="height:100%; background:var(--blue); width: 100%; transition: width 0.6s ease;"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700; color:var(--text); margin-bottom: 4px;">
+                            <span>Accuracy (Bebas Outliers & Inconsistencies)</span>
+                            <span id="accuracy-val">100%</span>
+                        </div>
+                        <div style="height:8px; border-radius:4px; background:var(--border); overflow:hidden;">
+                            <div id="accuracy-bar" style="height:100%; background:var(--orange); width: 100%; transition: width 0.6s ease;"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700; color:var(--text); margin-bottom: 4px;">
+                            <span>Uniqueness & Relevance (Bebas Duplikat/Irrelevant Cols)</span>
+                            <span id="uniqueness-val">100%</span>
+                        </div>
+                        <div style="height:8px; border-radius:4px; background:var(--border); overflow:hidden;">
+                            <div id="uniqueness-bar" style="height:100%; background:var(--green); width: 100%; transition: width 0.6s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recommendations / Action list -->
+            <div style="background:var(--bg); border: 1px solid var(--border); border-radius:10px; padding:10px 14px; margin-top: 14px;">
+                <div style="font-size:0.65rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+                    <i class="fas fa-lightbulb text-orange"></i> Saran Pembersihan
+                </div>
+                <ul id="health-recommendations" style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:4px; font-size:0.75rem; color:var(--text); max-height: 80px; overflow-y:auto;">
+                    <!-- Filled dynamically -->
+                </ul>
+            </div>
+        </div><!-- end health card -->
+    </div><!-- end dc-middle-col -->
 
     <!-- KANAN: History / Undo Panel -->
     <div class="card dc-history-card">
@@ -1016,6 +1292,12 @@ var DCleaning = (function () {
             if (scope==='select') params.columns=_getChecked('norm-cols-list');
             return params;
         }
+        if (op_type==='fix_inconsistencies') {
+            return { method: document.getElementById('inconsistencies-method').value };
+        }
+        if (op_type==='drop_irrelevant_cols') {
+            return { threshold: parseFloat(document.getElementById('irrelevant-threshold').value) };
+        }
         if (op_type==='drop_high_missing') return {threshold:parseFloat(document.getElementById('dropmiss-thresh').value)};
         return {};
     }
@@ -1025,8 +1307,8 @@ var DCleaning = (function () {
         _pendingOp={op_type:op_type,op_params:op_params};
         fetch(BASE+'/preview/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op_type:op_type,op_params:op_params})})
             .then(function(r){ return r.json(); })
-            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Preview gagal.'); return; } _renderPreviewModal(d); })
-            .catch(function(e){ _showBanner('warning','Preview error: '+e.message); });
+            .then(function(d){ if (!d.ok){ showToast(d.error||'Preview gagal.', 'error'); return; } _renderPreviewModal(d); })
+            .catch(function(e){ showToast('Preview error: '+e.message, 'error'); });
     }
 
     function _renderPreviewModal(d) {
@@ -1055,28 +1337,51 @@ var DCleaning = (function () {
     function _doApply(op_type,op_params) {
         fetch(BASE+'/apply/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op_type:op_type,op_params:op_params})})
             .then(function(r){ return r.json(); })
-            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Operasi gagal.'); return; } _colsCache=null; _updateUI(d,true); _showBanner('success','Berhasil: '+d.label+'. Data siap digunakan.'); })
-            .catch(function(e){ _showBanner('warning','Apply error: '+e.message); });
+            .then(function(d){
+                if (!d.ok){ showToast(d.error||'Operasi gagal.', 'error'); return; }
+                triggerToastAfterReload('Berhasil menerapkan: ' + d.label, 'success');
+                localStorage.setItem('ds_active_tab', 'cleaning');
+                window.location.reload();
+            })
+            .catch(function(e){ showToast('Apply error: '+e.message, 'error'); });
     }
 
     function undoLast() {
         fetch(BASE+'/undo/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
             .then(function(r){ return r.json(); })
-            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Undo gagal.'); return; } _colsCache=null; _updateUI(d,d.history.some(function(h){ return h.is_current&&!h.is_initial; })); _showBanner('warning','Undo: kembali ke "'+d.current_label+'"'); });
+            .then(function(d){
+                if (!d.ok){ showToast(d.error||'Undo gagal.', 'error'); return; }
+                triggerToastAfterReload('Undo berhasil: kembali ke "' + d.current_label + '"', 'warning');
+                localStorage.setItem('ds_active_tab', 'cleaning');
+                window.location.reload();
+            })
+            .catch(function(e){ showToast('Undo error: '+e.message, 'error'); });
     }
 
     function undoToFromUI(index,isInitial) {
         if (isInitial){ confirmReset(); return; }
         fetch(BASE+'/undo/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:index})})
             .then(function(r){ return r.json(); })
-            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Undo gagal.'); return; } _colsCache=null; var ic=d.history.some(function(h){ return h.is_current&&!h.is_initial; }); _updateUI(d,ic); _showBanner(ic?'success':'warning','Kembali ke: "'+d.current_label+'"'); });
+            .then(function(d){
+                if (!d.ok){ showToast(d.error||'Undo gagal.', 'error'); return; }
+                triggerToastAfterReload('Undo berhasil: kembali ke "' + d.current_label + '"', 'success');
+                localStorage.setItem('ds_active_tab', 'cleaning');
+                window.location.reload();
+            })
+            .catch(function(e){ showToast('Undo error: '+e.message, 'error'); });
     }
 
     function confirmReset() {
         if (!confirm('Reset semua langkah cleaning ke data awal (raw)?')) return;
         fetch(BASE+'/reset/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
             .then(function(r){ return r.json(); })
-            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Reset gagal.'); return; } _colsCache=null; _updateUI(d,false); _showBanner('warning','Data direset ke kondisi awal (raw data).'); });
+            .then(function(d){
+                if (!d.ok){ showToast(d.error||'Reset gagal.', 'error'); return; }
+                triggerToastAfterReload('Data direset ke kondisi awal (raw data).', 'warning');
+                localStorage.setItem('ds_active_tab', 'cleaning');
+                window.location.reload();
+            })
+            .catch(function(e){ showToast('Reset error: '+e.message, 'error'); });
     }
 
     function refreshQuality() {
@@ -1105,6 +1410,72 @@ var DCleaning = (function () {
         _setCardState('dcs-dupes',s.duplicate_rows>0); _setCardState('dcs-missing',s.missing_cells>0);
         _setCardState('dcs-outliers',s.total_outliers>0); _setCardState('dcs-incons',s.inconsistency_count>0); _setCardState('dcs-irrel',s.irrelevant_count>0);
         if (s.dtypes) _setText('dcs-dtypes-val',Object.entries(s.dtypes).map(function(kv){ return kv[0]+':'+kv[1]; }).join(' · '));
+        _updateHealthDashboard(s, rows, cols);
+    }
+
+    function _updateHealthDashboard(s, rows, cols) {
+        var total_cells = (rows || 1) * (cols || 1);
+        var missing_pct = (s.missing_cells / total_cells) * 100;
+        var completeness = Math.max(0, Math.min(100, 100 - missing_pct));
+        
+        var accuracy_pct = (((s.total_outliers || 0) + (s.inconsistency_count || 0)) / (rows || 1)) * 100;
+        var accuracy = Math.max(0, Math.min(100, 100 - accuracy_pct));
+        
+        var dupes_pct = ((s.duplicate_rows || 0) / (rows || 1)) * 100;
+        var uniqueness = Math.max(0, Math.min(100, 100 - dupes_pct));
+        
+        var irrel_pct = ((s.irrelevant_count || 0) / (cols || 1)) * 100;
+        var relevance = Math.max(0, Math.min(100, 100 - irrel_pct));
+        
+        var uniqueness_relevance = (uniqueness + relevance) / 2;
+        
+        var health_score = Math.round((completeness + accuracy + uniqueness_relevance) / 3);
+        
+        var circle = document.getElementById('health-score-circle');
+        if (circle) {
+            var offset = 314.16 - (health_score / 100) * 314.16;
+            circle.style.strokeDashoffset = offset;
+            if (health_score >= 85) circle.setAttribute('stroke', 'var(--green)');
+            else if (health_score >= 60) circle.setAttribute('stroke', 'var(--orange)');
+            else circle.setAttribute('stroke', 'var(--red)');
+        }
+        
+        _setText('health-score-val', health_score + '%');
+        _setText('completeness-val', Math.round(completeness) + '%');
+        _setText('accuracy-val', Math.round(accuracy) + '%');
+        _setText('uniqueness-val', Math.round(uniqueness_relevance) + '%');
+        
+        var compBar = document.getElementById('completeness-bar');
+        if (compBar) compBar.style.width = completeness + '%';
+        var accBar = document.getElementById('accuracy-bar');
+        if (accBar) accBar.style.width = accuracy + '%';
+        var uniqBar = document.getElementById('uniqueness-bar');
+        if (uniqBar) uniqBar.style.width = uniqueness_relevance + '%';
+        
+        var recList = document.getElementById('health-recommendations');
+        if (recList) {
+            recList.innerHTML = '';
+            var recs = [];
+            if (s.duplicate_rows > 0) {
+                recs.push('<li><i class="fas fa-clone text-blue" style="margin-right:6px;"></i>Hapus <strong>' + s.duplicate_rows + '</strong> baris duplikat dengan Quick Actions.</li>');
+            }
+            if (s.missing_cells > 0) {
+                recs.push('<li><i class="fas fa-question-circle text-red" style="margin-right:6px;"></i>Isi <strong>' + s.missing_cells + '</strong> data kosong (missing) dengan Handle Missing Value.</li>');
+            }
+            if (s.total_outliers > 0) {
+                recs.push('<li><i class="fas fa-filter text-orange" style="margin-right:6px;"></i>Atasi <strong>' + s.total_outliers + '</strong> outlier pada kolom numerik.</li>');
+            }
+            if (s.inconsistency_count > 0) {
+                recs.push('<li><i class="fas fa-random text-purple" style="margin-right:6px;"></i>Gunakan fitur Perbaiki Inkonsistensi untuk kolom teks.</li>');
+            }
+            if (s.irrelevant_count > 0) {
+                recs.push('<li><i class="fas fa-trash-alt text-purple" style="margin-right:6px;"></i>Hapus <strong>' + s.irrelevant_count + '</strong> kolom tidak relevan (constant/ID/dll) dengan Drop Irrelevant Cols.</li>');
+            }
+            if (recs.length === 0) {
+                recs.push('<li><i class="fas fa-check-circle text-green" style="margin-right:6px;"></i>Data sangat bersih (100% Health Score)! Siap digunakan.</li>');
+            }
+            recList.innerHTML = recs.join('');
+        }
     }
 
     function _setCardState(id,hasIssue) {
@@ -1183,10 +1554,21 @@ var DCleaning = (function () {
         var hasIssues={{ (quality_full.warnings | length > 0) | tojson }};
         var bw=document.getElementById('dc-quality-badge-wrap');
         if (bw) bw.innerHTML=hasIssues?'<span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation-triangle"></i> Perlu Cleaning</span>':'<span class="dc-badge dc-badge-success"><i class="fas fa-check-circle"></i> Data Clean</span>';
-        if (!isCleaned&&hasIssues) { var w={{ quality_full.warnings | tojson }}; _showBanner('warning','Data perlu di cleaning! '+(w[0]||'')); }
-        else if (isCleaned) { _showBanner('success','Berhasil melakukan cleaning! Data siap digunakan.'); }
+        // Redundant timed popups removed from load - status badge and top toast handle notifications
         var undoBtn=document.getElementById('dc-undo-last-btn');
         if (undoBtn) undoBtn.disabled=!isCleaned;
+
+        // Initial health score update
+        var summary = {
+            duplicate_rows: {{ quality_full.summary.duplicate_rows | tojson }},
+            missing_cells: {{ quality_full.summary.missing_cells | tojson }},
+            total_outliers: {{ quality_full.summary.total_outliers | tojson }},
+            inconsistency_count: {{ quality_full.summary.inconsistency_count | tojson }},
+            irrelevant_count: {{ quality_full.summary.irrelevant_count | tojson }}
+        };
+        var rows = {{ quality_full.summary.total_rows | tojson }};
+        var cols = {{ quality_full.summary.total_cols | tojson }};
+        _updateHealthDashboard(summary, rows, cols);
 
         var mm=document.getElementById('missing-method');
         if (mm) mm.addEventListener('change',function(){ var w=document.getElementById('missing-fillval-wrap'); if(w) w.style.display=this.value==='fill_value'?'flex':'none'; });
@@ -1528,6 +1910,69 @@ var DCleaning = (function () {
 <script src="{{ url_for('static', filename='js/visualizationsMaster.js') }}"></script>
 
 <script>
+function showToast(msg, type) {
+    type = type || 'info';
+    var container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    var toast = document.createElement('div');
+    toast.className = 'toast-msg ' + type;
+    
+    var icon = 'fa-info-circle text-blue';
+    if (type === 'success') icon = 'fa-check-circle text-green';
+    else if (type === 'warning') icon = 'fa-exclamation-triangle text-orange';
+    else if (type === 'error') icon = 'fa-exclamation-circle text-red';
+    
+    toast.innerHTML = '<i class="fas ' + icon + '"></i>' +
+                      '<span style="flex:1;">' + msg + '</span>' +
+                      '<span class="toast-close" onclick="this.parentElement.remove()">&times;</span>';
+                      
+    container.appendChild(toast);
+    
+    setTimeout(function() {
+        toast.style.animation = 'toastSlideOut 0.3s ease forwards';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, 4000);
+}
+
+function triggerToastAfterReload(msg, type) {
+    localStorage.setItem('ds_pending_toast', JSON.stringify({ msg: msg, type: type }));
+}
+
+// Check for pending tab restoration and toast on load
+(function() {
+    var pendingToast = localStorage.getItem('ds_pending_toast');
+    if (pendingToast) {
+        try {
+            var data = JSON.parse(pendingToast);
+            showToast(data.msg, data.type);
+        } catch(e) {}
+        localStorage.removeItem('ds_pending_toast');
+    }
+    
+    var activeTab = localStorage.getItem('ds_active_tab');
+    if (activeTab) {
+        setTimeout(function() {
+            if (typeof switchTab === 'function') {
+                switchTab(activeTab);
+            }
+        }, 50);
+        localStorage.removeItem('ds_active_tab');
+    } else {
+        var dataStatus = {{ data_status | tojson }};
+        if (dataStatus === 'raw') {
+            setTimeout(function() {
+                if (typeof switchTab === 'function') {
+                    switchTab('cleaning');
+                }
+            }, 50);
+        }
+    }
+})();
+
 var plotsData       = null;
 var overviewPayload = null;
 var vizMeta = {

@@ -5,6 +5,7 @@ import json
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
 import pandas as pd
+import numpy as np
 
 from backend.data_loader import load_data
 from backend.data_cleaning import clean_dataset, analyze_quality, get_cleaning_summary
@@ -19,8 +20,9 @@ from backend.insights_generator import generate_auto_insights
 from backend.time_series import detect_datetime_cols, generate_ts_plots
 from backend.cleaning_engine import (
     get_session, reset_session, delete_session,
-    get_quality_report,
+    get_quality_report, detect_data_status,
 )
+from backend.data_sanitizer import sanitize_df_numeric_cols
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = 'super_secret_key_week_15_itsb'
@@ -39,13 +41,22 @@ def _get_or_init_session(filename):
     """
     Ambil CleaningSession untuk filename.
     Jika belum ada, load dari disk dan inisialisasi.
+    Secures against path traversal attacks by validating with secure_filename.
     Return: (session, error_msg)
     """
-    sess = get_session(filename)
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        return None, 'Nama file tidak valid.'
+
+    sess = get_session(safe_name)
     if sess is not None:
         return sess, None
 
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    base_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    filepath = os.path.abspath(os.path.join(base_dir, safe_name))
+    if not filepath.startswith(base_dir):
+        return None, 'Akses tidak sah.'
+
     if not os.path.exists(filepath):
         return None, 'File tidak ditemukan.'
 
@@ -53,7 +64,7 @@ def _get_or_init_session(filename):
     if df_raw is None:
         return None, 'Gagal membaca dataset.'
 
-    sess = reset_session(filename, df_raw)
+    sess = reset_session(safe_name, df_raw)
     return sess, None
 
 
@@ -134,34 +145,41 @@ def upload_file():
     return render_template('upload.html', history=uploaded_files)
 
 
-@app.route('/dashboard/<filename>')
-def dashboard(filename):
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+def _get_dashboard_context(filename):
+    """
+    Computes dashboard context variables.
+    Secures against path traversal attacks.
+    """
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        return None
+
+    base_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    filepath = os.path.abspath(os.path.join(base_dir, safe_name))
+    if not filepath.startswith(base_dir):
+        return None
 
     if not os.path.exists(filepath):
-        flash('File tidak ditemukan.', 'error')
-        return redirect(url_for('upload_file'))
+        return None
 
     df_raw = load_data(filepath)
     if df_raw is None:
-        flash('Gagal membaca dataset.', 'error')
-        return redirect(url_for('upload_file'))
+        return None
 
     # ── Ambil atau inisialisasi CleaningSession ───────────────────────────────
-    sess = get_session(filename)
+    sess = get_session(safe_name)
     if sess is None:
-        sess = reset_session(filename, df_raw)
+        sess = reset_session(safe_name, df_raw)
 
     # ── Tentukan df yang dipakai (cleaned atau raw) ───────────────────────────
-    # is_cleaned = True jika user sudah apply minimal 1 step cleaning
     is_cleaned   = sess.is_cleaned
     df           = sess.df_current     # cleaned kalau sudah cleaning, raw kalau belum
+    data_status  = detect_data_status(df)
 
-    # ── Quality report (dari raw) untuk overview warning ─────────────────────
-    quality_full = get_quality_report(df_raw)
+    # ── Quality report (dari current df) untuk overview warning ─────────────────────
+    quality_full = get_quality_report(df)
 
     # ── Backward-compat: cleaning summary & log ───────────────────────────────
-    # Gunakan history terakhir sebagai cleaning summary
     if is_cleaned and len(sess._history) > 1:
         last_snap      = sess._history[-1]
         cleaning_log   = last_snap.summary.get('log', [])
@@ -187,19 +205,22 @@ def dashboard(filename):
         df_temp, cleaning_log_temp = clean_dataset(df_raw, {})
         cleaning_summary = get_cleaning_summary(df_raw, df_temp, cleaning_log_temp)
 
-    quality_report = analyze_quality(df_raw)
+    quality_report = analyze_quality(df)
 
     # ── Column detection ──────────────────────────────────────────────────────
     num_cols, cat_cols = detect_data_types(df)
 
+    # ── GLOBAL DATA SANITIZATION ──────────────────────────────────────────────
+    df_stats = sanitize_df_numeric_cols(df, num_cols)
+
     # ── Summary metrics ───────────────────────────────────────────────────────
-    metrics = get_summary_metrics(df, num_cols, cat_cols)
+    metrics = get_summary_metrics(df_stats, num_cols, cat_cols)
 
     # ── Descriptive stats ─────────────────────────────────────────────────────
-    num_stats, cat_stats = get_descriptive_stats(df, num_cols, cat_cols)
+    num_stats, cat_stats = get_descriptive_stats(df_stats, num_cols, cat_cols)
 
     # ── Advanced stats ────────────────────────────────────────────────────────
-    advanced = get_advanced_stats(df, num_cols, cat_cols)
+    advanced = get_advanced_stats(df_stats, num_cols, cat_cols)
 
     # ── Time Series detection ─────────────────────────────────────────────────
     dt_cols = detect_datetime_cols(df)
@@ -229,14 +250,12 @@ def dashboard(filename):
     )
 
     # ── Preview HTML ──────────────────────────────────────────────────────────
-    # Raw preview (tab Data Preview — sebelum cleaning)
-    preview_raw_html = df_raw.head(100).to_html(
+    preview_raw_html = df_raw.to_html(
         classes='data-table display nowrap',
         index=False,
         table_id='preview-raw-table',
     )
-    # Clean preview (tab Data Preview — setelah cleaning)
-    preview_clean_html = df.head(100).to_html(
+    preview_clean_html = df.to_html(
         classes='data-table display nowrap',
         index=False,
         table_id='preview-clean-table',
@@ -256,7 +275,7 @@ def dashboard(filename):
         f"{dt_file.hour:02d}:{dt_file.minute:02d}"
     )
     dataset_info = {
-        'name': filename,
+        'name': safe_name,
         'rows': metrics['total_rows'],
         'cols': metrics['total_columns'],
         'size': file_size_str,
@@ -266,12 +285,21 @@ def dashboard(filename):
     # ── col_data untuk interactive chart (sampled) ────────────────────────────
     col_data = {}
     for col in num_cols:
-        series = df[col].dropna()
+        series = df_stats[col].dropna()
         if len(series) > 2000:
             series = series.sample(2000, random_state=42)
+        
+        vals = []
+        for v in series.tolist():
+            try:
+                f = float(v)
+                if not np.isnan(f) and not np.isinf(f):
+                    vals.append(round(f, 4))
+            except (ValueError, TypeError):
+                continue
         col_data[col] = {
             'type'  : 'numeric',
-            'values': [round(float(v), 4) for v in series.tolist()],
+            'values': vals,
         }
     for col in cat_cols:
         vc = df[col].value_counts().head(20)
@@ -296,38 +324,252 @@ def dashboard(filename):
         'cap_outliers'           : False,
     }
 
-    return render_template(
-        'dashboard.html',
-        filename          = filename,
-        # preview
-        preview           = preview_clean_html if is_cleaned else preview_raw_html,
-        preview_raw       = preview_raw_html,
-        preview_clean     = preview_clean_html,
-        is_cleaned        = is_cleaned,
-        # stats
-        metrics           = metrics,
-        num_stats         = num_stats,
-        cat_stats         = cat_stats,
-        plots             = plots,
-        insights          = auto_insights,
-        advanced          = advanced,
-        num_cols          = num_cols,
-        cat_cols          = cat_cols,
-        col_data          = col_data,
-        dataset_info      = dataset_info,
-        # cleaning
-        cleaning_summary  = cleaning_summary,
-        quality_report    = quality_report,
-        quality_full      = quality_full,
-        clean_opts        = clean_opts,
-        cleaning_history  = cleaning_history,
-        # overview
-        overview          = overview,
-        # Time Series
-        has_ts            = bool(dt_cols),
-        dt_cols           = dt_cols,
-        ts_meta           = ts_meta,
+    return {
+        'filename'          : safe_name,
+        'data_status'       : data_status,
+        'preview'           : preview_clean_html if is_cleaned else preview_raw_html,
+        'preview_raw'       : preview_raw_html,
+        'preview_clean'     : preview_clean_html,
+        'is_cleaned'        : is_cleaned,
+        'metrics'           : metrics,
+        'num_stats'         : num_stats,
+        'cat_stats'         : cat_stats,
+        'plots'             : plots,
+        'insights'          : auto_insights,
+        'advanced'          : advanced,
+        'num_cols'          : num_cols,
+        'cat_cols'          : cat_cols,
+        'col_data'          : col_data,
+        'dataset_info'      : dataset_info,
+        'cleaning_summary'  : cleaning_summary,
+        'quality_report'    : quality_report,
+        'quality_full'      : quality_full,
+        'clean_opts'        : clean_opts,
+        'cleaning_history'  : cleaning_history,
+        'overview'          : overview,
+        'has_ts'            : bool(dt_cols),
+        'dt_cols'           : dt_cols,
+        'ts_meta'           : ts_meta,
+    }
+
+
+@app.route('/dashboard/<filename>')
+def dashboard(filename):
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        flash('Nama file tidak valid.', 'error')
+        return redirect(url_for('upload_file'))
+
+    ctx = _get_dashboard_context(safe_name)
+    if ctx is None:
+        flash('File atau data tidak dapat dimuat.', 'error')
+        return redirect(url_for('upload_file'))
+
+    return render_template('dashboard.html', **ctx)
+
+
+@app.route('/dashboard/<filename>/report/pdf')
+def download_report_pdf(filename):
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        flash('Nama file tidak valid.', 'error')
+        return redirect(url_for('upload_file'))
+
+    ctx = _get_dashboard_context(safe_name)
+    if ctx is None:
+        flash('File atau data tidak dapat dimuat.', 'error')
+        return redirect(url_for('upload_file'))
+
+    # Path to temp PDF file
+    temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_reports')
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_pdf_path = os.path.join(temp_dir, f"{safe_name}_report.pdf")
+
+    # Load sess to pass df
+    sess = get_session(safe_name)
+    df = sess.df_current
+
+    from backend.report_generator import generate_pdf_report
+    try:
+        generate_pdf_report(
+            temp_pdf_path,
+            safe_name,
+            df,
+            ctx['quality_report'],
+            ctx['metrics'],
+            ctx['num_stats'],
+            ctx['cat_stats'],
+            ctx['insights'],
+            ctx['cleaning_history'],
+            ctx['cleaning_summary']
+        )
+        from flask import send_file
+        return send_file(
+            temp_pdf_path,
+            as_attachment=True,
+            download_name=f"{os.path.splitext(safe_name)[0]}_report.pdf"
+        )
+    except Exception as e:
+        flash(f"Gagal membuat laporan PDF: {e}", 'error')
+        return redirect(url_for('dashboard', filename=safe_name))
+
+
+def inline_html_assets(rendered_html):
+    """
+    Inlines style.css, jquery.min.js, plotly.min.js, script.js, dashboardOverview.js,
+    and visualizationsMaster.js into the rendered HTML to ensure fully functional offline support.
+    """
+    static_dir = os.path.join(app.root_path, 'frontend', 'static')
+    import re
+
+    # 1. Inline style.css
+    css_path = os.path.join(static_dir, 'css', 'style.css')
+    if os.path.exists(css_path):
+        try:
+            with open(css_path, 'r', encoding='utf-8') as f:
+                css_content = f.read()
+            css_tag = f'<style>\n/* INLINED style.css */\n{css_content}\n</style>'
+            rendered_html = re.sub(
+                r'<link[^>]*href=[^>]*style\.css[^>]*>',
+                css_tag,
+                rendered_html
+            )
+        except Exception as e:
+            print(f"[HTML Export] Error inlining CSS: {e}")
+
+    # 2. Inline Javascript files
+    js_files = [
+        (r'jquery\.min\.js', os.path.join(static_dir, 'js', 'jquery.min.js')),
+        (r'plotly\.min\.js', os.path.join(static_dir, 'js', 'plotly.min.js')),
+        (r'script\.js', os.path.join(static_dir, 'js', 'script.js')),
+        (r'dashboardOverview\.js', os.path.join(static_dir, 'js', 'dashboardOverview.js')),
+        (r'visualizationsMaster\.js', os.path.join(static_dir, 'js', 'visualizationsMaster.js')),
+    ]
+
+    for pattern, file_path in js_files:
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    js_content = f.read()
+                # Use a lambda replacement to prevent backslash issues in file contents during re.sub
+                # Escape backslashes for JS strings safely
+                js_tag = f'<script type="text/javascript">\n/* INLINED {os.path.basename(file_path)} */\n{js_content}\n</script>'
+                
+                # We do simple string replacement if possible to avoid regex overhead on massive files (like Plotly)
+                # Let's find script tags matching pattern
+                tag_pattern = re.compile(r'<script[^>]*src=[^>]*' + pattern + r'[^>]*>\s*</script>')
+                rendered_html = tag_pattern.sub(lambda m: js_tag, rendered_html)
+            except Exception as e:
+                print(f"[HTML Export] Error inlining {os.path.basename(file_path)}: {e}")
+
+    return rendered_html
+
+
+@app.route('/dashboard/<filename>/report/html')
+def download_report_html(filename):
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        flash('Nama file tidak valid.', 'error')
+        return redirect(url_for('upload_file'))
+
+    ctx = _get_dashboard_context(safe_name)
+    if ctx is None:
+        flash('File atau data tidak dapat dimuat.', 'error')
+        return redirect(url_for('upload_file'))
+
+    rendered = render_template('dashboard.html', **ctx)
+    inlined = inline_html_assets(rendered)
+
+    from flask import Response
+    return Response(
+        inlined,
+        mimetype='text/html',
+        headers={"Content-disposition": f"attachment; filename={os.path.splitext(safe_name)[0]}_dashboard.html"}
     )
+
+
+@app.route('/dashboard/<filename>/export/excel')
+def export_excel(filename):
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        flash('Nama file tidak valid.', 'error')
+        return redirect(url_for('upload_file'))
+
+    sess, err = _get_or_init_session(safe_name)
+    if err:
+        flash(err, 'error')
+        return redirect(url_for('upload_file'))
+
+    df = sess.df_current
+
+    from io import BytesIO
+    from openpyxl.utils import get_column_letter
+
+    excel_buffer = BytesIO()
+    try:
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Cleaned Data', index=False)
+            workbook = writer.book
+            worksheet = writer.sheets['Cleaned Data']
+
+            # Enable AutoFilter on header row
+            max_col = worksheet.max_column
+            max_row = worksheet.max_row
+            if max_col > 0 and max_row > 0:
+                last_col_letter = get_column_letter(max_col)
+                worksheet.auto_filter.ref = f"A1:{last_col_letter}{max_row}"
+
+            # Auto-adjust column widths
+            for col in worksheet.columns:
+                max_len = 0
+                col_letter = get_column_letter(col[0].column)
+                for cell in col:
+                    if cell.value is not None:
+                        max_len = max(max_len, len(str(cell.value)))
+                worksheet.column_dimensions[col_letter].width = max(max_len + 3, 10)
+
+        excel_buffer.seek(0)
+        from flask import send_file
+        return send_file(
+            excel_buffer,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f"{os.path.splitext(safe_name)[0]}_cleaned.xlsx"
+        )
+    except Exception as e:
+        flash(f"Gagal mengekspor data ke Excel: {e}", 'error')
+        return redirect(url_for('dashboard', filename=safe_name))
+
+
+@app.route('/dashboard/<filename>/export/csv')
+def export_csv(filename):
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        flash('Nama file tidak valid.', 'error')
+        return redirect(url_for('upload_file'))
+
+    sess, err = _get_or_init_session(safe_name)
+    if err:
+        flash(err, 'error')
+        return redirect(url_for('upload_file'))
+
+    df = sess.df_current
+
+    from io import BytesIO, StringIO
+    try:
+        str_io = StringIO()
+        df.to_csv(str_io, index=False)
+        mem = BytesIO(str_io.getvalue().encode('utf-8'))
+        from flask import send_file
+        return send_file(
+            mem,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f"{os.path.splitext(safe_name)[0]}_cleaned.csv"
+        )
+    except Exception as e:
+        flash(f"Gagal mengekspor data ke CSV: {e}", 'error')
+        return redirect(url_for('dashboard', filename=safe_name))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -443,7 +685,7 @@ def api_cleaning_preview_table(filename):
         return jsonify({'ok': False, 'error': err}), 404
 
     df   = sess.df_current
-    html = df.head(100).to_html(
+    html = df.to_html(
         classes='data-table display nowrap',
         index=False,
         border=0,

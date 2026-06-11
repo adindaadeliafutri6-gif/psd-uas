@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats as scipy_stats
 
+from backend.data_sanitizer import sanitize_series, safe_corr_matrix
+
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
 
@@ -29,7 +31,7 @@ def _pct(a, b):
 
 def _normality(series, max_sample=5000):
     """Mengembalikan 'Normal' atau 'Not Normal' via Shapiro-Wilk."""
-    clean = series.dropna()
+    clean = sanitize_series(series)  # forced numeric, drop NaN
     if len(clean) < 3 or clean.nunique() <= 1:
         return 'N/A'
     sample = clean if len(clean) <= max_sample else clean.sample(max_sample, random_state=42)
@@ -41,13 +43,18 @@ def _normality(series, max_sample=5000):
 
 
 def _outlier_count(series):
-    """Hitung outlier dengan metode IQR."""
-    clean = series.dropna()
+    """Hitung outlier dengan metode IQR (safe terhadap non-numeric)."""
+    clean = sanitize_series(series)  # forced numeric, drop NaN
     if len(clean) < 4:
         return 0
-    q1, q3 = clean.quantile(0.25), clean.quantile(0.75)
-    iqr = q3 - q1
-    return int(((clean < q1 - 1.5 * iqr) | (clean > q3 + 1.5 * iqr)).sum())
+    try:
+        q1, q3 = float(clean.quantile(0.25)), float(clean.quantile(0.75))
+        iqr = q3 - q1
+        if iqr == 0:
+            return 0
+        return int(((clean < q1 - 1.5 * iqr) | (clean > q3 + 1.5 * iqr)).sum())
+    except Exception:
+        return 0
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -124,17 +131,26 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
 
     # ── 3. VARIABEL DENGAN RATA-RATA TERTINGGI ────────────────────────────────
     if num_cols:
-        means = {col: df[col].mean() for col in num_cols if df[col].notna().any()}
+        means = {}
+        for col in num_cols:
+            try:
+                s = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
+                if not s.empty:
+                    means[col] = float(s.mean())
+            except Exception:
+                pass
         if means:
             top_mean_col = max(means, key=means.get)
             top_mean_val = round(means[top_mean_col], 2)
+            s_top = sanitize_series(df[top_mean_col], top_mean_col)
+            median_v = round(float(s_top.median()), 2) if not s_top.empty else 'N/A'
+            std_v    = round(float(s_top.std()), 2) if len(s_top) >= 2 else 'N/A'
             insights.append({
                 'type': 'primary', 'icon': 'fa-arrow-up',
                 'title': f' Highest Average Value: {top_mean_col}',
                 'desc': (f'Kolom <strong>{top_mean_col}</strong> memiliki nilai rata-rata tertinggi '
                          f'sebesar <strong>{top_mean_val:,}</strong>. '
-                         f'Median: {round(df[top_mean_col].median(), 2):,}, '
-                         f'Std: {round(df[top_mean_col].std(), 2):,}.')
+                         f'Median: {median_v}, Std: {std_v}.')
             })
 
     # ── 4. VARIABEL DENGAN MISSING VALUE TERBANYAK ───────────────────────────
@@ -177,11 +193,20 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
 
     # ── 6. VARIABEL DENGAN STANDAR DEVIASI TERBESAR ──────────────────────────
     if num_cols:
-        stds = {col: df[col].std() for col in num_cols if df[col].notna().any()}
+        stds = {}
+        for col in num_cols:
+            try:
+                s = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
+                if not s.empty and len(s) >= 2:
+                    stds[col] = float(s.std())
+            except Exception:
+                pass
         if stds:
             top_std_col = max(stds, key=stds.get)
             top_std_val = round(stds[top_std_col], 4)
-            cv = round(top_std_val / df[top_std_col].mean() * 100, 1) if df[top_std_col].mean() != 0 else 0
+            s_top = sanitize_series(df[top_std_col], top_std_col)
+            mean_top = float(s_top.mean()) if not s_top.empty else 0
+            cv = round(top_std_val / mean_top * 100, 1) if mean_top != 0 else 0
             insights.append({
                 'type': 'orange', 'icon': 'fa-ruler-horizontal',
                 'title': f' Highest Std Deviation: {top_std_col}',
@@ -191,28 +216,33 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
                          f'pada kolom ini menunjukkan sebaran data yang {"lebar" if cv > 15 else "moderat"}.')
             })
 
-    # ── 7. KORELASI TERKUAT ───────────────────────────────────────────────────
+
+    # ── 7. KORELASI TERKUAT — via safe_corr_matrix ────────────────────────────
     if len(num_cols) > 1:
         try:
-            corr_matrix = df[num_cols].corr()
-            np.fill_diagonal(corr_matrix.values, np.nan)
-            abs_corr = corr_matrix.abs()
-            max_idx  = np.unravel_index(np.nanargmax(abs_corr.values), abs_corr.shape)
-            col_a, col_b = num_cols[max_idx[0]], num_cols[max_idx[1]]
-            r_val = round(corr_matrix.iloc[max_idx[0], max_idx[1]], 3)
-            direction = 'positif' if r_val > 0 else 'negatif'
-            strength  = ('Sangat Kuat' if abs(r_val) > 0.8
-                         else 'Kuat' if abs(r_val) > 0.6
-                         else 'Sedang' if abs(r_val) > 0.4
-                         else 'Lemah')
-            insights.append({
-                'type': 'primary', 'icon': 'fa-link',
-                'title': f' Strongest Correlation: {col_a} ↔ {col_b} (r={r_val})',
-                'desc': (f'Korelasi {strength} ({direction}) ditemukan antara '
-                         f'<strong>{col_a}</strong> dan <strong>{col_b}</strong> dengan r = {r_val}. '
-                         f'{"Hubungan ini sangat signifikan dan layak diinvestigasi lebih lanjut." if abs(r_val) > 0.6 else "Hubungan ini moderat dan mungkin dipengaruhi variabel lain."}'
-                         f' (R² = {round(r_val**2, 3)})')
-            })
+            valid_cols, corr_df = safe_corr_matrix(df, num_cols)
+            if corr_df is not None and len(valid_cols) >= 2:
+                np.fill_diagonal(corr_df.values, np.nan)
+                abs_corr = corr_df.abs()
+                flat     = abs_corr.values.flatten()
+                flat_nan = flat[~np.isnan(flat)]
+                if len(flat_nan) > 0:
+                    max_idx  = np.unravel_index(np.nanargmax(abs_corr.values), abs_corr.shape)
+                    col_a, col_b = valid_cols[max_idx[0]], valid_cols[max_idx[1]]
+                    r_val = round(float(corr_df.iloc[max_idx[0], max_idx[1]]), 3)
+                    direction = 'positif' if r_val > 0 else 'negatif'
+                    strength  = ('Sangat Kuat' if abs(r_val) > 0.8
+                                 else 'Kuat' if abs(r_val) > 0.6
+                                 else 'Sedang' if abs(r_val) > 0.4
+                                 else 'Lemah')
+                    insights.append({
+                        'type': 'primary', 'icon': 'fa-link',
+                        'title': f' Strongest Correlation: {col_a} ↔ {col_b} (r={r_val})',
+                        'desc': (f'Korelasi {strength} ({direction}) ditemukan antara '
+                                 f'<strong>{col_a}</strong> dan <strong>{col_b}</strong> dengan r = {r_val}. '
+                                 f'{"Hubungan ini sangat signifikan dan layak diinvestigasi lebih lanjut." if abs(r_val) > 0.6 else "Hubungan ini moderat dan mungkin dipengaruhi variabel lain."}'
+                                 f' (R² = {round(r_val**2, 3)})')
+                    })
         except Exception:
             pass
 
@@ -247,12 +277,17 @@ def generate_auto_insights(df, num_cols, cat_cols, ts_insights=None):
                 )
             })
 
-        # Skewness
+        # Skewness — sanitized
         skewed = []
         for col in num_cols:
-            skw = df[col].skew()
-            if abs(skw) > 1:
-                skewed.append(f'{col} (skew={round(skw, 2)})')
+            try:
+                s = sanitize_series(df[col] if col in df.columns else pd.Series(dtype=float), col)
+                if not s.empty and s.nunique() >= 2:
+                    skw = float(s.skew())
+                    if abs(skw) > 1:
+                        skewed.append(f'{col} (skew={round(skw, 2)})')
+            except Exception:
+                pass
         if skewed:
             insights.append({
                 'type': 'warning', 'icon': 'fa-chart-line',
