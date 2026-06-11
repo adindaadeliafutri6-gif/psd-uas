@@ -1,19 +1,14 @@
 'use strict';
 
 /**
- * dashboardOverview.js
+ * dashboardOverview.js — v2 (with state management)
  *
- * PERUBAHAN:
- *  - Klik chart slot di Overview langsung membuka chart type yang TEPAT
- *    di tab Visualizations (bukan hanya kategorinya).
- *    Peta: ov_hbar → categorical/pareto
- *          ov_center → categorical/pie
- *          ov_top_right → timeseries (jika ada TS) atau bivariate/scatter
- *          ov_vbar_left → numerical/histogram
- *          ov_area_bottom → numerical/boxplot
- *          ov_vbar_right → categorical/bar
- *  - Toggle handler digeneralisasi untuk semua slot.
- *  - Title header slot ikut update saat toggle kolom berubah.
+ * Perubahan utama:
+ *  - Klik chart slot → simpan state (category, chartType, col) ke sessionStorage
+ *    sebelum pindah ke tab Visualizations.
+ *  - VizMaster membaca state dari sessionStorage saat tab dibuka.
+ *  - Binary decode lengkap (parcoords, splom, marker.size, line.color).
+ *  - Toggle title header ikut update saat dropdown berubah.
  */
 
 var OverviewDashboard = (function () {
@@ -27,15 +22,13 @@ var OverviewDashboard = (function () {
         scrollZoom     : false,
     };
 
-    // ── Peta slot ke {tab, category, chartType} ───────────────────────────────
-    // Dipakai saat klik slot untuk membuka chart yang tepat di Visualizations.
-    var SLOT_VIZ_TARGET = {
-        'ov_hbar'        : { tab: 'visualizations', category: 'categorical', chartType: 'pareto'    },
-        'ov_center'      : { tab: 'visualizations', category: 'categorical', chartType: 'pie'       },
-        'ov_top_right'   : null,   // ditentukan dinamis (TS atau scatter)
-        'ov_vbar_left'   : { tab: 'visualizations', category: 'numerical',   chartType: 'histogram' },
-        'ov_area_bottom' : { tab: 'visualizations', category: 'numerical',   chartType: 'boxplot'   },
-        'ov_vbar_right'  : { tab: 'visualizations', category: 'categorical', chartType: 'bar'       },
+    // ── Peta slot → {category, chartType} untuk state management ─────────────
+    var SLOT_VIZ_STATE = {
+        'ov_hbar'        : { category: 'categorical', chartType: 'pareto'    },
+        'ov_center'      : { category: 'categorical', chartType: 'pie'       },
+        'ov_vbar_left'   : { category: 'numerical',   chartType: 'histogram' },
+        'ov_area_bottom' : { category: 'numerical',   chartType: 'boxplot'   },
+        'ov_vbar_right'  : { category: 'categorical', chartType: 'bar'       },
     };
 
     var SLOT_TITLE_PREFIX = {
@@ -45,6 +38,41 @@ var OverviewDashboard = (function () {
         'ov_area_bottom' : 'Spread — ',
         'ov_vbar_right'  : 'Frequency — ',
     };
+
+    // ── State management key ─────────────────────────────────────────────────
+    var VIZ_STATE_KEY = 'ds_viz_state';
+
+    function _saveVizState(category, chartType, colX, colY) {
+        try {
+            sessionStorage.setItem(VIZ_STATE_KEY, JSON.stringify({
+                category  : category  || null,
+                chartType : chartType || null,
+                colX      : colX      || null,
+                colY      : colY      || null,
+                ts        : Date.now(),
+            }));
+        } catch (e) {}
+    }
+
+    function readVizState() {
+        try {
+            var raw = sessionStorage.getItem(VIZ_STATE_KEY);
+            if (!raw) return null;
+            var state = JSON.parse(raw);
+            // Expire setelah 5 menit (state yang terlalu lama diabaikan)
+            if (Date.now() - (state.ts || 0) > 5 * 60 * 1000) {
+                sessionStorage.removeItem(VIZ_STATE_KEY);
+                return null;
+            }
+            return state;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function clearVizState() {
+        try { sessionStorage.removeItem(VIZ_STATE_KEY); } catch (e) {}
+    }
 
     // ── Layout patch ──────────────────────────────────────────────────────────
     function getLayoutPatch() {
@@ -66,7 +94,7 @@ var OverviewDashboard = (function () {
         };
     }
 
-    // ── Binary decode ─────────────────────────────────────────────────────────
+    // ── Binary decode ──────────────────────────────────────────────────────────
     function _decodeBinaryField(field) {
         if (!field || typeof field !== 'object' || !field.bdata) return field;
         var dtype  = field.dtype || 'f8';
@@ -89,16 +117,46 @@ var OverviewDashboard = (function () {
     function _decodeTrace(trace) {
         if (!trace || typeof trace !== 'object') return trace;
         var decoded = Object.assign({}, trace);
-        ['x', 'y', 'z', 'values', 'labels', 'ids'].forEach(function (f) {
+
+        // Decode scalar array fields
+        ['x', 'y', 'z', 'values', 'labels', 'ids',
+         'open', 'high', 'low', 'close', 'lat', 'lon'].forEach(function (f) {
             if (decoded[f] && typeof decoded[f] === 'object' && decoded[f].bdata) {
                 decoded[f] = _decodeBinaryField(decoded[f]);
             }
         });
-        if (decoded.marker && decoded.marker.size &&
-            typeof decoded.marker.size === 'object' && decoded.marker.size.bdata) {
-            decoded.marker      = Object.assign({}, decoded.marker);
-            decoded.marker.size = _decodeBinaryField(decoded.marker.size);
+
+        // marker.size / marker.color
+        if (decoded.marker && typeof decoded.marker === 'object') {
+            decoded.marker = Object.assign({}, decoded.marker);
+            ['size', 'color'].forEach(function(k) {
+                if (decoded.marker[k] && typeof decoded.marker[k] === 'object' && decoded.marker[k].bdata) {
+                    decoded.marker[k] = _decodeBinaryField(decoded.marker[k]);
+                }
+            });
         }
+
+        // parcoords / splom dimensions
+        if ((decoded.type === 'parcoords' || decoded.type === 'splom') &&
+             Array.isArray(decoded.dimensions)) {
+            decoded.dimensions = decoded.dimensions.map(function (dim) {
+                if (!dim || typeof dim !== 'object') return dim;
+                var d = Object.assign({}, dim);
+                if (d.values && typeof d.values === 'object' && d.values.bdata) {
+                    d.values = _decodeBinaryField(d.values);
+                }
+                return d;
+            });
+        }
+
+        // line.color
+        if (decoded.line && typeof decoded.line === 'object') {
+            decoded.line = Object.assign({}, decoded.line);
+            if (decoded.line.color && typeof decoded.line.color === 'object' && decoded.line.color.bdata) {
+                decoded.line.color = _decodeBinaryField(decoded.line.color);
+            }
+        }
+
         return decoded;
     }
 
@@ -108,8 +166,8 @@ var OverviewDashboard = (function () {
             data: chartObj.data.map(_decodeTrace),
         });
     }
-    // ── End binary decode ─────────────────────────────────────────────────────
 
+    // ── Draw single slot ──────────────────────────────────────────────────────
     function drawSlot(slotId, chartJson, force) {
         if (!chartJson || typeof Plotly === 'undefined') return;
         var el = document.getElementById(slotId);
@@ -208,6 +266,12 @@ var OverviewDashboard = (function () {
         if (titleEl) titleEl.textContent = prefix + colName;
     }
 
+    function _getActiveCol(slotId) {
+        // Ambil kolom yang sedang dipilih di toggle dropdown
+        var sel = document.getElementById('toggle-' + slotId);
+        return sel ? sel.value : null;
+    }
+
     function _bindRegularToggle(slotId, toggle) {
         var select = document.getElementById('toggle-' + slotId);
         if (!select || !toggle.charts) return;
@@ -234,8 +298,6 @@ var OverviewDashboard = (function () {
             if (chart) {
                 rendered.delete('ov_top_right');
                 drawSlot('ov_top_right', chart, true);
-                _updateSlotTitle('ov_top_right', cx + ' × ' + cy);
-                // Update judul di title span
                 var titleEl = document.getElementById('ov_top_right-title');
                 if (titleEl) titleEl.textContent = 'Scatter — ' + cx + ' × ' + cy;
             }
@@ -275,16 +337,14 @@ var OverviewDashboard = (function () {
         });
     }
 
-    // ── Click-through ke Visualizations (chart type spesifik) ────────────────
+    // ── Click-through ke Visualizations dengan state management ──────────────
 
     function bindVizNavigation() {
         document.querySelectorAll('.ov-chart-slot[data-viz-tab]').forEach(function (el) {
             el.addEventListener('click', function (e) {
                 if (e.target.closest('.ov-toggle-wrap')) return;
-                var slotId  = el.querySelector('[id^="ov_"]') ?
-                              el.querySelector('[id^="ov_"]').id : null;
 
-                // Cari slotId dari elemen chart di dalam card
+                // Cari slot ID dari chart area di dalam card
                 var chartEl = el.querySelector('.ov-chart-area');
                 var sid     = chartEl ? chartEl.id : null;
 
@@ -294,7 +354,7 @@ var OverviewDashboard = (function () {
     }
 
     function _navigateToSlot(slotId, cardEl) {
-        // Slot ov_top_right: cek apakah TS atau scatter
+        // ov_top_right: cek TS atau scatter
         if (slotId === 'ov_top_right') {
             var vizTab = cardEl ? cardEl.getAttribute('data-viz-tab') : 'visualizations';
             if (vizTab === 'timeseries') {
@@ -303,23 +363,33 @@ var OverviewDashboard = (function () {
                     if (typeof switchTsTab === 'function') switchTsTab('line');
                 }, 90);
             } else {
-                // Scatter di bivariate
+                // Scatter — simpan state X dan Y
+                var selX = document.getElementById('scatter-col-x');
+                var selY = document.getElementById('scatter-col-y');
+                var cx   = selX ? selX.value : null;
+                var cy   = selY ? selY.value : null;
+                _saveVizState('bivariate', 'scatter', cx, cy);
                 openVizCategory('bivariate', 'scatter');
             }
             return;
         }
 
-        var target = SLOT_VIZ_TARGET[slotId];
+        var target = SLOT_VIZ_STATE[slotId];
         if (!target) {
-            // Fallback: gunakan data-viz-tab & data-viz-sub dari card
             if (cardEl) {
-                var tab = cardEl.getAttribute('data-viz-tab') || 'visualizations';
                 var sub = cardEl.getAttribute('data-viz-sub') || 'numerical';
                 openVizCategory(sub, null);
             }
             return;
         }
 
+        // Ambil kolom yang sedang aktif di toggle
+        var activeCol = _getActiveCol(slotId);
+
+        // Simpan state ke sessionStorage
+        _saveVizState(target.category, target.chartType, activeCol, null);
+
+        // Navigasi
         openVizCategory(target.category, target.chartType);
     }
 
@@ -361,5 +431,8 @@ var OverviewDashboard = (function () {
         onResize          : onResize,
         renderAll         : renderAll,
         renderStatsPreview: renderStatsPreview,
+        readVizState      : readVizState,
+        clearVizState     : clearVizState,
+        saveVizState      : _saveVizState,
     };
 })();

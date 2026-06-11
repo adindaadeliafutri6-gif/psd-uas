@@ -2,7 +2,7 @@ import os
 import datetime
 import json
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
 import pandas as pd
 
@@ -17,6 +17,10 @@ from backend.viz_engine import (
 )
 from backend.insights_generator import generate_auto_insights
 from backend.time_series import detect_datetime_cols, generate_ts_plots
+from backend.cleaning_engine import (
+    get_session, reset_session, delete_session,
+    get_quality_report,
+)
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = 'super_secret_key_week_15_itsb'
@@ -29,6 +33,28 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _get_or_init_session(filename):
+    """
+    Ambil CleaningSession untuk filename.
+    Jika belum ada, load dari disk dan inisialisasi.
+    Return: (session, error_msg)
+    """
+    sess = get_session(filename)
+    if sess is not None:
+        return sess, None
+
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(filepath):
+        return None, 'File tidak ditemukan.'
+
+    df_raw = load_data(filepath)
+    if df_raw is None:
+        return None, 'Gagal membaca dataset.'
+
+    sess = reset_session(filename, df_raw)
+    return sess, None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -88,6 +114,11 @@ def upload_file():
 
             file.save(filepath)
 
+            # ── Init cleaning session untuk file baru ─────────────────────────
+            df_raw = load_data(filepath)
+            if df_raw is not None:
+                reset_session(filename, df_raw)
+
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({
                     'duplicate': False,
@@ -116,25 +147,47 @@ def dashboard(filename):
         flash('Gagal membaca dataset.', 'error')
         return redirect(url_for('upload_file'))
 
-    # ── Data Cleaning ─────────────────────────────────────────────────────────
-    def _clean_flag(name, default=True):
-        if name in request.args:
-            return request.args.get(name) == '1'
-        return default
+    # ── Ambil atau inisialisasi CleaningSession ───────────────────────────────
+    sess = get_session(filename)
+    if sess is None:
+        sess = reset_session(filename, df_raw)
 
-    clean_opts = {
-        'strip_whitespace'       : _clean_flag('strip_ws'),
-        'empty_to_nan'           : _clean_flag('empty_nan'),
-        'drop_duplicates'        : _clean_flag('drop_dupes'),
-        'drop_empty_cols'        : _clean_flag('drop_empty'),
-        'drop_high_missing'      : float(request.args.get('drop_miss_thresh', '0') or 0),
-        'fill_missing_numeric'   : request.args.get('fill_num', 'none'),
-        'fill_missing_categorical': request.args.get('fill_cat', 'none'),
-        'cap_outliers'           : _clean_flag('cap_outliers', default=False),
-    }
-    df, cleaning_log = clean_dataset(df_raw, clean_opts)
-    cleaning_summary = get_cleaning_summary(df_raw, df, cleaning_log)
-    quality_report   = analyze_quality(df_raw)
+    # ── Tentukan df yang dipakai (cleaned atau raw) ───────────────────────────
+    # is_cleaned = True jika user sudah apply minimal 1 step cleaning
+    is_cleaned   = sess.is_cleaned
+    df           = sess.df_current     # cleaned kalau sudah cleaning, raw kalau belum
+
+    # ── Quality report (dari raw) untuk overview warning ─────────────────────
+    quality_full = get_quality_report(df_raw)
+
+    # ── Backward-compat: cleaning summary & log ───────────────────────────────
+    # Gunakan history terakhir sebagai cleaning summary
+    if is_cleaned and len(sess._history) > 1:
+        last_snap      = sess._history[-1]
+        cleaning_log   = last_snap.summary.get('log', [])
+        cleaning_summary = {
+            'rows_before'       : last_snap.summary['rows_before'],
+            'rows_after'        : last_snap.summary['rows_after'],
+            'cols_before'       : last_snap.summary['cols_before'],
+            'cols_after'        : last_snap.summary['cols_after'],
+            'missing_before'    : last_snap.summary['missing_before'],
+            'missing_after'     : last_snap.summary['missing_after'],
+            'missing_pct_before': round(
+                last_snap.summary['missing_before'] /
+                max(last_snap.summary['rows_before'] * last_snap.summary['cols_before'], 1) * 100, 2
+            ),
+            'missing_pct_after' : round(
+                last_snap.summary['missing_after'] /
+                max(last_snap.summary['rows_after'] * last_snap.summary['cols_after'], 1) * 100, 2
+            ),
+            'duplicates_removed': last_snap.summary.get('rows_removed', 0),
+            'log'               : cleaning_log,
+        }
+    else:
+        df_temp, cleaning_log_temp = clean_dataset(df_raw, {})
+        cleaning_summary = get_cleaning_summary(df_raw, df_temp, cleaning_log_temp)
+
+    quality_report = analyze_quality(df_raw)
 
     # ── Column detection ──────────────────────────────────────────────────────
     num_cols, cat_cols = detect_data_types(df)
@@ -156,8 +209,8 @@ def dashboard(filename):
         df, num_cols, cat_cols, dt_cols=dt_cols, metrics=metrics
     )
 
-    # ── Time Series plots (plots hanya berisi TS; viz utama via AJAX) ─────────
-    plots            = {}   # default kosong
+    # ── Time Series plots ─────────────────────────────────────────────────────
+    plots            = {}
     ts_insights_list = []
     ts_meta          = {}
 
@@ -166,7 +219,7 @@ def dashboard(filename):
             ts_plots, ts_insights_list, ts_meta = generate_ts_plots(
                 df, dt_cols, num_cols
             )
-            plots = ts_plots  # hanya TS plots yang dikirim ke template
+            plots = ts_plots
         except Exception as e:
             print(f"[TS] generate_ts_plots error: {e}")
 
@@ -175,11 +228,18 @@ def dashboard(filename):
         df, num_cols, cat_cols, ts_insights=ts_insights_list
     )
 
-    # ── Preview (100 baris pertama) ───────────────────────────────────────────
-    preview_html = df.to_html(
+    # ── Preview HTML ──────────────────────────────────────────────────────────
+    # Raw preview (tab Data Preview — sebelum cleaning)
+    preview_raw_html = df_raw.head(100).to_html(
         classes='data-table display nowrap',
         index=False,
-        table_id='preview-table',
+        table_id='preview-raw-table',
+    )
+    # Clean preview (tab Data Preview — setelah cleaning)
+    preview_clean_html = df.head(100).to_html(
+        classes='data-table display nowrap',
+        index=False,
+        table_id='preview-clean-table',
     )
 
     # ── Dataset info untuk sidebar card ───────────────────────────────────────
@@ -221,29 +281,208 @@ def dashboard(filename):
             'counts': [int(v) for v in vc.values.tolist()],
         }
 
+    # ── Cleaning history untuk UI ─────────────────────────────────────────────
+    cleaning_history = sess.history_labels
+
+    # ── clean_opts dummy untuk backward-compat template lama ─────────────────
+    clean_opts = {
+        'strip_whitespace'       : True,
+        'empty_to_nan'           : True,
+        'drop_duplicates'        : True,
+        'drop_empty_cols'        : True,
+        'drop_high_missing'      : 0.0,
+        'fill_missing_numeric'   : 'none',
+        'fill_missing_categorical': 'none',
+        'cap_outliers'           : False,
+    }
+
     return render_template(
         'dashboard.html',
-        filename         = filename,
-        preview          = preview_html,
-        metrics          = metrics,
-        num_stats        = num_stats,
-        cat_stats        = cat_stats,
-        plots            = plots,
-        insights         = auto_insights,
-        advanced         = advanced,
-        num_cols         = num_cols,
-        cat_cols         = cat_cols,
-        col_data         = col_data,
-        dataset_info     = dataset_info,
-        cleaning_summary = cleaning_summary,
-        quality_report   = quality_report,
-        clean_opts       = clean_opts,
-        overview         = overview,
-        # ── Time Series ──────────────────────────────────────────────────────
-        has_ts           = bool(dt_cols),
-        dt_cols          = dt_cols,
-        ts_meta          = ts_meta,
+        filename          = filename,
+        # preview
+        preview           = preview_clean_html if is_cleaned else preview_raw_html,
+        preview_raw       = preview_raw_html,
+        preview_clean     = preview_clean_html,
+        is_cleaned        = is_cleaned,
+        # stats
+        metrics           = metrics,
+        num_stats         = num_stats,
+        cat_stats         = cat_stats,
+        plots             = plots,
+        insights          = auto_insights,
+        advanced          = advanced,
+        num_cols          = num_cols,
+        cat_cols          = cat_cols,
+        col_data          = col_data,
+        dataset_info      = dataset_info,
+        # cleaning
+        cleaning_summary  = cleaning_summary,
+        quality_report    = quality_report,
+        quality_full      = quality_full,
+        clean_opts        = clean_opts,
+        cleaning_history  = cleaning_history,
+        # overview
+        overview          = overview,
+        # Time Series
+        has_ts            = bool(dt_cols),
+        dt_cols           = dt_cols,
+        ts_meta           = ts_meta,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLEANING API ROUTES
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/cleaning/status/<filename>')
+def api_cleaning_status(filename):
+    """
+    GET status session cleaning:
+    - is_cleaned, quality_report dari df_current
+    - history labels
+    - rows & cols current
+    """
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    df = sess.df_current
+    return jsonify({
+        'ok'          : True,
+        'is_cleaned'  : sess.is_cleaned,
+        'rows'        : len(df),
+        'cols'        : len(df.columns),
+        'history'     : sess.history_labels,
+        'quality'     : get_quality_report(df),
+        'missing_total': int(df.isna().sum().sum()),
+    })
+
+
+@app.route('/api/cleaning/preview/<filename>', methods=['POST'])
+def api_cleaning_preview(filename):
+    """
+    POST preview dampak 1 operasi cleaning TANPA apply.
+    Body JSON: { op_type, op_params }
+    """
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    data     = request.get_json() or {}
+    op_type  = data.get('op_type', '')
+    op_params = data.get('op_params', {})
+
+    if not op_type:
+        return jsonify({'ok': False, 'error': 'op_type diperlukan'}), 400
+
+    result = sess.preview_step(op_type, op_params)
+    return jsonify(result)
+
+
+@app.route('/api/cleaning/apply/<filename>', methods=['POST'])
+def api_cleaning_apply(filename):
+    """
+    POST apply 1 operasi cleaning dan simpan ke history.
+    Body JSON: { op_type, op_params }
+    """
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    data      = request.get_json() or {}
+    op_type   = data.get('op_type', '')
+    op_params = data.get('op_params', {})
+
+    if not op_type:
+        return jsonify({'ok': False, 'error': 'op_type diperlukan'}), 400
+
+    result = sess.apply_step(op_type, op_params)
+    return jsonify(result)
+
+
+@app.route('/api/cleaning/undo/<filename>', methods=['POST'])
+def api_cleaning_undo(filename):
+    """
+    POST undo 1 langkah terakhir.
+    Body JSON opsional: { index } untuk undo ke titik tertentu
+    """
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    data  = request.get_json() or {}
+    index = data.get('index')
+
+    if index is not None:
+        result = sess.undo_to(int(index))
+    else:
+        result = sess.undo()
+
+    return jsonify(result)
+
+
+@app.route('/api/cleaning/reset/<filename>', methods=['POST'])
+def api_cleaning_reset(filename):
+    """POST reset ke raw data."""
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    result = sess.reset()
+    return jsonify(result)
+
+
+@app.route('/api/cleaning/preview-table/<filename>')
+def api_cleaning_preview_table(filename):
+    """
+    GET preview tabel df_current (10 baris pertama) sebagai HTML.
+    Dipakai untuk refresh preview di Data Preview tab setelah cleaning.
+    """
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    df   = sess.df_current
+    html = df.head(100).to_html(
+        classes='data-table display nowrap',
+        index=False,
+        border=0,
+        table_id='preview-clean-table',
+    )
+    return jsonify({
+        'ok'          : True,
+        'html'        : html,
+        'is_cleaned'  : sess.is_cleaned,
+        'rows'        : len(df),
+        'cols'        : len(df.columns),
+        'missing'     : int(df.isna().sum().sum()),
+    })
+
+
+@app.route('/api/cleaning/columns/<filename>')
+def api_cleaning_columns(filename):
+    """
+    GET daftar kolom df_current beserta info (dtype, missing, is_numeric).
+    Dipakai untuk populate dropdown kolom di form cleaning.
+    """
+    sess, err = _get_or_init_session(filename)
+    if err:
+        return jsonify({'ok': False, 'error': err}), 404
+
+    df   = sess.df_current
+    cols = []
+    for col in df.columns:
+        s = df[col]
+        cols.append({
+            'name'       : col,
+            'dtype'      : str(s.dtype),
+            'missing'    : int(s.isna().sum()),
+            'missing_pct': round(s.isna().mean() * 100, 1),
+            'is_numeric' : bool(pd.api.types.is_numeric_dtype(s)),
+            'is_text'    : bool(pd.api.types.is_object_dtype(s)),
+            'unique'     : int(s.nunique()),
+        })
+    return jsonify({'ok': True, 'columns': cols, 'is_cleaned': sess.is_cleaned})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -251,14 +490,25 @@ def dashboard(filename):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _load_analysis_df(filename):
-    """Muat & bersihkan dataset (sama seperti dashboard default)."""
+    """
+    Muat df untuk visualisasi.
+    Prioritaskan df_current dari CleaningSession jika sudah cleaned,
+    fallback ke clean_dataset(df_raw, {}) untuk backward-compat.
+    """
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     if not os.path.exists(filepath):
         return None, None, None, None
-    df_raw = load_data(filepath)
-    if df_raw is None:
-        return None, None, None, None
-    df, _ = clean_dataset(df_raw, {})
+
+    # Cek session — pakai df yang sudah cleaned jika ada
+    sess = get_session(filename)
+    if sess is not None:
+        df = sess.df_current
+    else:
+        df_raw = load_data(filepath)
+        if df_raw is None:
+            return None, None, None, None
+        df, _ = clean_dataset(df_raw, {})
+
     num_cols, cat_cols = detect_data_types(df)
     dt_cols = detect_datetime_cols(df)
     return df, num_cols, cat_cols, dt_cols
@@ -276,17 +526,6 @@ def api_viz_chart(filename):
     col_x      = request.args.get('col_x') or None
     col_y      = request.args.get('col_y') or None
     col_z      = request.args.get('col_z') or None
-
-    try:
-        print('[api/viz-chart] params:', {
-            'category'  : category,
-            'chart_type': chart_type,
-            'col_x'     : col_x,
-            'col_y'     : col_y,
-            'col_z'     : col_z,
-        })
-    except Exception:
-        pass
 
     if not chart_type:
         types      = CATEGORY_CHARTS.get(category, [])

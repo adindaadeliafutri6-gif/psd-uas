@@ -80,11 +80,85 @@
 }
 .ov-stats-link:hover { opacity: 1; text-decoration: underline; }
 
-/* Double toggle untuk scatter X & Y */
+/* ── Double toggle untuk scatter X & Y ── */
 .ov-toggle-wrap--double { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ov-toggle-wrap--double select { max-width: 130px; }
 
+/* ── Global notification banners ── */
+.db-global-banner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    animation: bannerIn .3s ease;
+}
+.db-global-banner.warning {
+    background: #fff3cd;
+    border: 1.5px solid #f5c518;
+    color: #7d5a00;
+}
+.db-global-banner.success {
+    background: #d4f5e9;
+    border: 1.5px solid #05cd99;
+    color: #015c40;
+}
+[data-theme="dark"] .db-global-banner.warning {
+    background: rgba(245,197,24,.12);
+    color: #fcd34d;
+    border-color: rgba(245,197,24,.35);
+}
+[data-theme="dark"] .db-global-banner.success {
+    background: rgba(5,205,153,.12);
+    color: #6ee7b7;
+    border-color: rgba(5,205,153,.35);
+}
+.db-banner-msg { flex: 1; }
+.db-banner-cta {
+    padding: 5px 14px; border-radius: 7px; border: none;
+    font-size: 0.75rem; font-weight: 700; cursor: pointer;
+    font-family: inherit; white-space: nowrap; transition: .15s;
+}
+.db-global-banner.warning .db-banner-cta { background: #f5c518; color: #3d2e00; }
+.db-global-banner.warning .db-banner-cta:hover { background: #d4ac10; }
+.db-global-banner.success .db-banner-cta { background: var(--green); color: #fff; }
+.db-global-banner.success .db-banner-cta:hover { background: #04a87a; }
+.db-banner-close {
+    background: none; border: none; cursor: pointer;
+    color: inherit; opacity: .55; font-size: .9rem; padding: 0 4px;
+}
+.db-banner-close:hover { opacity: 1; }
+@keyframes bannerIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
 </style>
+
+
+<!-- ══════════════ GLOBAL BANNERS ══════════════ -->
+<div id="db-banner-warning" class="db-global-banner warning" style="display:none;">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span class="db-banner-msg" id="db-banner-warning-text">
+        ⚠️ Warning data perlu di cleaning!
+        {% if quality_full and quality_full.warnings %}{{ quality_full.warnings[0] }}{% endif %}
+    </span>
+    <button class="db-banner-cta" onclick="switchTab('cleaning')">
+        <i class="fas fa-broom"></i> Cleaning Sekarang
+    </button>
+    <button class="db-banner-close" onclick="this.closest('.db-global-banner').style.display='none'">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+<div id="db-banner-success" class="db-global-banner success" style="display:none;">
+    <i class="fas fa-check-circle"></i>
+    <span class="db-banner-msg">✅ Berhasil melakukan cleaning! Data siap digunakan.</span>
+    <button class="db-banner-cta" onclick="switchTab('visualizations')">
+        <i class="fas fa-chart-bar"></i> Lihat Visualisasi
+    </button>
+    <button class="db-banner-close" onclick="this.closest('.db-global-banner').style.display='none'">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
 
 
 <!-- ══════════════ TAB 1: OVERVIEW ══════════════ -->
@@ -168,11 +242,8 @@
              data-viz-sub="{% if has_ts %}numerical{% else %}bivariate{% endif %}">
             <div class="card-header-clean ov-slot-header">
                 <h4>
-                    {% if has_ts %}
-                    <i class="fas fa-chart-line text-green"></i>
-                    {% else %}
-                    <i class="fas fa-circle-dot text-blue"></i>
-                    {% endif %}
+                    {% if has_ts %}<i class="fas fa-chart-line text-green"></i>
+                    {% else %}<i class="fas fa-circle-dot text-blue"></i>{% endif %}
                     <span id="ov_top_right-title">{{ overview.slots.ov_top_right.title }}</span>
                 </h4>
                 <span class="ov-go-viz"><i class="fas fa-arrow-right"></i> Visualizations</span>
@@ -323,116 +394,469 @@
 
 <!-- ══════════════ TAB 2: DATA PREVIEW ══════════════ -->
 <div id="tab-preview" class="tab-content" style="display:none;">
-    <div class="card full-card">
+    <div class="dashboard-header mb-4">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <h2><i class="fas fa-search text-blue"></i> Data Preview</h2>
+            <span id="preview-status-label">
+                {% if is_cleaned %}
+                <span class="badge badge-success" style="font-size:.78rem;padding:5px 12px;">
+                    <i class="fas fa-check-circle"></i> Showing Cleaned Data
+                </span>
+                {% else %}
+                <span class="badge badge-warning" style="font-size:.78rem;padding:5px 12px;">
+                    <i class="fas fa-exclamation-triangle"></i> Showing Raw Data — belum di-cleaning
+                </span>
+                {% endif %}
+            </span>
+        </div>
+        <p class="text-muted" style="margin-top:4px;">
+            {% if is_cleaned %}
+            Data yang ditampilkan adalah versi <strong>clean</strong> (setelah cleaning).
+            {% else %}
+            Data yang ditampilkan adalah <strong>raw data</strong>.
+            Lakukan <a href="#" onclick="switchTab('cleaning');return false;" style="color:var(--blue);font-weight:600;">Data Cleaning</a> untuk membersihkan data.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Toggle raw/clean (hanya jika sudah cleaning) -->
+    {% if is_cleaned %}
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <button id="preview-btn-clean" onclick="switchPreviewMode('clean')"
+            style="padding:7px 18px;border-radius:8px;border:1px solid var(--green);background:var(--green);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.18s;">
+            <i class="fas fa-check-circle"></i> Clean Data
+        </button>
+        <button id="preview-btn-raw" onclick="switchPreviewMode('raw')"
+            style="padding:7px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.18s;">
+            <i class="fas fa-database"></i> Raw Data
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Clean data pane -->
+    <div id="preview-pane-clean" class="card full-card" {% if not is_cleaned %}style="display:none;"{% endif %}>
         <div class="card-header-clean">
-            <h3><i class="fas fa-search text-blue"></i> Data Preview
-                <span class="text-muted" style="font-size:.8rem;font-weight:400;">(First 100 Rows)</span>
+            <h3><i class="fas fa-check-circle text-green"></i> Cleaned Data
+                <span class="text-muted" style="font-size:.8rem;font-weight:400;">(100 Baris Pertama)</span>
+                <span class="badge badge-success" style="font-size:.7rem;margin-left:8px;">Clean</span>
             </h3>
         </div>
-        <div class="table-scroll-wrapper">{{ preview | safe }}</div>
+        <div class="table-scroll-wrapper">{{ preview_clean | safe }}</div>
+    </div>
+
+    <!-- Raw data pane -->
+    <div id="preview-pane-raw" class="card full-card" {% if is_cleaned %}style="display:none;"{% endif %}>
+        <div class="card-header-clean">
+            <h3>
+                {% if is_cleaned %}
+                <i class="fas fa-database text-muted"></i> Raw Data (Original)
+                {% else %}
+                <i class="fas fa-database text-blue"></i> Data Preview
+                {% endif %}
+                <span class="text-muted" style="font-size:.8rem;font-weight:400;">(100 Baris Pertama)</span>
+                {% if not is_cleaned %}
+                <span class="badge badge-warning" style="font-size:.7rem;margin-left:8px;">Belum di-cleaning</span>
+                {% endif %}
+            </h3>
+        </div>
+        <div class="table-scroll-wrapper">{{ preview_raw | safe }}</div>
     </div>
 </div>
 
 
 <!-- ══════════════ TAB: DATA CLEANING ══════════════ -->
 <div id="tab-cleaning" class="tab-content" style="display:none;">
-    <div class="dashboard-header mb-4">
+
+<style>
+/* ── DC Notification banners ── */
+.dc-banner {
+    display: none; align-items: center; gap: 12px; padding: 13px 20px;
+    border-radius: 12px; font-size: 0.88rem; font-weight: 600;
+    margin-bottom: 18px; animation: bannerIn .3s ease;
+}
+.dc-banner.warning { background: #fff3cd; border: 1.5px solid #f5c518; color: #7d5a00; }
+.dc-banner.success { background: #d4f5e9; border: 1.5px solid #05cd99; color: #015c40; }
+[data-theme="dark"] .dc-banner.warning { background: rgba(245,197,24,.12); color: #fcd34d; border-color: rgba(245,197,24,.35); }
+[data-theme="dark"] .dc-banner.success { background: rgba(5,205,153,.12); color: #6ee7b7; border-color: rgba(5,205,153,.35); }
+.dc-banner-close { margin-left:auto; cursor:pointer; opacity:.6; font-size:1rem; background:none; border:none; color:inherit; padding:0 4px; }
+.dc-banner-close:hover { opacity:1; }
+
+/* ── DC Summary cards ── */
+.dc-summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px; }
+.dc-stat-card { padding:14px 16px; display:flex; flex-direction:column; gap:5px; border-radius:12px; background:var(--card-bg); border:1px solid var(--border); transition:border-color .2s; }
+.dc-stat-card.has-issue { border-color:rgba(238,93,80,.45); }
+.dc-stat-card.all-good  { border-color:rgba(5,205,153,.35); }
+.dc-stat-label { font-size:0.68rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+.dc-stat-value { font-size:1.1rem; font-weight:800; color:var(--text); }
+.dc-stat-card.has-issue .dc-stat-value { color:var(--red); }
+.dc-stat-card.all-good  .dc-stat-value { color:var(--green); }
+
+/* ── DC Badges ── */
+.dc-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:20px; font-size:0.72rem; font-weight:700; white-space:nowrap; }
+.dc-badge-danger  { background:var(--red-light);    color:#b91c1c; border:1px solid #fca5a5; }
+.dc-badge-success { background:var(--green-light);  color:#015c40; border:1px solid #6ee7b7; }
+.dc-badge-warning { background:var(--orange-light); color:#7d5a00; border:1px solid #fcd34d; }
+[data-theme="dark"] .dc-badge-danger  { background:rgba(238,93,80,.15);  color:#fca5a5; border-color:rgba(238,93,80,.35); }
+[data-theme="dark"] .dc-badge-success { background:rgba(5,205,153,.15);  color:#6ee7b7; border-color:rgba(5,205,153,.35); }
+[data-theme="dark"] .dc-badge-warning { background:rgba(255,206,32,.12); color:#fcd34d; border-color:rgba(255,206,32,.3); }
+
+/* ── DC Layout ── */
+.dc-layout { display:grid; grid-template-columns:300px 1fr 260px; gap:18px; align-items:start; }
+@media (max-width:1280px) { .dc-layout { grid-template-columns:280px 1fr; } }
+@media (max-width:800px)  { .dc-layout { grid-template-columns:1fr; } }
+
+/* ── DC Ops panel ── */
+.dc-ops-card { overflow:visible !important; }
+.dc-ops-section { padding:12px 16px; border-bottom:1px solid var(--border); }
+.dc-ops-section:last-child { border-bottom:none; }
+.dc-section-title { font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.dc-op-btn { width:100%; display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:9px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:0.82rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all .18s; margin-bottom:6px; text-align:left; }
+.dc-op-btn:hover { border-color:var(--blue); color:var(--blue); background:var(--blue-light); }
+.dc-sub-panel { display:none; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; gap:10px; flex-direction:column; }
+.dc-sub-panel.open { display:flex; }
+.dc-field { display:flex; flex-direction:column; gap:5px; }
+.dc-field label { font-size:0.72rem; font-weight:700; color:var(--muted); }
+.dc-field select, .dc-field input { padding:7px 10px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg); color:var(--text); font-size:0.82rem; font-family:inherit; outline:none; transition:border-color .18s; }
+.dc-field select:focus, .dc-field input:focus { border-color:var(--blue); }
+.dc-col-checklist { max-height:130px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px 8px; display:flex; flex-direction:column; gap:3px; background:var(--card-bg); scrollbar-width:thin; }
+.dc-col-check { display:flex; align-items:center; gap:7px; font-size:0.78rem; color:var(--text); cursor:pointer; padding:2px 4px; border-radius:5px; transition:background .12s; }
+.dc-col-check:hover { background:var(--bg); }
+.dc-col-check input { accent-color:var(--blue); width:13px; height:13px; }
+.dc-action-row { display:flex; gap:8px; margin-top:4px; }
+.dc-btn-preview { flex:1; padding:8px 0; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:0.78rem; font-weight:600; cursor:pointer; font-family:inherit; transition:.18s; display:flex; align-items:center; justify-content:center; gap:5px; }
+.dc-btn-preview:hover { border-color:var(--blue); color:var(--blue); background:var(--blue-light); }
+.dc-btn-apply { flex:1; padding:8px 0; border-radius:8px; border:none; background:var(--green); color:#fff; font-size:0.78rem; font-weight:700; cursor:pointer; font-family:inherit; transition:.18s; display:flex; align-items:center; justify-content:center; gap:5px; }
+.dc-btn-apply:hover { background:#04a87a; }
+.dc-btn-apply:disabled { background:var(--muted); cursor:not-allowed; }
+
+/* ── DC Quality table ── */
+.dc-quality-card { overflow:hidden; }
+.quality-col-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px 12px; border-bottom:1px solid var(--border); gap:10px; flex-wrap:wrap; }
+.quality-col-header h4 { font-size:0.93rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:7px; }
+.dc-btn-refresh-q { padding:6px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--muted); font-size:0.75rem; font-weight:600; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:5px; transition:.18s; }
+.dc-btn-refresh-q:hover { border-color:var(--blue); color:var(--blue); }
+
+/* ── DC History panel ── */
+.dc-history-card { overflow:hidden; }
+.dc-history-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 12px; border-bottom:1px solid var(--border); }
+.dc-history-header h4 { font-size:0.88rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:7px; }
+.dc-btn-reset { padding:5px 12px; border-radius:7px; border:1px solid var(--red-light); background:var(--red-light); color:#b91c1c; font-size:0.72rem; font-weight:700; cursor:pointer; font-family:inherit; transition:.18s; display:flex; align-items:center; gap:5px; }
+.dc-btn-reset:hover { background:var(--red); color:#fff; border-color:var(--red); }
+[data-theme="dark"] .dc-btn-reset { background:rgba(238,93,80,.15); color:#fca5a5; border-color:rgba(238,93,80,.3); }
+[data-theme="dark"] .dc-btn-reset:hover { background:var(--red); color:#fff; border-color:var(--red); }
+.dc-history-list { max-height:380px; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px; scrollbar-width:thin; }
+.dc-history-item { display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-radius:9px; border:1px solid var(--border); background:var(--bg); font-size:0.78rem; cursor:pointer; transition:.18s; }
+.dc-history-item:hover { border-color:var(--blue); background:var(--blue-light); }
+.dc-history-item.current { border-color:var(--green); background:var(--green-light); }
+.dc-history-item.initial { opacity:.75; cursor:default; }
+.dc-history-item.initial:hover { border-color:var(--border); background:var(--bg); }
+[data-theme="dark"] .dc-history-item.current { background:rgba(5,205,153,.1); border-color:rgba(5,205,153,.4); }
+[data-theme="dark"] .dc-history-item:hover    { background:rgba(67,24,255,.12); }
+.dc-history-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; margin-top:4px; }
+.dc-history-item.current .dc-history-dot { background:var(--green); }
+.dc-history-item.initial .dc-history-dot { background:var(--blue); }
+.dc-history-label { color:var(--text); font-weight:600; line-height:1.4; }
+.dc-history-meta  { color:var(--muted); font-size:0.68rem; margin-top:2px; }
+.dc-history-undo { margin-left:auto; padding:3px 8px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:0.65rem; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; flex-shrink:0; display:none; transition:.15s; }
+.dc-history-item:hover .dc-history-undo { display:block; }
+.dc-history-undo:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
+.dc-undo-last-btn { width:calc(100% - 24px); margin:8px 12px; padding:8px 0; border-radius:8px; border:1px solid rgba(238,93,80,.35); background:rgba(238,93,80,.07); color:var(--red); font-size:0.78rem; font-weight:700; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; gap:6px; transition:.18s; }
+.dc-undo-last-btn:hover:not(:disabled) { background:var(--red); color:#fff; }
+.dc-undo-last-btn:disabled { opacity:.35; cursor:not-allowed; }
+
+/* ── DC Preview modal ── */
+.dc-preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(6px); z-index:2000; align-items:center; justify-content:center; }
+.dc-preview-modal.open { display:flex; }
+.dc-preview-content { background:var(--card-bg); border-radius:16px; width:90%; max-width:680px; max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.4); animation:modalIn .28s ease; }
+.dc-preview-header { display:flex; align-items:center; justify-content:space-between; padding:20px 24px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card-bg); z-index:1; }
+.dc-preview-header h3 { font-size:1rem; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px; }
+.dc-preview-close { font-size:1.4rem; color:var(--muted); cursor:pointer; background:none; border:none; line-height:1; transition:.18s; }
+.dc-preview-close:hover { color:var(--red); }
+.dc-preview-body { padding:20px 24px; }
+.dc-diff-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:18px; }
+.dc-diff-card { padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:var(--bg); display:flex; flex-direction:column; gap:3px; }
+.dc-diff-label { font-size:0.65rem; font-weight:700; color:var(--muted); text-transform:uppercase; }
+.dc-diff-value { font-size:1rem; font-weight:800; color:var(--text); }
+.dc-diff-change { font-size:0.72rem; font-weight:700; }
+.dc-diff-change.negative { color:var(--red); }
+.dc-diff-change.positive { color:var(--green); }
+.dc-preview-log { list-style:none; padding:0; margin:0 0 16px; display:flex; flex-direction:column; gap:6px; }
+.dc-preview-log li { font-size:0.82rem; color:var(--text); display:flex; align-items:flex-start; gap:7px; line-height:1.5; }
+.dc-preview-log li i { color:var(--blue); margin-top:2px; flex-shrink:0; }
+.dc-preview-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid var(--border); max-height:200px; overflow-y:auto; margin-bottom:18px; }
+.dc-preview-table-wrap table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.dc-preview-table-wrap th { padding:7px 12px; background:var(--bg); color:var(--text); font-weight:700; border-bottom:2px solid var(--border); white-space:nowrap; text-align:left; position:sticky; top:0; }
+.dc-preview-table-wrap td { padding:6px 12px; border-bottom:1px solid var(--border); color:var(--text); white-space:nowrap; }
+.dc-preview-actions { display:flex; gap:10px; justify-content:flex-end; padding-top:8px; border-top:1px solid var(--border); }
+.dc-btn-cancel-modal { padding:10px 22px; border-radius:9px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:0.85rem; font-weight:600; cursor:pointer; font-family:inherit; transition:.18s; }
+.dc-btn-cancel-modal:hover { border-color:var(--red); color:var(--red); }
+.dc-btn-confirm-modal { padding:10px 22px; border-radius:9px; border:none; background:var(--green); color:#fff; font-size:0.85rem; font-weight:700; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:7px; transition:.18s; }
+.dc-btn-confirm-modal:hover { background:#04a87a; }
+@media (max-width:700px) { .dc-diff-grid { grid-template-columns:1fr; } }
+</style>
+
+<!-- DC Notification Banners -->
+<div id="dc-banner-warning" class="dc-banner warning">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span id="dc-banner-warning-text">Data perlu di cleaning!</span>
+    <button class="dc-banner-close" onclick="document.getElementById('dc-banner-warning').style.display='none'"><i class="fas fa-times"></i></button>
+</div>
+<div id="dc-banner-success" class="dc-banner success">
+    <i class="fas fa-check-circle"></i>
+    <span id="dc-banner-success-text">Berhasil melakukan cleaning! Data siap digunakan.</span>
+    <button class="dc-banner-close" onclick="document.getElementById('dc-banner-success').style.display='none'"><i class="fas fa-times"></i></button>
+</div>
+
+<!-- DC Header -->
+<div class="dashboard-header mb-4">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <div>
-            <h2><i class="fas fa-broom text-green"></i> Data Cleaning</h2>
-            <p class="text-muted">Pembersihan otomatis sebelum analisis</p>
+            <h2 style="display:flex;align-items:center;gap:10px;">
+                <i class="fas fa-broom text-green"></i> Data Cleaning
+                <span id="dc-status-badge"></span>
+            </h2>
+            <p class="text-muted" style="margin-top:4px;">Pilih operasi, preview dampak, lalu apply. Semua langkah tersimpan di history.</p>
         </div>
     </div>
+</div>
 
-    <div class="clean-summary-grid mb-4">
-        <div class="card clean-stat-card">
-            <span class="clean-stat-label">Rows</span>
-            <span class="clean-stat-value">{{ cleaning_summary.rows_before }} → {{ cleaning_summary.rows_after }}</span>
-        </div>
-        <div class="card clean-stat-card">
-            <span class="clean-stat-label">Columns</span>
-            <span class="clean-stat-value">{{ cleaning_summary.cols_before }} → {{ cleaning_summary.cols_after }}</span>
-        </div>
-        <div class="card clean-stat-card">
-            <span class="clean-stat-label">Missing Cells</span>
-            <span class="clean-stat-value">{{ cleaning_summary.missing_before }} → {{ cleaning_summary.missing_after }}</span>
-        </div>
-        <div class="card clean-stat-card">
-            <span class="clean-stat-label">Missing %</span>
-            <span class="clean-stat-value">{{ cleaning_summary.missing_pct_before }}% → {{ cleaning_summary.missing_pct_after }}%</span>
-        </div>
+<!-- DC Summary Cards -->
+<div class="dc-summary-grid" id="dc-summary-grid">
+    <div class="dc-stat-card" id="dcs-rows">
+        <span class="dc-stat-label"><i class="fas fa-list-ol"></i> Rows</span>
+        <span class="dc-stat-value" id="dcs-rows-val">{{ quality_full.summary.total_rows }}</span>
     </div>
+    <div class="dc-stat-card" id="dcs-cols">
+        <span class="dc-stat-label"><i class="fas fa-columns"></i> Columns</span>
+        <span class="dc-stat-value" id="dcs-cols-val">{{ quality_full.summary.total_cols }}</span>
+    </div>
+    <div class="dc-stat-card {% if quality_full.summary.duplicate_rows > 0 %}has-issue{% else %}all-good{% endif %}" id="dcs-dupes">
+        <span class="dc-stat-label"><i class="fas fa-copy"></i> Duplicates</span>
+        <span class="dc-stat-value" id="dcs-dupes-val">{{ quality_full.summary.duplicate_rows }}</span>
+    </div>
+    <div class="dc-stat-card {% if quality_full.summary.missing_cells > 0 %}has-issue{% else %}all-good{% endif %}" id="dcs-missing">
+        <span class="dc-stat-label"><i class="fas fa-question-circle"></i> Missing</span>
+        <span class="dc-stat-value" id="dcs-missing-val">{{ quality_full.summary.missing_cells }}</span>
+    </div>
+    <div class="dc-stat-card {% if quality_full.summary.total_outliers > 0 %}has-issue{% else %}all-good{% endif %}" id="dcs-outliers">
+        <span class="dc-stat-label"><i class="fas fa-exclamation"></i> Outliers</span>
+        <span class="dc-stat-value" id="dcs-outliers-val">{{ quality_full.summary.total_outliers }}</span>
+    </div>
+    <div class="dc-stat-card {% if quality_full.summary.inconsistency_count > 0 %}has-issue{% else %}all-good{% endif %}" id="dcs-incons">
+        <span class="dc-stat-label"><i class="fas fa-random"></i> Inconsistencies</span>
+        <span class="dc-stat-value" id="dcs-incons-val">{{ quality_full.summary.inconsistency_count }}</span>
+    </div>
+    <div class="dc-stat-card {% if quality_full.summary.irrelevant_count > 0 %}has-issue{% else %}all-good{% endif %}" id="dcs-irrel">
+        <span class="dc-stat-label"><i class="fas fa-filter"></i> Irrelevant Cols</span>
+        <span class="dc-stat-value" id="dcs-irrel-val">{{ quality_full.summary.irrelevant_count }}</span>
+    </div>
+    <div class="dc-stat-card" id="dcs-dtypes">
+        <span class="dc-stat-label"><i class="fas fa-code"></i> Data Types</span>
+        <span class="dc-stat-value" id="dcs-dtypes-val" style="font-size:.8rem;font-weight:600;">
+            {% for k,v in quality_full.summary.dtypes.items() %}{{ k }}:{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </span>
+    </div>
+</div>
 
-    <div class="chart-grid-2 mb-4">
-        <div class="card full-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-sliders-h text-blue"></i> Cleaning Options</h4>
+<!-- DC 3-col layout -->
+<div class="dc-layout">
+
+    <!-- KIRI: Operation Panel -->
+    <div class="card dc-ops-card">
+        <div style="padding:14px 18px 12px;border-bottom:1px solid var(--border);">
+            <h4 style="font-size:.93rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;">
+                <i class="fas fa-sliders-h text-blue"></i> Operasi Cleaning
+            </h4>
+            <p style="font-size:.72rem;color:var(--muted);margin-top:4px;">Pilih operasi → Preview → Apply</p>
+        </div>
+
+        <!-- Handle Missing Value -->
+        <div class="dc-ops-section">
+            <div class="dc-section-title"><i class="fas fa-question-circle text-red"></i> Handle Missing Value</div>
+            <button class="dc-op-btn" onclick="DCleaning.togglePanel('panel-missing')">
+                <span><i class="fas fa-fill-drip" style="margin-right:7px;"></i>Isi Missing Value</span>
+                <i class="fas fa-chevron-down" id="icon-panel-missing"></i>
+            </button>
+            <div class="dc-sub-panel" id="panel-missing">
+                <div class="dc-field">
+                    <label>Metode Pengisian</label>
+                    <select id="missing-method">
+                        <option value="mean">Fill with Mean (numerik)</option>
+                        <option value="median">Fill with Median (numerik)</option>
+                        <option value="mode">Fill with Mode (semua tipe)</option>
+                        <option value="fill_value">Fill with Custom Value</option>
+                        <option value="drop_rows">Drop Rows with Missing</option>
+                    </select>
+                </div>
+                <div class="dc-field" id="missing-fillval-wrap" style="display:none;">
+                    <label>Custom Value</label>
+                    <input type="text" id="missing-fillval" placeholder="e.g. 0 atau N/A">
+                </div>
+                <div class="dc-field">
+                    <label>Terapkan ke Kolom</label>
+                    <select id="missing-scope">
+                        <option value="all">Semua Kolom</option>
+                        <option value="numeric">Kolom Numerik Saja</option>
+                        <option value="categorical">Kolom Teks/Kategorik Saja</option>
+                        <option value="select">Pilih Kolom Tertentu</option>
+                    </select>
+                </div>
+                <div class="dc-field" id="missing-cols-wrap" style="display:none;">
+                    <label>Pilih Kolom</label>
+                    <div class="dc-col-checklist" id="missing-cols-list"></div>
+                </div>
+                <div class="dc-action-row">
+                    <button class="dc-btn-preview" onclick="DCleaning.preview('handle_missing')"><i class="fas fa-eye"></i> Preview</button>
+                    <button class="dc-btn-apply"   onclick="DCleaning.apply('handle_missing')"><i class="fas fa-check"></i> Apply</button>
+                </div>
             </div>
-            <form class="clean-form" method="get" action="{{ url_for('dashboard', filename=filename) }}">
-                <label class="clean-check"><input type="checkbox" name="strip_ws" value="1" {% if clean_opts.strip_whitespace %}checked{% endif %}> Strip whitespace</label>
-                <label class="clean-check"><input type="checkbox" name="empty_nan" value="1" {% if clean_opts.empty_to_nan %}checked{% endif %}> String kosong → NaN</label>
-                <label class="clean-check"><input type="checkbox" name="drop_dupes" value="1" {% if clean_opts.drop_duplicates %}checked{% endif %}> Hapus baris duplikat</label>
-                <label class="clean-check"><input type="checkbox" name="drop_empty" value="1" {% if clean_opts.drop_empty_cols %}checked{% endif %}> Hapus kolom 100% kosong</label>
-                <label class="clean-check"><input type="checkbox" name="cap_outliers" value="1" {% if clean_opts.cap_outliers %}checked{% endif %}> Cap outlier (IQR)</label>
-                <div class="clean-field">
-                    <label>Hapus kolom jika missing &gt;</label>
-                    <select name="drop_miss_thresh">
-                        <option value="0" {% if clean_opts.drop_high_missing == 0 %}selected{% endif %}>Tidak dihapus</option>
-                        <option value="0.5" {% if clean_opts.drop_high_missing == 0.5 %}selected{% endif %}>50%</option>
-                        <option value="0.7" {% if clean_opts.drop_high_missing == 0.7 %}selected{% endif %}>70%</option>
-                        <option value="0.9" {% if clean_opts.drop_high_missing == 0.9 %}selected{% endif %}>90%</option>
-                    </select>
-                </div>
-                <div class="clean-field">
-                    <label>Isi missing numerik</label>
-                    <select name="fill_num">
-                        <option value="none" {% if clean_opts.fill_missing_numeric == 'none' %}selected{% endif %}>Tidak diisi</option>
-                        <option value="mean" {% if clean_opts.fill_missing_numeric == 'mean' %}selected{% endif %}>Mean</option>
-                        <option value="median" {% if clean_opts.fill_missing_numeric == 'median' %}selected{% endif %}>Median</option>
-                    </select>
-                </div>
-                <div class="clean-field">
-                    <label>Isi missing kategorik</label>
-                    <select name="fill_cat">
-                        <option value="none" {% if clean_opts.fill_missing_categorical == 'none' %}selected{% endif %}>Tidak diisi</option>
-                        <option value="mode" {% if clean_opts.fill_missing_categorical == 'mode' %}selected{% endif %}>Mode</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn-clean-apply"><i class="fas fa-magic"></i> Terapkan Cleaning</button>
-            </form>
         </div>
 
-        <div class="card full-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-list-check text-orange"></i> Cleaning Log</h4>
+        <!-- Remove Outliers -->
+        <div class="dc-ops-section">
+            <div class="dc-section-title"><i class="fas fa-exclamation-triangle text-orange"></i> Remove Outliers</div>
+            <button class="dc-op-btn" onclick="DCleaning.togglePanel('panel-outliers')">
+                <span><i class="fas fa-filter" style="margin-right:7px;"></i>Handle Outliers</span>
+                <i class="fas fa-chevron-down" id="icon-panel-outliers"></i>
+            </button>
+            <div class="dc-sub-panel" id="panel-outliers">
+                <div class="dc-field">
+                    <label>Metode Deteksi</label>
+                    <select id="outlier-method">
+                        <option value="iqr">IQR (Interquartile Range)</option>
+                        <option value="zscore">Z-Score</option>
+                    </select>
+                </div>
+                <div class="dc-field" id="outlier-zthresh-wrap" style="display:none;">
+                    <label>Z-Score Threshold (default 3.0)</label>
+                    <input type="number" id="outlier-zthresh" value="3.0" step="0.1" min="1" max="5">
+                </div>
+                <div class="dc-field">
+                    <label>Aksi</label>
+                    <select id="outlier-action">
+                        <option value="remove">Remove (hapus baris)</option>
+                        <option value="cap">Cap (winsorize ke batas)</option>
+                    </select>
+                </div>
+                <div class="dc-field">
+                    <label>Terapkan ke Kolom</label>
+                    <select id="outlier-scope">
+                        <option value="all">Semua Kolom Numerik</option>
+                        <option value="select">Pilih Kolom Tertentu</option>
+                    </select>
+                </div>
+                <div class="dc-field" id="outlier-cols-wrap" style="display:none;">
+                    <label>Pilih Kolom Numerik</label>
+                    <div class="dc-col-checklist" id="outlier-cols-list"></div>
+                </div>
+                <div class="dc-action-row">
+                    <button class="dc-btn-preview" onclick="DCleaning.preview('remove_outliers')"><i class="fas fa-eye"></i> Preview</button>
+                    <button class="dc-btn-apply"   onclick="DCleaning.apply('remove_outliers')"><i class="fas fa-check"></i> Apply</button>
+                </div>
             </div>
-            <ul class="clean-log">
-                {% for entry in cleaning_summary.log %}
-                <li><i class="fas fa-check-circle text-green"></i> {{ entry }}</li>
-                {% endfor %}
-            </ul>
         </div>
-    </div>
 
-    <div class="card full-card">
-        <div class="card-header-clean">
+        <!-- Normalize Data -->
+        <div class="dc-ops-section">
+            <div class="dc-section-title"><i class="fas fa-compress-arrows-alt text-purple"></i> Normalize Data</div>
+            <button class="dc-op-btn" onclick="DCleaning.togglePanel('panel-normalize')">
+                <span><i class="fas fa-balance-scale" style="margin-right:7px;"></i>Normalisasi Data</span>
+                <i class="fas fa-chevron-down" id="icon-panel-normalize"></i>
+            </button>
+            <div class="dc-sub-panel" id="panel-normalize">
+                <div class="dc-field">
+                    <label>Metode Normalisasi</label>
+                    <select id="norm-method">
+                        <option value="minmax">Min-Max Scaling (→ [0,1])</option>
+                        <option value="standard">Standard Scaling (Z-score, μ=0 σ=1)</option>
+                    </select>
+                </div>
+                <div class="dc-field">
+                    <label>Terapkan ke Kolom</label>
+                    <select id="norm-scope">
+                        <option value="all">Semua Kolom Numerik</option>
+                        <option value="select">Pilih Kolom Tertentu</option>
+                    </select>
+                </div>
+                <div class="dc-field" id="norm-cols-wrap" style="display:none;">
+                    <label>Pilih Kolom Numerik</label>
+                    <div class="dc-col-checklist" id="norm-cols-list"></div>
+                </div>
+                <div class="dc-action-row">
+                    <button class="dc-btn-preview" onclick="DCleaning.preview('normalize')"><i class="fas fa-eye"></i> Preview</button>
+                    <button class="dc-btn-apply"   onclick="DCleaning.apply('normalize')"><i class="fas fa-check"></i> Apply</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="dc-ops-section">
+            <div class="dc-section-title"><i class="fas fa-bolt text-orange"></i> Quick Actions</div>
+            <button class="dc-op-btn" onclick="DCleaning.applyQuick('drop_duplicates')">
+                <span><i class="fas fa-clone" style="margin-right:7px;"></i>Hapus Duplikat</span><i class="fas fa-play"></i>
+            </button>
+            <button class="dc-op-btn" onclick="DCleaning.applyQuick('strip_whitespace')">
+                <span><i class="fas fa-text-width" style="margin-right:7px;"></i>Strip Whitespace</span><i class="fas fa-play"></i>
+            </button>
+            <button class="dc-op-btn" onclick="DCleaning.applyQuick('empty_to_nan')">
+                <span><i class="fas fa-eraser" style="margin-right:7px;"></i>Empty String → NaN</span><i class="fas fa-play"></i>
+            </button>
+            <button class="dc-op-btn" onclick="DCleaning.togglePanel('panel-dropmiss')">
+                <span><i class="fas fa-trash-alt" style="margin-right:7px;"></i>Drop High-Missing Cols</span>
+                <i class="fas fa-chevron-down" id="icon-panel-dropmiss"></i>
+            </button>
+            <div class="dc-sub-panel" id="panel-dropmiss">
+                <div class="dc-field">
+                    <label>Threshold Missing (%)</label>
+                    <select id="dropmiss-thresh">
+                        <option value="0.5">50% ke atas</option>
+                        <option value="0.7">70% ke atas</option>
+                        <option value="0.9">90% ke atas</option>
+                    </select>
+                </div>
+                <div class="dc-action-row">
+                    <button class="dc-btn-preview" onclick="DCleaning.preview('drop_high_missing')"><i class="fas fa-eye"></i> Preview</button>
+                    <button class="dc-btn-apply"   onclick="DCleaning.apply('drop_high_missing')"><i class="fas fa-check"></i> Apply</button>
+                </div>
+            </div>
+        </div>
+    </div><!-- end ops card -->
+
+    <!-- TENGAH: Quality Report -->
+    <div class="card dc-quality-card">
+        <div class="quality-col-header">
             <h4><i class="fas fa-clipboard-check text-purple"></i> Data Quality Report</h4>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span id="dc-quality-badge-wrap"></span>
+                <button class="dc-btn-refresh-q" onclick="DCleaning.refreshQuality()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
         </div>
-        <div class="table-scroll-wrapper">
-            <table class="data-table display nowrap" style="width:100%">
+        <div class="table-scroll-wrapper" style="max-height:520px;">
+            <table class="data-table" id="dc-quality-table" style="width:100%">
                 <thead>
-                    <tr><th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th><th>Unique</th><th>Issues</th></tr>
+                    <tr>
+                        <th>Column</th><th>Data Type</th><th>Missing</th><th>Missing %</th>
+                        <th>Unique</th><th>Outliers</th><th>Issues</th><th>Status</th>
+                    </tr>
                 </thead>
-                <tbody>
-                    {% for row in quality_report %}
+                <tbody id="dc-quality-tbody">
+                    {% for row in quality_full.columns %}
                     <tr>
                         <td class="var-name">{{ row.column }}</td>
                         <td>{{ row.dtype }}</td>
                         <td class="{% if row.missing > 0 %}text-warning{% endif %}">{{ row.missing }}</td>
                         <td class="{% if row.missing_pct > 0 %}text-warning{% endif %}">{{ row.missing_pct }}%</td>
                         <td>{{ row.unique }}</td>
+                        <td class="{% if row.outliers > 0 %}text-danger{% endif %}">{{ row.outliers }}</td>
+                        <td style="font-size:.78rem;">{{ row.issues }}</td>
                         <td>
-                            {% if row.status == 'ok' %}<span class="badge badge-success">OK</span>
-                            {% else %}<span class="badge badge-warning">{{ row.issues }}</span>{% endif %}
+                            {% if row.status == 'ok' %}
+                            <span class="dc-badge dc-badge-success"><i class="fas fa-check"></i> OK</span>
+                            {% else %}
+                            <span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation"></i> Issue</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -440,7 +864,350 @@
             </table>
         </div>
     </div>
+
+    <!-- KANAN: History / Undo Panel -->
+    <div class="card dc-history-card">
+        <div class="dc-history-header">
+            <h4><i class="fas fa-history text-blue"></i> History</h4>
+            <button class="dc-btn-reset" onclick="DCleaning.confirmReset()">
+                <i class="fas fa-undo-alt"></i> Reset
+            </button>
+        </div>
+        <button class="dc-undo-last-btn" id="dc-undo-last-btn" onclick="DCleaning.undoLast()" disabled>
+            <i class="fas fa-step-backward"></i> Undo Langkah Terakhir
+        </button>
+        <div class="dc-history-list" id="dc-history-list">
+            {% for item in cleaning_history %}
+            <div class="dc-history-item {% if item.is_current %}current{% endif %} {% if item.is_initial %}initial{% endif %}"
+                 data-index="{{ item.index }}"
+                 onclick="DCleaning.undoToFromUI({{ item.index }}, {{ item.is_initial | tojson }})">
+                <div class="dc-history-dot"></div>
+                <div style="flex:1;min-width:0;">
+                    <div class="dc-history-label">{{ item.label }}</div>
+                    <div class="dc-history-meta">{{ item.rows }} baris · {{ item.cols }} kolom · {{ item.missing }} missing</div>
+                </div>
+                {% if not item.is_initial %}
+                <button class="dc-history-undo" onclick="event.stopPropagation();DCleaning.undoToFromUI({{ item.index }},false)">
+                    <i class="fas fa-undo"></i> Ke sini
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div style="padding:12px 14px;border-top:1px solid var(--border);">
+            <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">
+                <i class="fas fa-list-check"></i> Log Terkini
+            </div>
+            <ul id="dc-log-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px;max-height:160px;overflow-y:auto;">
+                {% if cleaning_history and cleaning_history[-1] and cleaning_history[-1].log is defined %}
+                {% for entry in cleaning_history[-1].log %}
+                <li style="font-size:.75rem;color:var(--text);display:flex;align-items:flex-start;gap:6px;line-height:1.45;">
+                    <i class="fas fa-check-circle text-green" style="margin-top:2px;flex-shrink:0;"></i>{{ entry }}
+                </li>
+                {% endfor %}
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+</div><!-- end dc-layout -->
+
+<!-- DC Preview Modal -->
+<div class="dc-preview-modal" id="dc-preview-modal">
+    <div class="dc-preview-content">
+        <div class="dc-preview-header">
+            <h3><i class="fas fa-eye text-blue"></i> Preview Perubahan</h3>
+            <button class="dc-preview-close" onclick="DCleaning.closePreview()">&times;</button>
+        </div>
+        <div class="dc-preview-body">
+            <div style="font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:14px;" id="dc-preview-label">—</div>
+            <div class="dc-diff-grid" id="dc-preview-diff"></div>
+            <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:8px;"><i class="fas fa-list-ul"></i> Detail Perubahan</div>
+            <ul class="dc-preview-log" id="dc-preview-log-list"></ul>
+            <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:8px;"><i class="fas fa-table"></i> Preview Data (5 baris pertama setelah operasi)</div>
+            <div class="dc-preview-table-wrap" id="dc-preview-table"></div>
+            <div class="dc-preview-actions">
+                <button class="dc-btn-cancel-modal" onclick="DCleaning.closePreview()"><i class="fas fa-times"></i> Batal</button>
+                <button class="dc-btn-confirm-modal" id="dc-btn-confirm-apply"><i class="fas fa-check"></i> Apply Perubahan Ini</button>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+var DCleaning = (function () {
+    'use strict';
+    var FILENAME = {{ filename | tojson }};
+    var BASE     = '/api/cleaning';
+    var _pendingOp = null;
+    var _colsCache = null;
+
+    function _fetchCols() {
+        if (_colsCache) return Promise.resolve(_colsCache);
+        return fetch(BASE + '/columns/' + FILENAME)
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (d.ok) _colsCache = d.columns; return _colsCache || []; });
+    }
+
+    function _buildChecklist(containerId, cols, filterFn) {
+        var el = document.getElementById(containerId);
+        if (!el) return;
+        el.innerHTML = '';
+        var filtered = filterFn ? cols.filter(filterFn) : cols;
+        filtered.forEach(function(col) {
+            var lbl = document.createElement('label');
+            lbl.className = 'dc-col-check';
+            var cb = document.createElement('input');
+            cb.type='checkbox'; cb.value=col.name; cb.checked=true;
+            lbl.appendChild(cb);
+            lbl.appendChild(document.createTextNode(col.name + ' (' + col.dtype + ')'));
+            el.appendChild(lbl);
+        });
+    }
+
+    function _getChecked(containerId) {
+        var el = document.getElementById(containerId);
+        if (!el) return [];
+        return Array.from(el.querySelectorAll('input:checked')).map(function(c){ return c.value; });
+    }
+
+    function togglePanel(panelId) {
+        var panel = document.getElementById(panelId);
+        var icon  = document.getElementById('icon-' + panelId);
+        if (!panel) return;
+        var isOpen = panel.classList.contains('open');
+        document.querySelectorAll('.dc-sub-panel').forEach(function(p){ p.classList.remove('open'); });
+        document.querySelectorAll('[id^="icon-panel-"]').forEach(function(i){ i.className='fas fa-chevron-down'; });
+        if (!isOpen) {
+            panel.classList.add('open');
+            if (icon) icon.className='fas fa-chevron-up';
+            _populatePanelCols(panelId);
+        }
+    }
+
+    function _populatePanelCols(panelId) {
+        _fetchCols().then(function(cols) {
+            if (panelId==='panel-missing')   _buildChecklist('missing-cols-list', cols);
+            if (panelId==='panel-outliers')  _buildChecklist('outlier-cols-list', cols, function(c){ return c.is_numeric; });
+            if (panelId==='panel-normalize') _buildChecklist('norm-cols-list',    cols, function(c){ return c.is_numeric; });
+        });
+    }
+
+    function _buildParams(op_type) {
+        if (op_type==='handle_missing') {
+            var method=document.getElementById('missing-method').value;
+            var scope=document.getElementById('missing-scope').value;
+            var params={method:method,scope:scope};
+            if (method==='fill_value') params.fill_value=document.getElementById('missing-fillval').value||'0';
+            if (scope==='select') { params.columns=_getChecked('missing-cols-list'); params.scope='all'; }
+            return params;
+        }
+        if (op_type==='remove_outliers') {
+            var method=document.getElementById('outlier-method').value;
+            var scope=document.getElementById('outlier-scope').value;
+            var params={method:method,action:document.getElementById('outlier-action').value};
+            if (method==='zscore') params.zscore_threshold=parseFloat(document.getElementById('outlier-zthresh').value)||3.0;
+            if (scope==='select') params.columns=_getChecked('outlier-cols-list');
+            return params;
+        }
+        if (op_type==='normalize') {
+            var scope=document.getElementById('norm-scope').value;
+            var params={method:document.getElementById('norm-method').value};
+            if (scope==='select') params.columns=_getChecked('norm-cols-list');
+            return params;
+        }
+        if (op_type==='drop_high_missing') return {threshold:parseFloat(document.getElementById('dropmiss-thresh').value)};
+        return {};
+    }
+
+    function preview(op_type) {
+        var op_params=_buildParams(op_type);
+        _pendingOp={op_type:op_type,op_params:op_params};
+        fetch(BASE+'/preview/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op_type:op_type,op_params:op_params})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Preview gagal.'); return; } _renderPreviewModal(d); })
+            .catch(function(e){ _showBanner('warning','Preview error: '+e.message); });
+    }
+
+    function _renderPreviewModal(d) {
+        document.getElementById('dc-preview-label').textContent=d.label||'—';
+        var diff=document.getElementById('dc-preview-diff');
+        var rSign=d.rows_removed>0?'-'+d.rows_removed:'0';
+        var cSign=d.cols_removed>0?'-'+d.cols_removed:'0';
+        var mSign=d.miss_filled>0?'-'+d.miss_filled:(d.miss_filled<0?'+'+Math.abs(d.miss_filled):'0');
+        diff.innerHTML=[_diffCard('Rows',d.rows_before+' → '+d.rows_after,rSign,d.rows_removed>0),_diffCard('Columns',d.cols_before+' → '+d.cols_after,cSign,d.cols_removed>0),_diffCard('Missing',d.miss_before+' → '+d.miss_after,mSign,false)].join('');
+        var logEl=document.getElementById('dc-preview-log-list');
+        logEl.innerHTML=(d.log||[]).map(function(l){ return '<li><i class="fas fa-info-circle"></i>'+_esc(l)+'</li>'; }).join('');
+        document.getElementById('dc-preview-table').innerHTML=d.preview_html||'';
+        document.getElementById('dc-btn-confirm-apply').onclick=function(){ closePreview(); _doApply(_pendingOp.op_type,_pendingOp.op_params); };
+        document.getElementById('dc-preview-modal').classList.add('open');
+    }
+
+    function _diffCard(label,val,change,isNeg) {
+        return '<div class="dc-diff-card"><span class="dc-diff-label">'+label+'</span><span class="dc-diff-value">'+val+'</span><span class="dc-diff-change '+(isNeg?'negative':'positive')+'">'+change+'</span></div>';
+    }
+
+    function closePreview() { document.getElementById('dc-preview-modal').classList.remove('open'); }
+
+    function apply(op_type) { _doApply(op_type,_buildParams(op_type)); }
+    function applyQuick(op_type) { _doApply(op_type,{}); }
+
+    function _doApply(op_type,op_params) {
+        fetch(BASE+'/apply/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op_type:op_type,op_params:op_params})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Operasi gagal.'); return; } _colsCache=null; _updateUI(d,true); _showBanner('success','Berhasil: '+d.label+'. Data siap digunakan.'); })
+            .catch(function(e){ _showBanner('warning','Apply error: '+e.message); });
+    }
+
+    function undoLast() {
+        fetch(BASE+'/undo/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Undo gagal.'); return; } _colsCache=null; _updateUI(d,d.history.some(function(h){ return h.is_current&&!h.is_initial; })); _showBanner('warning','Undo: kembali ke "'+d.current_label+'"'); });
+    }
+
+    function undoToFromUI(index,isInitial) {
+        if (isInitial){ confirmReset(); return; }
+        fetch(BASE+'/undo/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:index})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Undo gagal.'); return; } _colsCache=null; var ic=d.history.some(function(h){ return h.is_current&&!h.is_initial; }); _updateUI(d,ic); _showBanner(ic?'success':'warning','Kembali ke: "'+d.current_label+'"'); });
+    }
+
+    function confirmReset() {
+        if (!confirm('Reset semua langkah cleaning ke data awal (raw)?')) return;
+        fetch(BASE+'/reset/'+FILENAME,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (!d.ok){ _showBanner('warning',d.error||'Reset gagal.'); return; } _colsCache=null; _updateUI(d,false); _showBanner('warning','Data direset ke kondisi awal (raw data).'); });
+    }
+
+    function refreshQuality() {
+        fetch(BASE+'/status/'+FILENAME).then(function(r){ return r.json(); }).then(function(d){ if (!d.ok) return; _updateQualityTable(d.quality); _updateSummaryCards(d.quality.summary,d.rows,d.cols); });
+    }
+
+    function _updateUI(d,isCleaned) {
+        if (d.quality&&d.quality.summary) _updateSummaryCards(d.quality.summary,d.rows_now,d.cols_now);
+        if (d.quality&&d.quality.columns) _updateQualityTable(d.quality);
+        if (d.history) _renderHistory(d.history);
+        _updateStatusBadge(isCleaned);
+        var undoBtn=document.getElementById('dc-undo-last-btn');
+        if (undoBtn) undoBtn.disabled=!(d.history&&d.history.length>1);
+        _refreshPreviewTab();
+        // Update global banners di overview
+        var wb=document.getElementById('db-banner-warning');
+        var sb=document.getElementById('db-banner-success');
+        if (isCleaned) { if(wb) wb.style.display='none'; if(sb) sb.style.display='flex'; }
+        else           { if(sb) sb.style.display='none'; if(wb) wb.style.display='flex'; }
+    }
+
+    function _updateSummaryCards(s,rows,cols) {
+        _setText('dcs-rows-val',rows); _setText('dcs-cols-val',cols);
+        _setText('dcs-dupes-val',s.duplicate_rows); _setText('dcs-missing-val',s.missing_cells);
+        _setText('dcs-outliers-val',s.total_outliers); _setText('dcs-incons-val',s.inconsistency_count); _setText('dcs-irrel-val',s.irrelevant_count);
+        _setCardState('dcs-dupes',s.duplicate_rows>0); _setCardState('dcs-missing',s.missing_cells>0);
+        _setCardState('dcs-outliers',s.total_outliers>0); _setCardState('dcs-incons',s.inconsistency_count>0); _setCardState('dcs-irrel',s.irrelevant_count>0);
+        if (s.dtypes) _setText('dcs-dtypes-val',Object.entries(s.dtypes).map(function(kv){ return kv[0]+':'+kv[1]; }).join(' · '));
+    }
+
+    function _setCardState(id,hasIssue) {
+        var el=document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('has-issue',hasIssue); el.classList.toggle('all-good',!hasIssue);
+    }
+
+    function _updateQualityTable(quality) {
+        var tbody=document.getElementById('dc-quality-tbody');
+        if (!tbody||!quality.columns) return;
+        tbody.innerHTML=quality.columns.map(function(row){
+            return '<tr><td class="var-name">'+_esc(row.column)+'</td><td>'+_esc(row.dtype)+'</td>'+
+                '<td class="'+(row.missing>0?'text-warning':'')+'">'+row.missing+'</td>'+
+                '<td class="'+(row.missing_pct>0?'text-warning':'')+'">'+row.missing_pct+'%</td>'+
+                '<td>'+row.unique+'</td><td class="'+(row.outliers>0?'text-danger':'')+'">'+row.outliers+'</td>'+
+                '<td style="font-size:.78rem;">'+_esc(row.issues)+'</td><td>'+
+                (row.status==='ok'?'<span class="dc-badge dc-badge-success"><i class="fas fa-check"></i> OK</span>':'<span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation"></i> Issue</span>')+
+                '</td></tr>';
+        }).join('');
+        var hasIssues=quality.columns.some(function(r){ return r.status!=='ok'; });
+        var bw=document.getElementById('dc-quality-badge-wrap');
+        if (bw) bw.innerHTML=hasIssues?'<span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation-triangle"></i> Perlu Cleaning</span>':'<span class="dc-badge dc-badge-success"><i class="fas fa-check-circle"></i> Data Clean</span>';
+    }
+
+    function _renderHistory(history) {
+        var list=document.getElementById('dc-history-list');
+        if (!list) return;
+        list.innerHTML=history.map(function(item){
+            return '<div class="dc-history-item '+(item.is_current?'current':'')+' '+(item.is_initial?'initial':'')+'" data-index="'+item.index+'" onclick="DCleaning.undoToFromUI('+item.index+','+item.is_initial+')">'+
+                '<div class="dc-history-dot"></div><div style="flex:1;min-width:0;">'+
+                '<div class="dc-history-label">'+_esc(item.label)+'</div>'+
+                '<div class="dc-history-meta">'+item.rows+' baris · '+item.cols+' kolom · '+item.missing+' missing</div></div>'+
+                (!item.is_initial?'<button class="dc-history-undo" onclick="event.stopPropagation();DCleaning.undoToFromUI('+item.index+',false)"><i class="fas fa-undo"></i> Ke sini</button>':'')+
+                '</div>';
+        }).join('');
+    }
+
+    function _updateStatusBadge(isCleaned) {
+        var el=document.getElementById('dc-status-badge');
+        if (!el) return;
+        el.innerHTML=isCleaned?'<span class="dc-badge dc-badge-success" style="font-size:.75rem;"><i class="fas fa-check-circle"></i> Data Bersih</span>':'<span class="dc-badge dc-badge-danger" style="font-size:.75rem;"><i class="fas fa-exclamation-triangle"></i> Perlu Cleaning</span>';
+    }
+
+    function _refreshPreviewTab() {
+        fetch(BASE+'/preview-table/'+FILENAME).then(function(r){ return r.json(); }).then(function(d){
+            if (!d.ok) return;
+            var cleanEl=document.getElementById('preview-clean-table');
+            if (cleanEl) { var w=cleanEl.closest('.table-scroll-wrapper'); if(w) w.innerHTML=d.html; }
+            var statusEl=document.getElementById('preview-status-label');
+            if (statusEl) statusEl.innerHTML=d.is_cleaned?'<span class="badge badge-success" style="font-size:.78rem;padding:5px 12px;"><i class="fas fa-check-circle"></i> Showing Cleaned Data</span>':'<span class="badge badge-warning" style="font-size:.78rem;padding:5px 12px;"><i class="fas fa-exclamation-triangle"></i> Showing Raw Data</span>';
+        });
+    }
+
+    function _showBanner(type,msg) {
+        document.getElementById('dc-banner-warning').style.display='none';
+        document.getElementById('dc-banner-success').style.display='none';
+        var banner=document.getElementById('dc-banner-'+type);
+        var text=document.getElementById('dc-banner-'+type+'-text');
+        if (!banner) return;
+        if (text) text.textContent=msg;
+        banner.style.display='flex';
+        setTimeout(function(){ banner.style.display='none'; }, 6000);
+    }
+
+    function _setText(id,val) { var el=document.getElementById(id); if(el) el.textContent=val; }
+
+    function _esc(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function init() {
+        var isCleaned={{ is_cleaned | tojson }};
+        _updateStatusBadge(isCleaned);
+        var hasIssues={{ (quality_full.warnings | length > 0) | tojson }};
+        var bw=document.getElementById('dc-quality-badge-wrap');
+        if (bw) bw.innerHTML=hasIssues?'<span class="dc-badge dc-badge-danger"><i class="fas fa-exclamation-triangle"></i> Perlu Cleaning</span>':'<span class="dc-badge dc-badge-success"><i class="fas fa-check-circle"></i> Data Clean</span>';
+        if (!isCleaned&&hasIssues) { var w={{ quality_full.warnings | tojson }}; _showBanner('warning','Data perlu di cleaning! '+(w[0]||'')); }
+        else if (isCleaned) { _showBanner('success','Berhasil melakukan cleaning! Data siap digunakan.'); }
+        var undoBtn=document.getElementById('dc-undo-last-btn');
+        if (undoBtn) undoBtn.disabled=!isCleaned;
+
+        var mm=document.getElementById('missing-method');
+        if (mm) mm.addEventListener('change',function(){ var w=document.getElementById('missing-fillval-wrap'); if(w) w.style.display=this.value==='fill_value'?'flex':'none'; });
+        var ms=document.getElementById('missing-scope');
+        if (ms) ms.addEventListener('change',function(){ var w=document.getElementById('missing-cols-wrap'); if(w) w.style.display=this.value==='select'?'flex':'none'; });
+        var om=document.getElementById('outlier-method');
+        if (om) om.addEventListener('change',function(){ var w=document.getElementById('outlier-zthresh-wrap'); if(w) w.style.display=this.value==='zscore'?'flex':'none'; });
+        var os=document.getElementById('outlier-scope');
+        if (os) os.addEventListener('change',function(){ var w=document.getElementById('outlier-cols-wrap'); if(w) w.style.display=this.value==='select'?'flex':'none'; });
+        var ns=document.getElementById('norm-scope');
+        if (ns) ns.addEventListener('change',function(){ var w=document.getElementById('norm-cols-wrap'); if(w) w.style.display=this.value==='select'?'flex':'none'; });
+
+        var modal=document.getElementById('dc-preview-modal');
+        if (modal) modal.addEventListener('click',function(e){ if(e.target===modal) closePreview(); });
+    }
+
+    return { togglePanel:togglePanel, preview:preview, closePreview:closePreview, apply:apply, applyQuick:applyQuick, undoLast:undoLast, undoToFromUI:undoToFromUI, confirmReset:confirmReset, refreshQuality:refreshQuality, init:init };
+})();
+</script>
+
+</div><!-- end tab-cleaning -->
 
 
 <!-- ══════════════ TAB 3: NUMERICAL STATS ══════════════ -->
@@ -642,7 +1409,6 @@
         <div id="viz-master-chart" class="viz-master-container">
             <div id="viz-master-controls" class="viz-master-toolbar">
                 <div class="viz-toolbar-left">
-                    <!-- Chart Type dropdown — selalu di HTML, options diisi JS sesuai kategori -->
                     <div id="viz-chart-type-select-wrap" class="viz-dd-wrap">
                         <label for="viz-chart-type-select">Chart Type</label>
                         <select id="viz-chart-type-select"></select>
@@ -663,7 +1429,7 @@
             </div>
 
             <div id="viz-master-plot" class="viz-master-plot">
-                <div class="viz-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:#7EA9FF;">
+                <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#7EA9FF;">
                     <i class="fas fa-chart-bar" style="font-size:2rem;opacity:.3;"></i>
                     <span style="margin-left:12px;font-size:.9rem;opacity:.5;">Pilih kategori dari sidebar untuk mulai</span>
                 </div>
@@ -707,39 +1473,27 @@
             <div id="plot-ts-line" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
-
     <div id="ts-trend" class="ts-subtab-content" style="display:none;">
         <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-arrow-trend-up text-blue"></i> Trend Line (OLS) <span class="chart-badge">Regression</span></h4>
-            </div>
+            <div class="card-header-clean"><h4><i class="fas fa-arrow-trend-up text-blue"></i> Trend Line (OLS) <span class="chart-badge">Regression</span></h4></div>
             <div id="plot-ts-trend" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
-
     <div id="ts-ma" class="ts-subtab-content" style="display:none;">
         <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-wave-square text-orange"></i> Moving Average <span class="chart-badge">Smoothing</span></h4>
-            </div>
+            <div class="card-header-clean"><h4><i class="fas fa-wave-square text-orange"></i> Moving Average <span class="chart-badge">Smoothing</span></h4></div>
             <div id="plot-ts-ma" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
-
     <div id="ts-rolling" class="ts-subtab-content" style="display:none;">
         <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-rotate text-purple"></i> Rolling Mean <span class="chart-badge">Smoothing</span></h4>
-            </div>
+            <div class="card-header-clean"><h4><i class="fas fa-rotate text-purple"></i> Rolling Mean <span class="chart-badge">Smoothing</span></h4></div>
             <div id="plot-ts-rolling" class="chart-area" style="min-height:380px;"></div>
         </div>
     </div>
-
     <div id="ts-overview" class="ts-subtab-content" style="display:none;">
         <div class="card chart-card">
-            <div class="card-header-clean">
-                <h4><i class="fas fa-border-all text-red"></i> Overview Panel <span class="chart-badge">4-in-1</span></h4>
-            </div>
+            <div class="card-header-clean"><h4><i class="fas fa-border-all text-red"></i> Overview Panel <span class="chart-badge">4-in-1</span></h4></div>
             <div id="plot-ts-overview" class="chart-area" style="min-height:540px;"></div>
         </div>
     </div>
@@ -789,146 +1543,143 @@ try { overviewPayload = {{ overview | tojson | safe }}; } catch(e) { console.err
 
 var datasetContext = "Filename: {{ filename }}, Rows: {{ metrics.total_rows }}, Cols: {{ metrics.total_columns }}, Numeric: {{ num_cols|join(', ') }}, Categorical: {{ cat_cols|join(', ') }}{% if has_ts %}, DateTime: {{ dt_cols|join(', ') }}{% endif %}";
 
-var TS_CHART_MAP = {
-    'ts-line'    : 'ts_line',
-    'ts-trend'   : 'ts_trend',
-    'ts-ma'      : 'ts_ma',
-    'ts-rolling' : 'ts_rolling',
-    'ts-overview': 'ts_overview',
-};
-
+var TS_CHART_MAP = { 'ts-line':'ts_line', 'ts-trend':'ts_trend', 'ts-ma':'ts_ma', 'ts-rolling':'ts_rolling', 'ts-overview':'ts_overview' };
 var _tsRendered = {};
 
 var PLOTLY_CFG = {
-    responsive             : true,
-    displayModeBar         : true,
-    modeBarButtonsToRemove : ['lasso2d','select2d','autoScale2d'],
-    displaylogo            : false,
-    scrollZoom             : false,
-    toImageButtonOptions   : { format:'png', scale:2 },
+    responsive:true, displayModeBar:true,
+    modeBarButtonsToRemove:['lasso2d','select2d','autoScale2d'],
+    displaylogo:false, scrollZoom:false,
+    toImageButtonOptions:{format:'png',scale:2},
 };
 
 function _layoutPatch() {
-    var dark = document.body.getAttribute('data-theme') === 'dark';
+    var dark = document.body.getAttribute('data-theme')==='dark';
     return {
-        paper_bgcolor : 'rgba(0,0,0,0)',
-        plot_bgcolor  : 'rgba(0,0,0,0)',
-        font : { color: dark ? '#c8d8f0' : '#2b3674', family:'Inter, sans-serif' },
-        hoverlabel : {
-            bgcolor: 'rgba(10,18,48,0.93)',
-            bordercolor: 'rgba(100,160,235,0.45)',
-            font: { color:'#e8f4fc', size:13 },
-        },
+        paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+        font:{color:dark?'#c8d8f0':'#2b3674',family:'Inter, sans-serif'},
+        hoverlabel:{bgcolor:'rgba(10,18,48,0.93)',bordercolor:'rgba(100,160,235,0.45)',font:{color:'#e8f4fc',size:13}},
     };
 }
 
 function drawTsChart(panelId, plotKey, force) {
     if (!plotsData) return;
     var plotObj = plotsData[plotKey];
-    if (!plotObj) { console.warn('[TS] No data for key:', plotKey); return; }
+    if (!plotObj) return;
     var el = document.getElementById('plot-' + panelId);
     if (!el) return;
-    if (!force && _tsRendered[panelId]) {
-        if (typeof Plotly !== 'undefined' && el._fullLayout) Plotly.Plots.resize(el);
-        return;
-    }
-    try { if (typeof Plotly !== 'undefined') Plotly.purge(el); } catch(e) {}
-    el.innerHTML = '';
-    var layout = Object.assign({}, plotObj.layout || {}, _layoutPatch(), {
-        autosize : true,
-        margin   : { l:48, r:20, t:52, b:48 },
-    });
-    if (typeof Plotly === 'undefined') {
-        el.innerHTML = '<div style="padding:20px;color:#7eacd0;">Plotly.js tidak dimuat.</div>';
-        return;
-    }
-    Plotly.newPlot(el, plotObj.data || [], layout, PLOTLY_CFG)
-        .then(function() { _tsRendered[panelId] = true; })
-        .catch(function(err) {
-            console.error('[TS] Plotly error for', panelId, err);
-            el.innerHTML = '<div style="padding:20px;color:#ee5d50;"><i class="fas fa-exclamation-circle"></i> Rendering error</div>';
-        });
+    if (!force && _tsRendered[panelId]) { if (typeof Plotly!=='undefined'&&el._fullLayout) Plotly.Plots.resize(el); return; }
+    try { if (typeof Plotly!=='undefined') Plotly.purge(el); } catch(e) {}
+    el.innerHTML='';
+    var layout = Object.assign({},plotObj.layout||{},_layoutPatch(),{autosize:true,margin:{l:48,r:20,t:52,b:48}});
+    if (typeof Plotly==='undefined') { el.innerHTML='<div style="padding:20px;color:#7eacd0;">Plotly.js tidak dimuat.</div>'; return; }
+    Plotly.newPlot(el, plotObj.data||[], layout, PLOTLY_CFG)
+        .then(function(){ _tsRendered[panelId]=true; })
+        .catch(function(err){ el.innerHTML='<div style="padding:20px;color:#ee5d50;"><i class="fas fa-exclamation-circle"></i> Rendering error</div>'; });
 }
 
 function switchTsTab(tab) {
     if (!tab) return;
-    document.querySelectorAll('.ts-subtab-content').forEach(function(el) {
-        el.style.display = 'none';
-    });
-    var target = document.getElementById('ts-' + tab);
-    if (target) target.style.display = 'block';
-    var plotKey = TS_CHART_MAP['ts-' + tab];
-    if (plotKey) drawTsChart('ts-' + tab, plotKey, false);
+    document.querySelectorAll('.ts-subtab-content').forEach(function(el){ el.style.display='none'; });
+    var target=document.getElementById('ts-'+tab);
+    if (target) target.style.display='block';
+    var plotKey=TS_CHART_MAP['ts-'+tab];
+    if (plotKey) drawTsChart('ts-'+tab, plotKey, false);
 }
 
-function renderVisibleCharts() {
-    if (!plotsData || typeof Plotly === 'undefined') return;
+/* ── Preview mode toggle (raw / clean) ── */
+function switchPreviewMode(mode) {
+    var cleanPane=document.getElementById('preview-pane-clean');
+    var rawPane=document.getElementById('preview-pane-raw');
+    var btnClean=document.getElementById('preview-btn-clean');
+    var btnRaw=document.getElementById('preview-btn-raw');
+    if (!cleanPane||!rawPane) return;
+    if (mode==='clean') {
+        cleanPane.style.display=''; rawPane.style.display='none';
+        if (btnClean){ btnClean.style.background='var(--green)'; btnClean.style.color='#fff'; btnClean.style.borderColor='var(--green)'; }
+        if (btnRaw)  { btnRaw.style.background='transparent'; btnRaw.style.color='var(--muted)'; btnRaw.style.borderColor='var(--border)'; }
+    } else {
+        cleanPane.style.display='none'; rawPane.style.display='';
+        if (btnRaw)  { btnRaw.style.background='var(--blue)'; btnRaw.style.color='#fff'; btnRaw.style.borderColor='var(--blue)'; }
+        if (btnClean){ btnClean.style.background='transparent'; btnClean.style.color='var(--muted)'; btnClean.style.borderColor='var(--border)'; }
+    }
 }
 
+/* ── Init global banners ── */
+(function initDashboardBanners() {
+    var isCleaned={{ is_cleaned | tojson }};
+    var hasIssues={{ ((quality_full and quality_full.warnings and quality_full.warnings|length > 0)) | tojson }};
+    if (isCleaned) {
+        var s=document.getElementById('db-banner-success');
+        if (s) s.style.display='flex';
+    } else if (hasIssues) {
+        var w=document.getElementById('db-banner-warning');
+        if (w) w.style.display='flex';
+    }
+})();
+
+/* ── switchTab patch: refresh banners saat kembali ke overview ── */
 var _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
     if (_origSwitchTab) _origSwitchTab(tab);
-    if (tab === 'visualizations') {
-        setTimeout(function() {
-            if (typeof VizMaster !== 'undefined') VizMaster.onTabShow();
-        }, 80);
+    if (tab==='visualizations') { setTimeout(function(){ if(typeof VizMaster!=='undefined') VizMaster.onTabShow(); }, 80); }
+    if (tab==='overview') {
+        setTimeout(function(){
+            if (typeof OverviewDashboard!=='undefined') OverviewDashboard.onTabShow();
+            // Refresh banners dari server
+            fetch('/api/cleaning/status/{{ filename }}')
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                    if (!d.ok) return;
+                    var wb=document.getElementById('db-banner-warning');
+                    var sb=document.getElementById('db-banner-success');
+                    if (d.is_cleaned) { if(wb) wb.style.display='none'; if(sb) sb.style.display='flex'; }
+                    else if (d.quality&&d.quality.warnings&&d.quality.warnings.length>0) {
+                        if(sb) sb.style.display='none';
+                        if(wb){ var txt=document.getElementById('db-banner-warning-text'); if(txt) txt.textContent='⚠️ Warning data perlu di cleaning! '+d.quality.warnings[0]; wb.style.display='flex'; }
+                    }
+                }).catch(function(){});
+        }, 120);
     }
-    if (tab === 'overview') {
-        setTimeout(function() {
-            if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onTabShow();
-        }, 80);
-    }
-    if (tab === 'timeseries') {
-        setTimeout(function() { switchTsTab('line'); }, 80);
-    }
+    if (tab==='timeseries') { setTimeout(function(){ switchTsTab('line'); }, 80); }
+    if (tab==='cleaning') { setTimeout(function(){ if(typeof DCleaning!=='undefined') DCleaning.init(); }, 80); }
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof OverviewDashboard !== 'undefined' && overviewPayload) {
-        OverviewDashboard.init(overviewPayload);
-    }
-    if (typeof VizMaster !== 'undefined') {
-        VizMaster.init(vizMeta);
-    }
-    setTimeout(function() {
-        if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.renderAll();
+    if (typeof OverviewDashboard!=='undefined'&&overviewPayload) OverviewDashboard.init(overviewPayload);
+    if (typeof VizMaster!=='undefined') VizMaster.init(vizMeta);
+    if (typeof DCleaning!=='undefined') DCleaning.init();
+    setTimeout(function(){
+        if (typeof OverviewDashboard!=='undefined') OverviewDashboard.renderAll();
     }, 350);
 });
 
 var _rsz;
-window.addEventListener('resize', function() {
+window.addEventListener('resize', function(){
     clearTimeout(_rsz);
-    _rsz = setTimeout(function() {
-        document.querySelectorAll('[id^="ov_"]').forEach(function(el) {
-            if (el._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
-        });
-        Object.keys(_tsRendered).forEach(function(panelId) {
-            var el = document.getElementById('plot-' + panelId);
-            if (el && el._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
-        });
-        var vzEl = document.getElementById('viz-master-plot');
-        if (vzEl && vzEl._fullLayout && typeof Plotly !== 'undefined') Plotly.Plots.resize(vzEl);
-        if (typeof OverviewDashboard !== 'undefined') OverviewDashboard.onResize();
+    _rsz=setTimeout(function(){
+        document.querySelectorAll('[id^="ov_"]').forEach(function(el){ if(el._fullLayout&&typeof Plotly!=='undefined') Plotly.Plots.resize(el); });
+        Object.keys(_tsRendered).forEach(function(panelId){ var el=document.getElementById('plot-'+panelId); if(el&&el._fullLayout&&typeof Plotly!=='undefined') Plotly.Plots.resize(el); });
+        var vzEl=document.getElementById('viz-master-plot');
+        if(vzEl&&vzEl._fullLayout&&typeof Plotly!=='undefined') Plotly.Plots.resize(vzEl);
+        if(typeof OverviewDashboard!=='undefined') OverviewDashboard.onResize();
     }, 200);
 });
 
-function sendAIMessage() { return; }
-
 function appendChatMsg(text, role, typing) {
-    typing = typing || false;
-    var c = document.getElementById('chat-messages');
+    typing=typing||false;
+    var c=document.getElementById('chat-messages');
     if (!c) return null;
-    var d = document.createElement('div');
-    d.className = 'chat-msg ' + role;
-    d.innerHTML = '<div class="chat-avatar"><i class="fas fa-' + (role==='bot'?'robot':'user') + '"></i></div>' +
-                  '<div class="chat-bubble' + (typing?' typing':'') + '">' + text + '</div>';
-    c.appendChild(d);
-    c.scrollTop = c.scrollHeight;
+    var d=document.createElement('div');
+    d.className='chat-msg '+role;
+    d.innerHTML='<div class="chat-avatar"><i class="fas fa-'+(role==='bot'?'robot':'user')+'"></i></div>'+
+                '<div class="chat-bubble'+(typing?' typing':'')+'">'+text+'</div>';
+    c.appendChild(d); c.scrollTop=c.scrollHeight;
     return d;
 }
 
-var _aiInput = document.getElementById('ai-input');
-if (_aiInput) _aiInput.addEventListener('keypress', function(e) { if (e.key==='Enter') sendAIMessage(); });
+var _aiInput=document.getElementById('ai-input');
+if (_aiInput) _aiInput.addEventListener('keypress', function(e){ if(e.key==='Enter') sendAIMessage(); });
 </script>
 
 {% endblock %}
