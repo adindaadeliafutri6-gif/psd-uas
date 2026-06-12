@@ -242,7 +242,7 @@ def _chart_histogram(df, col):
             ))
         except Exception:
             pass  # KDE failed (e.g. constant data), skip overlay
-    fig.update_layout(_layout(title=f'📊 {CHART_LABELS["histogram"]}: {col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["histogram"]}: {col}'))
     return _json(_axes(fig))
 
 
@@ -256,7 +256,7 @@ def _chart_boxplot(df, col):
         boxmean='sd', line_color=PALETTE[1],
         hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'📦 {CHART_LABELS["boxplot"]}: {col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["boxplot"]}: {col}'))
     return _json(_axes(fig))
 
 
@@ -274,7 +274,7 @@ def _chart_density(df, col):
             fillcolor='rgba(78,205,196,0.18)', name=col,
             hovertemplate='%{x:.2f}<br>Density: %{y:.4f}<extra></extra>',
         ))
-        fig.update_layout(_layout(title=f'🌊 {CHART_LABELS["density"]}: {col}'))
+        fig.update_layout(_layout(title=f' {CHART_LABELS["density"]}: {col}'))
         return _json(_axes(fig))
     except Exception:
         return None
@@ -301,7 +301,7 @@ def _chart_qq(df, col):
             line=dict(color=PALETTE[2], dash='dash', width=2),
         ))
         fig.update_layout(_layout(
-            title=f'📐 {CHART_LABELS["qq"]}: {col}',
+            title=f' {CHART_LABELS["qq"]}: {col}',
             xaxis_title='Theoretical Quantiles',
             yaxis_title='Sample Quantiles',
         ))
@@ -320,7 +320,7 @@ def _chart_violin(df, col):
         box_visible=True, meanline_visible=True, opacity=0.8,
         hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'🎻 {CHART_LABELS["violin"]}: {col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["violin"]}: {col}'))
     return _json(_axes(fig))
 
 
@@ -334,7 +334,7 @@ def _chart_bar(df, col):
         marker_color=PALETTE[0], opacity=0.9,
         hovertemplate='%{x}<br>Count: %{y:,}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'📋 {CHART_LABELS["bar"]}: {col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["bar"]}: {col}'))
     return _json(_axes(fig))
 
 
@@ -348,7 +348,7 @@ def _chart_pie(df, col):
         textfont=dict(color=FONT_COLOR),
         hovertemplate='%{label}<br>Count: %{value:,}<br>%{percent}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'🍩 {CHART_LABELS["pie"]}: {col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["pie"]}: {col}'))
     return _json(fig)
 
 
@@ -361,7 +361,7 @@ def _chart_count(df, col):
         marker_color=PALETTE[2], opacity=0.9,
         hovertemplate='%{y}<br>Count: %{x:,}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'📊 {CHART_LABELS["count"]}: {col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["count"]}: {col}'))
     return _json(_axes(fig))
 
 
@@ -389,7 +389,7 @@ def _chart_pareto(df, col):
                   annotation_text='80%', secondary_y=True)
     fig.update_yaxes(title_text='Count',        secondary_y=False)
     fig.update_yaxes(title_text='Cumulative %', secondary_y=True, range=[0, 105])
-    fig.update_layout(_layout(title=f'📈 {CHART_LABELS["pareto"]}: {col} (80/20 Rule)'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["pareto"]}: {col} (80/20 Rule)'))
     return _json(_axes(fig))
 
 
@@ -405,7 +405,7 @@ def _chart_scatter(df, col_x, col_y):
         hovertemplate=f'{col_x}: %{{x:.2f}}<br>{col_y}: %{{y:.2f}}<extra></extra>',
     ))
     fig.update_layout(_layout(
-        title=f'🔵 {CHART_LABELS["scatter"]}: {col_x} vs {col_y}',
+        title=f' {CHART_LABELS["scatter"]}: {col_x} vs {col_y}',
         xaxis_title=col_x,
         yaxis_title=col_y,
     ))
@@ -441,7 +441,7 @@ def _chart_heatmap(df, num_cols):
             texttemplate='%{text}',
             hovertemplate='%{x} × %{y}<br>r = %{z:.3f}<extra></extra>',
         ))
-        fig.update_layout(_layout(title=f'🔥 {CHART_LABELS["heatmap"]}'))
+        fig.update_layout(_layout(title=f' {CHART_LABELS["heatmap"]}'))
         return _json(fig)
     except Exception as exc:
         print(f"[viz_engine] heatmap error: {exc}")
@@ -456,7 +456,7 @@ def _chart_scatter_matrix(df, num_cols):
     fig = px.scatter_matrix(
         df_s, dimensions=cols,
         color_discrete_sequence=PALETTE,
-        title=f'🔗 {CHART_LABELS["scatter_matrix"]}',
+        title=f' {CHART_LABELS["scatter_matrix"]}',
     )
     fig.update_traces(
         diagonal_visible=False,
@@ -509,7 +509,7 @@ def _chart_regression_plot(df, col_x, col_y):
         name='95% CI',
     ))
     fig.update_layout(_layout(
-        title=f'📈 {CHART_LABELS["regression_plot"]}: {col_x} → {col_y} | R²={r**2:.3f}',
+        title=f' {CHART_LABELS["regression_plot"]}: {col_x} → {col_y} | R²={r**2:.3f}',
         xaxis_title=col_x,
         yaxis_title=col_y,
     ))
@@ -537,7 +537,7 @@ def _chart_bubble_chart(df, col_x, col_y, col_z):
         hovertemplate=f'{col_x}: %{{x:.2f}}<br>{col_y}: %{{y:.2f}}<br>{col_z}: %{{marker.size:.1f}}<extra></extra>',
     ))
     fig.update_layout(_layout(
-        title=f'🫧 {CHART_LABELS["bubble_chart"]}: {col_x} × {col_y} (size={col_z})',
+        title=f' {CHART_LABELS["bubble_chart"]}: {col_x} × {col_y} (size={col_z})',
         xaxis_title=col_x,
         yaxis_title=col_y,
     ))
@@ -552,7 +552,7 @@ def _chart_box_cat_num(df, cat_col, num_col):
     fig = px.box(
         sub, x=cat_col, y=num_col, color=cat_col,
         color_discrete_sequence=PALETTE,
-        title=f'📦 {CHART_LABELS["box_cat_num"]}: {num_col} by {cat_col}',
+        title=f' {CHART_LABELS["box_cat_num"]}: {num_col} by {cat_col}',
         points='outliers',
     )
     fig.update_layout(_layout(showlegend=False))
@@ -565,7 +565,7 @@ def _chart_violin_cat_num(df, cat_col, num_col):
     fig = px.violin(
         sub, x=cat_col, y=num_col, color=cat_col,
         color_discrete_sequence=PALETTE, box=True, points='outliers',
-        title=f'🎻 {CHART_LABELS["violin_cat_num"]}: {num_col} by {cat_col}',
+        title=f' {CHART_LABELS["violin_cat_num"]}: {num_col} by {cat_col}',
     )
     fig.update_layout(_layout(showlegend=False))
     return _json(_axes(fig))
@@ -579,7 +579,7 @@ def _chart_grouped_bar(df, cat_col, num_col):
         marker_color=PALETTE[1], opacity=0.9,
         hovertemplate='%{x}<br>Mean: %{y:,.2f}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'📊 {CHART_LABELS["grouped_bar"]}: Mean {num_col} by {cat_col}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["grouped_bar"]}: Mean {num_col} by {cat_col}'))
     return _json(_axes(fig))
 
 
@@ -589,7 +589,7 @@ def _chart_strip_plot(df, cat_col, num_col):
     fig = px.strip(
         sub, x=cat_col, y=num_col,
         color_discrete_sequence=[PALETTE[0]],
-        title=f'⚡ {CHART_LABELS["strip_plot"]}: {num_col} by {cat_col}',
+        title=f' {CHART_LABELS["strip_plot"]}: {num_col} by {cat_col}',
     )
     fig.update_layout(_layout(showlegend=False))
     return _json(_axes(fig))
@@ -611,7 +611,7 @@ def _chart_violin_compare(df, num_cols):
             hovertemplate=f'{col}: %{{y:.2f}}<extra></extra>',
         ))
     suffix = ', '.join(cols[:4]) + ('…' if len(cols) > 4 else '')
-    fig.update_layout(_layout(title=f'🎻 {CHART_LABELS["violin_compare"]} — {suffix}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["violin_compare"]} — {suffix}'))
     return _json(_axes(fig))
 
 
@@ -643,7 +643,7 @@ def _chart_grouped_bar_compare(df, num_cols):
         marker_color=PALETTE[0], opacity=0.9,
         hovertemplate='%{x}<br>Mean: %{y:,.3f}<extra></extra>',
     ))
-    fig.update_layout(_layout(title=f'📊 {CHART_LABELS["grouped_bar_compare"]} — {suffix}'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["grouped_bar_compare"]} — {suffix}'))
     return _json(_axes(fig))
 
 
@@ -667,7 +667,7 @@ def _chart_parallel_coords(df, num_cols):
         dimensions=dims,
         unselected=dict(line=dict(opacity=0.15)),
     ))
-    fig.update_layout(_layout(title=f'🔗 {CHART_LABELS["parallel_coords"]} — Multivariable Pattern'))
+    fig.update_layout(_layout(title=f' {CHART_LABELS["parallel_coords"]} — Multivariable Pattern'))
     return _json(fig)
 
 
@@ -745,7 +745,7 @@ def _chart_all_numerical(df, num_cols, chart_type):
             
     height = max(450, n_plot_rows * 300)
     fig.update_layout(_layout(
-        title=f'📊 Visualisasi Semua Variabel Numerik ({CHART_LABELS.get(chart_type, chart_type)})',
+        title=f' Visualisasi Semua Variabel Numerik ({CHART_LABELS.get(chart_type, chart_type)})',
         height=height,
         showlegend=False,
     ))
@@ -821,7 +821,7 @@ def _chart_all_categorical(df, cat_cols, chart_type):
             
     height = max(450, n_plot_rows * 300)
     fig.update_layout(_layout(
-        title=f'📋 Visualisasi Semua Variabel Kategorik ({CHART_LABELS.get(chart_type, chart_type)})',
+        title=f' Visualisasi Semua Variabel Kategorik ({CHART_LABELS.get(chart_type, chart_type)})',
         height=height,
         showlegend=False,
     ))

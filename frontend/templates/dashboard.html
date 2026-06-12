@@ -106,6 +106,11 @@
     border: 1.5px solid #05cd99;
     color: #015c40;
 }
+.db-global-banner.outlier {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1.5px solid #fb923c;
+    color: #9a3412;
+}
 [data-theme="dark"] .db-global-banner.warning {
     background: rgba(245,197,24,.12);
     color: #fcd34d;
@@ -115,6 +120,11 @@
     background: rgba(5,205,153,.12);
     color: #6ee7b7;
     border-color: rgba(5,205,153,.35);
+}
+[data-theme="dark"] .db-global-banner.outlier {
+    background: rgba(251,146,60,.1);
+    color: #fdba74;
+    border-color: rgba(251,146,60,.35);
 }
 .db-banner-msg { flex: 1; }
 .db-banner-cta {
@@ -126,11 +136,35 @@
 .db-global-banner.warning .db-banner-cta:hover { background: #d4ac10; }
 .db-global-banner.success .db-banner-cta { background: var(--green); color: #fff; }
 .db-global-banner.success .db-banner-cta:hover { background: #04a87a; }
+.db-global-banner.outlier .db-banner-cta { background: #fb923c; color: #fff; }
+.db-global-banner.outlier .db-banner-cta:hover { background: #ea7c23; }
 .db-banner-close {
     background: none; border: none; cursor: pointer;
     color: inherit; opacity: .55; font-size: .9rem; padding: 0 4px;
 }
 .db-banner-close:hover { opacity: 1; }
+
+/* ── Outlier warning badge on KPI row ── */
+.outlier-warning-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 10px;
+    background: linear-gradient(135deg, #fff7ed, #ffedd5);
+    border: 1.5px solid #fb923c;
+    color: #9a3412; font-size: 0.82rem; font-weight: 700;
+    margin-bottom: 18px; width: 100%; box-sizing: border-box;
+    animation: bannerIn .4s ease;
+}
+.outlier-warning-badge i { font-size: 1rem; color: #fb923c; }
+.outlier-warning-badge .owb-count {
+    background: #fb923c; color: #fff;
+    font-size: 0.72rem; font-weight: 800;
+    padding: 2px 8px; border-radius: 20px;
+}
+[data-theme="dark"] .outlier-warning-badge {
+    background: rgba(251,146,60,.1);
+    border-color: rgba(251,146,60,.4);
+    color: #fdba74;
+}
 @keyframes bannerIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
 
 /* Toast Notification System */
@@ -194,8 +228,8 @@
         ⚠️ Warning data perlu di cleaning!
         {% if quality_full and quality_full.warnings %}{{ quality_full.warnings[0] }}{% endif %}
     </span>
-    <button class="db-banner-cta" onclick="switchTab('cleaning')">
-        <i class="fas fa-broom"></i> Cleaning Sekarang
+    <button class="db-banner-cta" onclick="switchTab('cleaning')" data-translate="banner_clean_btn">
+        <i class="fas fa-broom"></i> Bersihkan Sekarang
     </button>
     <button class="db-banner-close" onclick="this.closest('.db-global-banner').style.display='none'">
         <i class="fas fa-times"></i>
@@ -203,8 +237,8 @@
 </div>
 <div id="db-banner-success" class="db-global-banner success" style="display:none;">
     <i class="fas fa-check-circle"></i>
-    <span class="db-banner-msg">✅ Berhasil melakukan cleaning! Data siap digunakan.</span>
-    <button class="db-banner-cta" onclick="switchTab('visualizations')">
+    <span class="db-banner-msg" data-translate="banner_success">✅ Berhasil melakukan cleaning! Data siap digunakan.</span>
+    <button class="db-banner-cta" onclick="switchTab('visualizations')" data-translate="banner_viz_btn">
         <i class="fas fa-chart-bar"></i> Lihat Visualisasi
     </button>
     <button class="db-banner-close" onclick="this.closest('.db-global-banner').style.display='none'">
@@ -223,14 +257,14 @@
     </div>
 
     {% if data_status == 'raw' %}
-    <!-- OVERVIEW RAW MODE -->
+    <!-- ══ OVERVIEW: RAW MODE (critical issues — block visualizations) ══ -->
     <div class="db-global-banner warning" style="display:flex; margin-bottom: 24px;">
         <i class="fas fa-exclamation-triangle"></i>
-        <span class="db-banner-msg">
-            ⚠️ Dataset terdeteksi belum bersih (Raw Mode). Beberapa visualisasi dinonaktifkan hingga data dibersihkan.
+        <span class="db-banner-msg" data-translate="ov_raw_warning">
+            ⚠️ Dataset terdeteksi belum bersih (Raw Mode). Visualisasi dinonaktifkan hingga data dibersihkan.
         </span>
-        <button class="db-banner-cta" onclick="switchTab('cleaning')">
-            <i class="fas fa-broom"></i> Cleaning Sekarang
+        <button class="db-banner-cta" onclick="switchTab('cleaning')" data-translate="banner_clean_btn">
+            <i class="fas fa-broom"></i> Bersihkan Sekarang
         </button>
     </div>
 
@@ -308,8 +342,22 @@
             </table>
         </div>
     </div>
-    {% else %}
-    <!-- KPI Row -->
+    {% elif data_status == 'clean_with_outliers' %}
+    <!-- ══ OVERVIEW: CLEAN WITH OUTLIERS (show viz + orange badge) ══ -->
+    <!-- Outlier Warning Badge -->
+    <div class="outlier-warning-badge" id="outlier-warning-badge">
+        <i class="fas fa-exclamation-circle"></i>
+        <span data-translate="outlier_badge_msg">Data sudah valid — tidak ada missing, duplikat, atau inkonsistensi.</span>
+        <span class="owb-count" id="outlier-badge-count">{{ quality_full.summary.total_outliers }} outlier</span>
+        <span data-translate="outlier_badge_suffix">terdeteksi (IQR). Distribusi data bersifat unik.</span>
+        <button class="db-banner-cta" onclick="switchTab('cleaning')" style="margin-left:auto;background:#fb923c;color:#fff;font-size:.72rem;" data-translate="outlier_badge_btn">
+            <i class="fas fa-chart-box"></i> Handle Outlier
+        </button>
+        <button class="db-banner-close" onclick="document.getElementById('outlier-warning-badge').style.display='none'">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <!-- KPI Row (same as clean) -->
     <div class="ov-kpi-row">
         {% for kpi in overview.kpis %}
         <div class="card kpi-card {{ kpi.color }}">
@@ -321,6 +369,25 @@
         </div>
         {% endfor %}
     </div>
+    {% else %}
+    <!-- ══ OVERVIEW: FULLY CLEAN ══ -->
+    <!-- KPI Row -->
+
+    <div class="ov-kpi-row">
+        {% for kpi in overview.kpis %}
+        <div class="card kpi-card {{ kpi.color }}">
+            <div class="kpi-icon"><i class="fas {{ kpi.icon }}"></i></div>
+            <div class="kpi-data">
+                <h3>{{ kpi.value }}</h3>
+                <p>{{ kpi.label }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ── Chart Grid + Stats: shown for both clean and clean_with_outliers ── -->
+    {% if data_status != 'raw' %}
 
     <!-- ── Chart Grid Baris Atas ── -->
     {% set mid_visible = overview.slots.ov_hbar.visible or overview.slots.ov_center.visible or overview.slots.ov_top_right.visible %}
@@ -551,7 +618,6 @@
     </div>
     {% endif %}
     {% endif %}
-
 </div>
 <!-- ── END TAB 1: OVERVIEW ── -->
 
@@ -775,7 +841,7 @@
                 <i class="fas fa-broom text-green"></i> Data Cleaning
                 <span id="dc-status-badge"></span>
             </h2>
-            <p class="text-muted" style="margin-top:4px;">Pilih operasi, preview dampak, lalu apply. Semua langkah tersimpan di history.</p>
+            <p class="text-muted" style="margin-top:4px;" data-translate="cleaning_desc">Pilih operasi, preview dampak, lalu apply. Semua langkah tersimpan di history.</p>
         </div>
     </div>
 </div>
@@ -824,10 +890,10 @@
     <!-- KIRI: Operation Panel -->
     <div class="card dc-ops-card">
         <div style="padding:14px 18px 12px;border-bottom:1px solid var(--border);">
-            <h4 style="font-size:.93rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;">
+            <h4 style="font-size:.93rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;" data-translate="cleaning_ops">
                 <i class="fas fa-sliders-h text-blue"></i> Operasi Cleaning
             </h4>
-            <p style="font-size:.72rem;color:var(--muted);margin-top:4px;">Pilih operasi → Preview → Apply</p>
+            <p style="font-size:.72rem;color:var(--muted);margin-top:4px;" data-translate="cleaning_subdesc">Pilih operasi → Preview → Apply</p>
         </div>
 
         <!-- Handle Missing Value -->
@@ -1784,7 +1850,7 @@ var DCleaning = (function () {
         <div id="viz-placeholder" class="viz-placeholder" style="display:none;">
             <div class="viz-placeholder-inner">
                 <i class="fas fa-chart-area"></i>
-                <p>Dataset tidak kompatibel untuk kategori ini.</p>
+                <p data-translate="viz_placeholder">Dataset is not compatible with this category.</p>
             </div>
         </div>
 
@@ -1813,7 +1879,7 @@ var DCleaning = (function () {
             <div id="viz-master-plot" class="viz-master-plot">
                 <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#7EA9FF;">
                     <i class="fas fa-chart-bar" style="font-size:2rem;opacity:.3;"></i>
-                    <span style="margin-left:12px;font-size:.9rem;opacity:.5;">Pilih kategori dari sidebar untuk mulai</span>
+                    <span style="margin-left:12px;font-size:.9rem;opacity:.5;" data-translate="viz_select_hint">Select a category from the sidebar to start</span>
                 </div>
             </div>
         </div>
@@ -1828,7 +1894,7 @@ var DCleaning = (function () {
     <div class="card full-card mb-4">
         <div class="card-header-clean">
             <h2 style="margin:0;"><i class="fas fa-clock text-muted"></i> Time Series Analytics</h2>
-            <p class="text-muted" style="margin-top:6px;">Dataset tidak memiliki kolom datetime yang valid.</p>
+            <p class="text-muted" style="margin-top:6px;" data-translate="ts_no_datetime">Dataset does not have a valid datetime column.</p>
         </div>
     </div>
     {% else %}
@@ -1886,23 +1952,47 @@ var DCleaning = (function () {
 <!-- ══════════════ TAB 8: SMART INSIGHTS ══════════════ -->
 <div id="tab-insights" class="tab-content" style="display:none;">
     <div class="dashboard-header mb-4">
-        <h2><i class="fas fa-lightbulb" style="color:#ffce20;"></i> Smart Insights</h2>
-        <p class="text-muted">Automated data-driven conclusions from your dataset.</p>
+        <h2><i class="fas fa-lightbulb" style="color:#ffce20;"></i> <span data-translate="insights_title">Smart Insights</span></h2>
+        <p class="text-muted" data-translate="insights_subtitle">Automated data-driven conclusions from your dataset.</p>
     </div>
-    <div class="insights-grid">
-        {% for insight in insights %}
-        <div class="card insight-card" style="border-left:4px solid var(--{{ insight.type }}, var(--blue));">
-            <div class="insight-header">
-                <div class="insight-icon" style="color:var(--{{ insight.type }},var(--blue));border-color:var(--{{ insight.type }},var(--blue));">
-                    <i class="fas {{ insight.icon }}"></i>
-                </div>
-                <h4>{{ insight.title }}</h4>
-            </div>
-            <p>{{ insight.desc | safe }}</p>
-        </div>
-        {% endfor %}
+    <div class="insights-grid" id="insights-grid-container">
+        <!-- Diisi oleh JS berdasarkan bahasa aktif -->
     </div>
 </div>
+
+<script id="insights-data-en" type="application/json">{{ insights_en | tojson | safe }}</script>
+<script id="insights-data-id" type="application/json">{{ insights_id | tojson | safe }}</script>
+
+<script>
+(function() {
+    function renderInsights(lang) {
+        var scriptId = lang === 'id' ? 'insights-data-id' : 'insights-data-en';
+        var el = document.getElementById(scriptId);
+        var grid = document.getElementById('insights-grid-container');
+        if (!el || !grid) return;
+        try {
+            var data = JSON.parse(el.textContent || el.innerText);
+            grid.innerHTML = data.map(function(ins) {
+                return '<div class="card insight-card" style="border-left:4px solid var(--' + ins.type + ', var(--blue));">' +
+                    '<div class="insight-header">' +
+                    '<div class="insight-icon" style="color:var(--' + ins.type + ',var(--blue));border-color:var(--' + ins.type + ',var(--blue));"><i class="fas ' + ins.icon + '"></i></div>' +
+                    '<h4>' + ins.title + '</h4>' +
+                    '</div>' +
+                    '<p>' + ins.desc + '</p>' +
+                    '</div>';
+            }).join('');
+        } catch(e) { console.warn('[Insights] Render error:', e); }
+    }
+
+    // Hook ke sistem bahasa global
+    window._insightsRender = renderInsights;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var lang = localStorage.getItem('ds-lang') || 'en';
+        renderInsights(lang);
+    });
+})();
+</script>
 
 
 <!-- ══════════════ SCRIPTS ══════════════ -->

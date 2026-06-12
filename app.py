@@ -244,10 +244,12 @@ def _get_dashboard_context(filename):
         except Exception as e:
             print(f"[TS] generate_ts_plots error: {e}")
 
-    # ── Intelligent insights ──────────────────────────────────────────────────
-    auto_insights = generate_auto_insights(
+    # ── Intelligent insights (bilingual) ───────────────────────────────────
+    auto_insights_bilingual = generate_auto_insights(
         df, num_cols, cat_cols, ts_insights=ts_insights_list
     )
+    auto_insights_en = auto_insights_bilingual.get('en', [])
+    auto_insights_id = auto_insights_bilingual.get('id', [])
 
     # ── Preview HTML ──────────────────────────────────────────────────────────
     preview_raw_html = df_raw.to_html(
@@ -335,7 +337,9 @@ def _get_dashboard_context(filename):
         'num_stats'         : num_stats,
         'cat_stats'         : cat_stats,
         'plots'             : plots,
-        'insights'          : auto_insights,
+        'insights'          : auto_insights_en,
+        'insights_en'       : auto_insights_en,
+        'insights_id'       : auto_insights_id,
         'advanced'          : advanced,
         'num_cols'          : num_cols,
         'cat_cols'          : cat_cols,

@@ -134,32 +134,229 @@ function initTeamModal() {
 /* ─── LANGUAGE SELECTOR ────────────────────────────────────────── */
 var TRANSLATIONS = {
     en: {
-        title      : 'Descriptive Statistics Generator',
-        desc       : 'Upload, analyze, visualize and get insights automatically',
-        subtitle   : 'Descriptive Statistics',
-        admin_role : 'Data Science Team',
+        /* Topbar */
+        title        : 'Descriptive Statistics Generator',
+        desc         : 'Upload, analyze, visualize and get insights automatically',
+        subtitle     : 'Descriptive Statistics',
+        admin_role   : 'Data Science Team',
+        /* Smart Insights tab */
+        insights_title    : 'Smart Insights',
+        insights_subtitle : 'Automated data-driven conclusions from your dataset.',
+        /* Sidebar sections */
+        nav_main     : 'MAIN',
+        nav_data     : 'DATA',
+        nav_stats    : 'STATISTICS',
+        nav_viz      : 'VISUALIZATIONS',
+        nav_ts       : 'TIME SERIES',
+        nav_insights : 'INSIGHTS',
+        nav_reporting: 'REPORTING',
+        /* Sidebar items */
+        nav_dashboard    : 'Dashboard',
+        nav_upload       : 'Upload Data',
+        nav_preview      : 'Data Preview',
+        nav_cleaning     : 'Data Cleaning',
+        nav_statistics   : 'Statistics',
+        nav_numerical    : 'Numerical Stats',
+        nav_categorical  : 'Categorical Stats',
+        nav_advanced     : 'Advanced Stats',
+        nav_visualizations: 'Visualizations',
+        nav_timeseries   : 'Time Series',
+        nav_ts_overview  : 'Overview Panel',
+        nav_ts_line      : 'Line Chart',
+        nav_ts_trend     : 'Trend Line',
+        nav_ts_ma        : 'Moving Average',
+        nav_ts_rolling   : 'Rolling Mean',
+        nav_smart_insights: 'Smart Insights',
+        nav_reporting_sys : 'Reporting System',
+        nav_dl_pdf       : 'Download Report PDF',
+        nav_dl_html      : 'Download HTML Dashboard',
+        nav_exp_excel    : 'Export to Excel',
+        nav_exp_csv      : 'Export to CSV',
+        /* Data Cleaning */
+        cleaning_desc    : 'Select operation, preview impact, then apply. All steps saved in history.',
+        cleaning_ops     : 'Cleaning Operations',
+        cleaning_subdesc : 'Select operation → Preview → Apply',
+        /* Overview */
+        ov_dashboard     : 'Dashboard',
+        ov_go_viz        : 'Visualizations',
+        ov_column        : 'Column:',
+        /* Banner */
+        banner_warning   : '⚠️ Warning: Data needs cleaning!',
+        banner_clean_btn : 'Clean Now',
+        banner_success   : '✅ Cleaning successful! Data is ready to use.',
+        banner_viz_btn   : 'View Visualizations',
+        /* Upload raw mode */
+        ov_raw_warning   : '⚠️ Dataset detected as not clean (Raw Mode). Some visualizations are disabled until data is cleaned.',
+        /* Data Quality */
+        dq_report_title  : 'Data Quality Report',
+        /* Placeholder */
+        viz_placeholder  : 'Dataset is not compatible with this category.',
+        viz_select_hint  : 'Select a category from the sidebar to start',
+        /* TS */
+        ts_date_col  : 'Date Column',
+        ts_metric    : 'Metric',
+        ts_frequency : 'Frequency',
+        ts_datapoints: 'Data Points',
+        ts_period    : 'Period',
+        ts_no_datetime: 'Dataset does not have a valid datetime column.',
+        /* AI Chat */
+        ai_typing    : 'Typing...',
+        ai_no_resp   : 'No response from server.',
+        ai_fail      : '⚠️ Failed to connect to AI. Make sure ANTHROPIC_API_KEY is set.',
+        sdi_title    : 'Dataset Info',
+        sdi_filename : 'File:',
+        sdi_filesize : 'Size:',
+        sdi_uploaded : 'Uploaded:',
     },
     id: {
-        title      : 'Generator Statistik Deskriptif',
-        desc       : 'Unggah, analisis, visualisasi, dan dapatkan wawasan secara otomatis',
-        subtitle   : 'Statistik Deskriptif',
-        admin_role : 'Tim Ilmu Data',
-    },
-    pt: {
-        title      : 'Gerador de Estatísticas Descritivas',
-        desc       : 'Envie, analise, visualize e obtenha insights automaticamente',
-        subtitle   : 'Estatísticas Descritivas',
-        admin_role : 'Equipe de Ciência de Dados',
+        /* Topbar */
+        title        : 'Generator Statistik Deskriptif',
+        desc         : 'Unggah, analisis, visualisasi, dan dapatkan wawasan secara otomatis',
+        subtitle     : 'Statistik Deskriptif',
+        admin_role   : 'Tim Ilmu Data',
+        /* Smart Insights tab */
+        insights_title    : 'Wawasan Cerdas',
+        insights_subtitle : 'Kesimpulan otomatis berbasis data dari dataset Anda.',
+        /* Sidebar sections */
+        nav_main     : 'UTAMA',
+        nav_data     : 'DATA',
+        nav_stats    : 'STATISTIK',
+        nav_viz      : 'VISUALISASI',
+        nav_ts       : 'DERET WAKTU',
+        nav_insights : 'WAWASAN',
+        nav_reporting: 'PELAPORAN',
+        /* Sidebar items */
+        nav_dashboard    : 'Beranda',
+        nav_upload       : 'Unggah Data',
+        nav_preview      : 'Pratinjau Data',
+        nav_cleaning     : 'Pembersihan Data',
+        nav_statistics   : 'Statistik',
+        nav_numerical    : 'Statistik Numerik',
+        nav_categorical  : 'Statistik Kategorik',
+        nav_advanced     : 'Statistik Lanjut',
+        nav_visualizations: 'Visualisasi',
+        nav_timeseries   : 'Deret Waktu',
+        nav_ts_overview  : 'Panel Ikhtisar',
+        nav_ts_line      : 'Grafik Garis',
+        nav_ts_trend     : 'Garis Tren',
+        nav_ts_ma        : 'Rata-rata Bergerak',
+        nav_ts_rolling   : 'Rata-rata Bergulir',
+        nav_smart_insights: 'Wawasan Cerdas',
+        nav_reporting_sys : 'Sistem Pelaporan',
+        nav_dl_pdf       : 'Unduh Laporan PDF',
+        nav_dl_html      : 'Unduh Dashboard HTML',
+        nav_exp_excel    : 'Ekspor ke Excel',
+        nav_exp_csv      : 'Ekspor ke CSV',
+        /* Data Cleaning */
+        cleaning_desc    : 'Pilih operasi, preview dampak, lalu apply. Semua langkah tersimpan di history.',
+        cleaning_ops     : 'Operasi Cleaning',
+        cleaning_subdesc : 'Pilih operasi → Preview → Apply',
+        /* Overview */
+        ov_dashboard     : 'Beranda',
+        ov_go_viz        : 'Visualisasi',
+        ov_column        : 'Kolom:',
+        /* Banner */
+        banner_warning   : '⚠️ Data perlu di-cleaning!',
+        banner_clean_btn : 'Bersihkan Sekarang',
+        banner_success   : '✅ Berhasil melakukan cleaning! Data siap digunakan.',
+        banner_viz_btn   : 'Lihat Visualisasi',
+        /* Upload raw mode */
+        ov_raw_warning   : '⚠️ Dataset terdeteksi belum bersih (Mode Raw). Beberapa visualisasi dinonaktifkan hingga data dibersihkan.',
+        /* Data Quality */
+        dq_report_title  : 'Laporan Kualitas Data',
+        /* Placeholder */
+        viz_placeholder  : 'Dataset tidak kompatibel untuk kategori ini.',
+        viz_select_hint  : 'Pilih kategori dari sidebar untuk mulai',
+        /* TS */
+        ts_date_col  : 'Kolom Tanggal',
+        ts_metric    : 'Metrik',
+        ts_frequency : 'Frekuensi',
+        ts_datapoints: 'Titik Data',
+        ts_period    : 'Periode',
+        ts_no_datetime: 'Dataset tidak memiliki kolom datetime yang valid.',
+        /* AI Chat */
+        ai_typing    : 'Sedang mengetik...',
+        ai_no_resp   : 'Tidak ada respons dari server.',
+        ai_fail      : '⚠️ Gagal terhubung ke AI. Pastikan ANTHROPIC_API_KEY sudah diset.',
+        sdi_title    : 'Info Dataset',
+        sdi_filename : 'File:',
+        sdi_filesize : 'Ukuran:',
+        sdi_uploaded : 'Diunggah:',
     },
 };
 
 function applyLanguage(lang) {
     var t = TRANSLATIONS[lang];
     if (!t) return;
+
+    /* 1. data-translate attributes */
     document.querySelectorAll('[data-translate]').forEach(function (el) {
         var key = el.getAttribute('data-translate');
-        if (t[key]) el.textContent = t[key];
+        if (t[key] !== undefined) el.textContent = t[key];
     });
+
+    /* 2. Re-render insights in the selected language */
+    if (typeof window._insightsRender === 'function') {
+        window._insightsRender(lang);
+    }
+
+    /* 3. Sidebar section labels */
+    var sectionMap = {
+        'MAIN'         : t.nav_main,
+        'DATA'         : t.nav_data,
+        'STATISTICS'   : t.nav_stats,
+        'VISUALIZATIONS': t.nav_viz,
+        'TIME SERIES'  : t.nav_ts,
+        'INSIGHTS'     : t.nav_insights,
+        'REPORTING'    : t.nav_reporting,
+    };
+    document.querySelectorAll('.nav-section-label').forEach(function(el) {
+        var txt = el.textContent.trim();
+        if (sectionMap[txt]) el.textContent = sectionMap[txt];
+        // Handle already-translated version
+        Object.keys(TRANSLATIONS).forEach(function(l) {
+            if (l !== lang && TRANSLATIONS[l]) {
+                var othT = TRANSLATIONS[l];
+                Object.keys(othT).forEach(function(k) {
+                    if (k.startsWith('nav_') && othT[k] === txt && t[k]) {
+                        el.textContent = t[k];
+                    }
+                });
+            }
+        });
+    });
+
+    /* 4. Sidebar nav items via data-translate-nav */
+    var navMap = {
+        'menu-overview'   : t.nav_dashboard,
+        'menu-upload'     : t.nav_upload,
+        'menu-preview'    : t.nav_preview,
+        'menu-cleaning'   : t.nav_cleaning,
+        'menu-stats-acc'  : t.nav_statistics,
+        'menu-numerical'  : t.nav_numerical,
+        'menu-categorical': t.nav_categorical,
+        'menu-advanced'   : t.nav_advanced,
+        'menu-visualizations': t.nav_visualizations,
+        'menu-timeseries' : t.nav_timeseries,
+        'menu-ts-overview': t.nav_ts_overview,
+        'menu-ts-line'    : t.nav_ts_line,
+        'menu-ts-trend'   : t.nav_ts_trend,
+        'menu-ts-ma'      : t.nav_ts_ma,
+        'menu-ts-rolling' : t.nav_ts_rolling,
+        'menu-insights'   : t.nav_smart_insights,
+        'menu-reporting'  : t.nav_reporting_sys,
+        'menu-report-pdf' : t.nav_dl_pdf,
+        'menu-report-html': t.nav_dl_html,
+        'menu-export-excel': t.nav_exp_excel,
+        'menu-export-csv' : t.nav_exp_csv,
+    };
+    Object.keys(navMap).forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el || !navMap[id]) return;
+        var labelEl = el.querySelector('.nav-label');
+        if (labelEl) labelEl.textContent = navMap[id];
+    });
+
     localStorage.setItem('ds-lang', lang);
 }
 
@@ -171,6 +368,7 @@ function initLanguageSelector() {
     applyLanguage(saved);
     sel.addEventListener('change', function () { applyLanguage(sel.value); });
 }
+
 
 /* ─── DATATABLES ─────────────────────────────────────────────── */
 function initDataTables() {

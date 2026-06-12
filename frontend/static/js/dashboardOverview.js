@@ -141,7 +141,7 @@ var OverviewDashboard = (function () {
              Array.isArray(decoded.dimensions)) {
             decoded.dimensions = decoded.dimensions.map(function (dim) {
                 if (!dim || typeof dim !== 'object') return dim;
-                var d = Object.assign({}, dim);
+                var d = Object.assign({}, dim); d
                 if (d.values && typeof d.values === 'object' && d.values.bdata) {
                     d.values = _decodeBinaryField(d.values);
                 }

@@ -796,17 +796,27 @@ def get_quality_report(df: pd.DataFrame) -> dict:
 
 def detect_data_status(df) -> str:
     """
-    Auto-detect whether the dataset is 'clean' or 'raw'.
-    Criteria for 'clean' (all must be met):
-      - No missing values (missing_cells == 0)
-      - No duplicate rows (duplicate_rows == 0)
-      - No text inconsistencies (whitespace issues or mixed casing in object/string columns)
-    Otherwise, it is 'raw'.
+    Auto-detect dataset cleanliness status. Returns one of three values:
+
+      'raw'                 — Critical quality issues exist: missing values, duplicate rows,
+                              irrelevant columns (ID/constant), or text inconsistencies.
+                              Dashboard visualizations are blocked.
+
+      'clean_with_outliers' — No critical issues, but statistical outliers detected (IQR method).
+                              Dashboard is shown with an informational orange warning badge.
+
+      'clean'               — Fully clean: no missing, no duplicates, no irrelevant cols,
+                              no inconsistencies, no outliers.
     """
-    import pandas as pd
+    total_rows = len(df)
+    if total_rows == 0:
+        return 'clean'
+
+    # ── Critical checks (block dashboard) ────────────────────────────────────
     missing_cells  = int(df.isna().sum().sum())
     duplicate_rows = int(df.duplicated().sum())
 
+    # Text inconsistencies: leading/trailing whitespace or mixed casing
     inconsistency_count = 0
     for col in df.select_dtypes(include=['object', 'string']).columns:
         s = df[col].dropna().astype(str)
@@ -815,6 +825,37 @@ def detect_data_status(df) -> str:
         elif (s != s.str.lower()).any() and (s != s.str.upper()).any():
             inconsistency_count += 1
 
-    if missing_cells == 0 and duplicate_rows == 0 and inconsistency_count == 0:
-        return 'clean'
-    return 'raw'
+    # Irrelevant columns: zero variance (constant) or near-unique ID columns
+    irrelevant_count = 0
+    for col in df.columns:
+        n_unique     = df[col].nunique()
+        unique_ratio = n_unique / max(total_rows, 1)
+        if (n_unique <= 1) or (unique_ratio > 0.95 and n_unique > 50):
+            irrelevant_count += 1
+
+    has_critical = (
+        missing_cells > 0
+        or duplicate_rows > 0
+        or inconsistency_count > 0
+        or irrelevant_count > 0
+    )
+
+    if has_critical:
+        return 'raw'
+
+    # ── Soft check: outliers only (IQR method) ────────────────────────────────
+    total_outliers = 0
+    for col in df.select_dtypes(include='number').columns:
+        s = df[col].dropna()
+        if len(s) < 4:
+            continue
+        q1, q3 = s.quantile(0.25), s.quantile(0.75)
+        iqr = q3 - q1
+        if iqr == 0:
+            continue
+        total_outliers += int(((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).sum())
+
+    if total_outliers > 0:
+        return 'clean_with_outliers'
+
+    return 'clean'
