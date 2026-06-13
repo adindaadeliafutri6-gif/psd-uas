@@ -514,7 +514,7 @@ def download_report_pdf(filename):
             temp_pdf_path,
             safe_name,
             df,
-            ctx['quality_report'],
+            ctx.get('quality_full') or ctx.get('quality_report'),  # prefer rich dict
             ctx['metrics'],
             ctx['num_stats'],
             ctx['cat_stats'],
