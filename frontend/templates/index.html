@@ -576,7 +576,7 @@ body {
     </p>
 
     <div class="hero-btns">
-      <a href="/upload" class="btn-primary">
+      <a href="{{ url_for('login') }}" class="btn-primary">
         <i class="fas fa-cloud-upload-alt"></i> Get Started
       </a>
       <button class="btn-ghost" onclick="openModal('modal-team')">
@@ -636,7 +636,7 @@ body {
     <button class="nav-btn nb-ghost" onclick="openModal('modal-workflow')">
       <i class="fas fa-sitemap"></i> How It Works
     </button>
-    <a href="/upload" class="nav-btn nb-primary">
+    <a href="{{ url_for('login') }}" class="nav-btn nb-primary">
       <i class="fas fa-cloud-upload-alt"></i> Upload Data
     </a>
   </div>
@@ -648,7 +648,7 @@ body {
   <i class="fas fa-file-csv"></i>
   sample_retail_sales.csv — Demo · refreshes every 6s
   <span style="color:rgba(133,183,235,0.4);margin-left:6px;">|</span>
-  <a href="/upload" style="color:var(--green);font-weight:700;text-decoration:none;font-size:0.68rem;">
+  <a href="{{ url_for('login') }}" style="color:var(--green);font-weight:700;text-decoration:none;font-size:0.68rem;">
     Upload Your Data →
   </a>
 </div>
@@ -761,7 +761,7 @@ body {
       <span class="feat-pill"><i class="fas fa-chart-line"></i> 15+ Chart Types</span>
       <span class="feat-pill"><i class="fas fa-flask"></i> Advanced Stats </span>
     </div>
-    <a href="/upload" class="btn-primary" style="font-size:0.86rem;padding:11px 22px;">
+    <a href="{{ url_for('login') }}" class="btn-primary" style="font-size:0.86rem;padding:11px 22px;">
       <i class="fas fa-cloud-upload-alt"></i> Start Analyzing Now
     </a>
   </div>

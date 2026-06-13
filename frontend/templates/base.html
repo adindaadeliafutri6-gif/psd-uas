@@ -482,6 +482,128 @@
         }
 
         /* ── Main wrapper ── */
+        .sidebar-profile {
+            margin: auto 10px 14px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, .04);
+            position: relative;
+        }
+
+        .sp-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .sp-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: linear-gradient(135deg, #378add, #05cd99);
+            color: #fff;
+            font-size: .82rem;
+            font-weight: 800;
+        }
+
+        .sp-details {
+            min-width: 0;
+            transition: opacity var(--dur), max-width var(--dur);
+        }
+
+        .sp-username {
+            color: #fff;
+            font-size: .8rem;
+            font-weight: 700;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sp-role {
+            color: var(--muted);
+            font-size: .66rem;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sp-menu {
+            flex-shrink: 0;
+        }
+
+        .sp-menu-btn {
+            width: 30px;
+            height: 30px;
+            border: 0;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .06);
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .sp-menu-btn:hover {
+            background: rgba(255, 255, 255, .12);
+            color: #fff;
+        }
+
+        .sp-dropdown {
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            bottom: calc(100% + 8px);
+            display: none;
+            padding: 8px;
+            background: #0b1437;
+            border: 1px solid rgba(255, 255, 255, .12);
+            border-radius: 10px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, .32);
+            z-index: 1000;
+        }
+
+        .sp-dropdown.open {
+            display: block;
+        }
+
+        .sp-dropdown a {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            color: #fff;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: .78rem;
+            font-weight: 700;
+        }
+
+        .sp-dropdown a:hover {
+            background: rgba(255, 255, 255, .08);
+        }
+
+        .sidebar.mini .sidebar-profile {
+            justify-content: center;
+            margin-left: 8px;
+            margin-right: 8px;
+        }
+
+        .sidebar.mini .sp-details,
+        .sidebar.mini .sp-menu {
+            display: none;
+        }
+
         .main-wrapper {
             flex: 1;
             display: flex;
@@ -503,6 +625,7 @@
 
             <!-- Brand -->
             <div class="sidebar-brand">
+
                 <div class="brand-logo">
 
                     <img src="https://raw.githubusercontent.com/adindaadeliafutri6-gif/logo/main/logo%20itsb.png"
@@ -522,8 +645,7 @@
 
             <ul class="nav-menu" id="nav-menu">
 
-                <!-- ── MAIN ── -->
-                <li class="nav-section-label">MAIN</li>
+
 
                 <li class="nav-item {% if not filename %}active{% endif %}" id="menu-overview">
                     <a href="{% if filename %}#{% endif %}"
@@ -541,10 +663,11 @@
                     </a>
                 </li>
 
-                <!-- ── DATA ── -->
-                <li class="nav-section-label">DATA</li>
+
+
 
                 <li class="nav-item" id="menu-preview">
+
                     <a href="#" onclick="switchTab('preview'); return false;" data-tip="Data Preview">
                         <span class="nav-icon"><i class="fas fa-table"></i></span>
                         <span class="nav-label">Data Preview</span>
@@ -557,8 +680,7 @@
                     </a>
                 </li>
 
-                <!-- ── STATISTICS — Accordion ── -->
-                <li class="nav-section-label">STATISTICS</li>
+
 
                 <li class="nav-item" id="menu-stats-acc">
                     <button class="nav-acc-trigger" id="acc-stats-btn" onclick="toggleAcc('acc-stats')"
@@ -592,8 +714,7 @@
                     </div>
                 </li>
 
-                <!-- ── VISUALIZATIONS — Accordion ── -->
-                <li class="nav-section-label">VISUALIZATIONS</li>
+
 
                 <li class="nav-item" id="menu-visualizations">
                     <button class="nav-acc-trigger" id="acc-viz-btn" onclick="toggleAcc('acc-viz')"
@@ -639,8 +760,7 @@
                     </div>
                 </li>
 
-                <!-- ── TIME SERIES — Accordion ── -->
-                <li class="nav-section-label">TIME SERIES</li>
+
 
                 <li class="nav-item" id="menu-timeseries">
                     <button class="nav-acc-trigger" id="acc-ts-btn" onclick="toggleAcc('acc-ts')"
@@ -696,8 +816,7 @@
                     </div>
                 </li>
 
-                <!-- ── INSIGHTS & AI ── -->
-                <li class="nav-section-label">INSIGHTS</li>
+
 
                 <li class="nav-item" id="menu-insights">
                     <a href="#" onclick="switchTab('insights'); return false;" data-tip="Smart Insights">
@@ -706,8 +825,7 @@
                     </a>
                 </li>
 
-                <!-- ── REPORTING SYSTEM — Accordion ── -->
-                <li class="nav-section-label">REPORTING</li>
+
 
                 <li class="nav-item" id="menu-reporting">
                     <button class="nav-acc-trigger" id="acc-report-btn" onclick="toggleAcc('acc-report')"
@@ -753,11 +871,8 @@
                 </li>
 
                 {% if dataset_info %}
-                <!-- Dataset Info Box -->
+                <!-- Dataset Info Box (clean text-only) -->
                 <div class="sidebar-dataset-info" data-tip="Dataset: {{ dataset_info.name }}">
-                    <div class="sdi-icon-wrap">
-                        <i class="fas fa-database"></i>
-                    </div>
                     <div class="sdi-details">
                         <div class="sdi-title" data-translate="sdi_title">Dataset Info</div>
                         <div class="sdi-item">
@@ -776,9 +891,29 @@
                 </div>
                 {% endif %}
 
+                <!-- User Profile Section (bottom) -->
+
+                <div class="sidebar-profile" data-tip="Account settings">
+                    <div class="sp-left">
+                        <div class="sp-avatar">
+                            <span>{{ current_user.name[:1]|upper if current_user else 'U' }}</span>
+                        </div>
+                        <div class="sp-details">
+                            <div class="sp-username">{{ current_user.name if current_user else 'User' }}</div>
+                            <div class="sp-role">{{ current_user.role if current_user else 'Data Analyst' }}</div>
+                        </div>
+                    </div>
+                    <div class="sp-menu">
+                        <button class="sp-menu-btn" type="button" aria-label="Account menu" data-logout-url="{{ url_for('logout') }}">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
+                </div>
+
                 {% endif %}
             </ul>
         </aside>
+
 
         <!-- ═══════════════════ MAIN AREA ═══════════════════ -->
         <main class="main-wrapper">
@@ -909,8 +1044,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/sidebarProfileMenu.js') }}"></script>
 
     <script>
+
         function showDownloadToast(reportType) {
             if (typeof showToast === 'function') {
                 showToast("Generating " + reportType + "... Please wait.", "info");
@@ -1039,3 +1176,4 @@
 </body>
 
 </html>
+

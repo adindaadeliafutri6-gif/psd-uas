@@ -1,6 +1,7 @@
 import os
 import datetime
 import json
+import functools
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
@@ -33,6 +34,76 @@ ALLOWED_EXTENSIONS = {'csv', 'txt', 'xlsx'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 
+def _user_id_from_name(name):
+    safe = secure_filename((name or '').strip().lower().replace(' ', '_'))
+    return safe or 'user'
+
+
+def current_user():
+    user = session.get('user')
+    if not user:
+        return None
+    return {
+        'id': user.get('id') or _user_id_from_name(user.get('name')),
+        'name': user.get('name') or 'User',
+        'role': user.get('role') or 'Data Analyst',
+    }
+
+
+def login_required(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not current_user():
+            flash('Silakan login terlebih dahulu.', 'info')
+            return redirect(url_for('login', next=request.path))
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+@app.context_processor
+def inject_current_user():
+    return {'current_user': current_user()}
+
+
+@app.before_request
+def require_login_for_private_routes():
+    if request.endpoint in ('index', 'login', 'logout', 'static'):
+        return None
+
+    private_prefixes = ('/upload', '/dashboard', '/api/')
+    if not request.path.startswith(private_prefixes):
+        return None
+
+    if current_user():
+        return None
+
+    if request.path.startswith('/api/'):
+        return jsonify({'ok': False, 'error': 'Silakan login terlebih dahulu.'}), 401
+
+    flash('Silakan login terlebih dahulu.', 'info')
+    return redirect(url_for('login', next=request.path))
+
+
+def _user_upload_dir():
+    user = current_user()
+    if not user:
+        return None
+
+    base_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    user_dir = os.path.abspath(os.path.join(base_dir, user['id']))
+    if not user_dir.startswith(base_dir):
+        return None
+    os.makedirs(user_dir, exist_ok=True)
+    return user_dir
+
+
+def _session_key(filename):
+    user = current_user()
+    if not user:
+        return filename
+    return f"{user['id']}::{filename}"
+
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -48,11 +119,15 @@ def _get_or_init_session(filename):
     if not safe_name or safe_name != filename:
         return None, 'Nama file tidak valid.'
 
-    sess = get_session(safe_name)
+    key = _session_key(safe_name)
+    sess = get_session(key)
     if sess is not None:
         return sess, None
 
-    base_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    base_dir = _user_upload_dir()
+    if not base_dir:
+        return None, 'Silakan login terlebih dahulu.'
+
     filepath = os.path.abspath(os.path.join(base_dir, safe_name))
     if not filepath.startswith(base_dir):
         return None, 'Akses tidak sah.'
@@ -64,7 +139,7 @@ def _get_or_init_session(filename):
     if df_raw is None:
         return None, 'Gagal membaca dataset.'
 
-    sess = reset_session(safe_name, df_raw)
+    sess = reset_session(key, df_raw)
     return sess, None
 
 
@@ -77,12 +152,48 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user() and request.method == 'GET':
+        return redirect(url_for('upload_file'))
+
+    next_url = request.args.get('next') or url_for('upload_file')
+    if not next_url.startswith('/') or next_url.startswith('//'):
+        next_url = url_for('upload_file')
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        role = (request.form.get('role') or 'Data Analyst').strip()
+
+        if not name:
+            flash('Nama wajib diisi untuk login.', 'error')
+            return render_template('login.html', next_url=next_url)
+
+        session['user'] = {
+            'id': _user_id_from_name(name),
+            'name': name,
+            'role': role or 'Data Analyst',
+        }
+        flash(f'Selamat datang, {name}!', 'success')
+        return redirect(next_url)
+
+    return render_template('login.html', next_url=next_url)
+
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    flash('Anda berhasil logout.', 'success')
+    return redirect(url_for('index'))
+
+
 @app.route('/upload', methods=['GET', 'POST'])
+@login_required
 def upload_file():
     uploaded_files = []
     try:
-        if os.path.exists(app.config['UPLOAD_FOLDER']):
-            folder_path = app.config['UPLOAD_FOLDER']
+        folder_path = _user_upload_dir()
+        if folder_path and os.path.exists(folder_path):
             files = [
                 f for f in os.listdir(folder_path)
                 if os.path.isfile(os.path.join(folder_path, f))
@@ -107,7 +218,8 @@ def upload_file():
 
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            folder_path = _user_upload_dir()
+            filepath = os.path.join(folder_path, filename)
 
             # ── Deteksi duplikat ──────────────────────────────────────────────
             if os.path.exists(filepath):
@@ -128,7 +240,7 @@ def upload_file():
             # ── Init cleaning session untuk file baru ─────────────────────────
             df_raw = load_data(filepath)
             if df_raw is not None:
-                reset_session(filename, df_raw)
+                reset_session(_session_key(filename), df_raw)
 
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({
@@ -154,7 +266,10 @@ def _get_dashboard_context(filename):
     if not safe_name or safe_name != filename:
         return None
 
-    base_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    base_dir = _user_upload_dir()
+    if not base_dir:
+        return None
+
     filepath = os.path.abspath(os.path.join(base_dir, safe_name))
     if not filepath.startswith(base_dir):
         return None
@@ -167,9 +282,9 @@ def _get_dashboard_context(filename):
         return None
 
     # ── Ambil atau inisialisasi CleaningSession ───────────────────────────────
-    sess = get_session(safe_name)
+    sess = get_session(_session_key(safe_name))
     if sess is None:
-        sess = reset_session(safe_name, df_raw)
+        sess = reset_session(_session_key(safe_name), df_raw)
 
     # ── Tentukan df yang dipakai (cleaned atau raw) ───────────────────────────
     is_cleaned   = sess.is_cleaned
@@ -385,12 +500,12 @@ def download_report_pdf(filename):
         return redirect(url_for('upload_file'))
 
     # Path to temp PDF file
-    temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_reports')
+    temp_dir = os.path.join(_user_upload_dir(), 'temp_reports')
     os.makedirs(temp_dir, exist_ok=True)
     temp_pdf_path = os.path.join(temp_dir, f"{safe_name}_report.pdf")
 
     # Load sess to pass df
-    sess = get_session(safe_name)
+    sess = get_session(_session_key(safe_name))
     df = sess.df_current
 
     from backend.report_generator import generate_pdf_report
@@ -741,12 +856,23 @@ def _load_analysis_df(filename):
     Prioritaskan df_current dari CleaningSession jika sudah cleaned,
     fallback ke clean_dataset(df_raw, {}) untuk backward-compat.
     """
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        return None, None, None, None
+
+    folder_path = _user_upload_dir()
+    if not folder_path:
+        return None, None, None, None
+
+    filepath = os.path.abspath(os.path.join(folder_path, safe_name))
+    if not filepath.startswith(folder_path):
+        return None, None, None, None
+
     if not os.path.exists(filepath):
         return None, None, None, None
 
     # Cek session — pakai df yang sudah cleaned jika ada
-    sess = get_session(filename)
+    sess = get_session(_session_key(safe_name))
     if sess is not None:
         df = sess.df_current
     else:
