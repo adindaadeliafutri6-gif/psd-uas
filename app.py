@@ -592,6 +592,7 @@ def download_report_pdf(filename):
     from backend.report_generator import generate_pdf_report
     try:
         generate_pdf_report(
+<<<<<<< HEAD
             dest_path=temp_pdf_path,
             filename=safe_name,
             df=df,
@@ -603,6 +604,18 @@ def download_report_pdf(filename):
             cleaning_history=ctx['cleaning_history'],
             cleaning_summary=ctx['cleaning_summary'],
             image_paths=None
+=======
+            temp_pdf_path,
+            safe_name,
+            df,
+            ctx.get('quality_full') or ctx.get('quality_report'),  # prefer rich dict
+            ctx['metrics'],
+            ctx['num_stats'],
+            ctx['cat_stats'],
+            ctx['insights'],
+            ctx['cleaning_history'],
+            ctx['cleaning_summary']
+>>>>>>> a76182c716ad8f83f17f93003ea34f1d0331f854
         )
         from flask import send_file
         return send_file(
