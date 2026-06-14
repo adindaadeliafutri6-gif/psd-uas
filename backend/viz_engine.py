@@ -339,6 +339,10 @@ def _chart_bar(df, col):
 
 
 def _chart_pie(df, col):
+    # Guard: jika nunique > 5, fallback ke Bar Chart (Pie berantakan)
+    if df[col].nunique() > 5:
+        return _chart_bar(df, col)
+    
     vc  = df[col].value_counts().head(10)
     fig = go.Figure(go.Pie(
         labels=vc.index.astype(str).tolist(),
@@ -779,13 +783,22 @@ def _chart_all_categorical(df, cat_cols, chart_type):
         color = PALETTE[i % len(PALETTE)]
         
         if chart_type == 'pie':
-            fig.add_trace(go.Pie(
-                labels=vc.index.astype(str).tolist(),
-                values=vc.values.tolist(),
-                hole=0.4,
-                name=col,
-                showlegend=False,
-            ), row=r, col=c)
+            # Guard: jika nunique > 5, fallback ke Bar Chart (Pie berantakan)
+            if df[col].nunique() > 5:
+                fig.add_trace(go.Bar(
+                    x=vc.index.astype(str).tolist(),
+                    y=vc.values.tolist(),
+                    marker_color=color, opacity=0.85, name=col,
+                    hovertemplate='%{x}<br>Count: %{y:,}<extra></extra>',
+                ), row=r, col=c)
+            else:
+                fig.add_trace(go.Pie(
+                    labels=vc.index.astype(str).tolist(),
+                    values=vc.values.tolist(),
+                    hole=0.4,
+                    name=col,
+                    showlegend=False,
+                ), row=r, col=c)
         elif chart_type == 'count':
             vc_sorted = vc.sort_values()
             fig.add_trace(go.Bar(
@@ -941,7 +954,7 @@ def generate_master_chart(df, num_cols, cat_cols, category, chart_type,
             'qq'                  : lambda: _chart_qq(df, col_x) if _valid(col_x) else None,
             'violin'              : lambda: _chart_violin(df, col_x) if _valid(col_x) else None,
             'bar'                 : lambda: _chart_bar(df, col_x) if _valid(col_x) else None,
-            'pie'                 : lambda: _chart_pie(df, col_x) if _valid(col_x) else None,
+            'pie'                 : lambda: _chart_pie(df, col_x) if _valid(col_x) else None,  # _chart_pie has nunique guard
             'count'               : lambda: _chart_count(df, col_x) if _valid(col_x) else None,
             'pareto'              : lambda: _chart_pareto(df, col_x) if _valid(col_x) else None,
             'scatter'             : lambda: _chart_scatter(df, col_x, col_y) if _valid(col_x) and _valid(col_y) else None,

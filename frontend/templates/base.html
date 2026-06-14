@@ -827,6 +827,16 @@
 
 
 
+                <li class="nav-item" id="menu-report">
+                    <a href="#" onclick="switchTab('report'); return false;" data-tip="High Report">
+                        <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
+                        <span class="nav-label">High Report</span>
+                        <span class="nav-badge badge-blue">NEW</span>
+                    </a>
+                </li>
+
+
+
                 <li class="nav-item" id="menu-reporting">
                     <button class="nav-acc-trigger" id="acc-report-btn" onclick="toggleAcc('acc-report')"
                         data-tip="Reporting System">
@@ -958,7 +968,7 @@
     <div id="team-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h2><i class="fas fa-users"></i> Kelompok 2 — Data Science ITSB</h2>
+                <h2><i class="fas fa-users"></i> Project Members - Kelompok 2 ITSB</h2>
                 <span class="close-modal" id="close-modal">&times;</span>
             </div>
             <div class="team-grid">
@@ -971,7 +981,7 @@
                     <div class="card-links">
                         <a href="https://github.com/caroldupinopereira-cmyk" target="_blank"><i
                                 class="fab fa-github"></i></a>
-                        <a href="https://rpubs.com/Dupino" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                        <span class="link-disabled" title="LinkedIn belum tersedia"><i class="fab fa-linkedin-in"></i></span>
                     </div>
                 </div>
                 <div class="id-card">
@@ -982,7 +992,7 @@
                     <p class="role-tag">Data Science</p>
                     <div class="card-links">
                         <a href="https://github.com/refantanjung23-wq" target="_blank"><i class="fab fa-github"></i></a>
-                        <a href="https://rpubs.com/Refantanur" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                        <span class="link-disabled" title="LinkedIn belum tersedia"><i class="fab fa-linkedin-in"></i></span>
                     </div>
                 </div>
                 <div class="id-card">
@@ -994,7 +1004,7 @@
                     <div class="card-links">
                         <a href="https://github.com/cahayasemidang-max" target="_blank"><i
                                 class="fab fa-github"></i></a>
-                        <a href="https://rpubs.com/cahayaa23" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                        <span class="link-disabled" title="LinkedIn belum tersedia"><i class="fab fa-linkedin-in"></i></span>
                     </div>
                 </div>
                 <div class="id-card">
@@ -1005,7 +1015,7 @@
                     <p class="role-tag">Data Science</p>
                     <div class="card-links">
                         <a href="https://github.com/raihaniasyahputri" target="_blank"><i class="fab fa-github"></i></a>
-                        <a href="https://rpubs.com/raihania496" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                        <span class="link-disabled" title="LinkedIn belum tersedia"><i class="fab fa-linkedin-in"></i></span>
                     </div>
                 </div>
                 <div class="id-card">
@@ -1016,7 +1026,7 @@
                     <p class="role-tag">Data Science</p>
                     <div class="card-links">
                         <a href="https://github.com/xcoliyyyzz1/cloi" target="_blank"><i class="fab fa-github"></i></a>
-                        <a href="https://rpubs.com/coliyyzzz1" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                        <span class="link-disabled" title="LinkedIn belum tersedia"><i class="fab fa-linkedin-in"></i></span>
                     </div>
                 </div>
                 <div class="id-card">
@@ -1024,11 +1034,11 @@
                         alt="Adinda">
                     <h4>Adinda Adelia Futri</h4>
                     <p class="nim">NIM: 52250055</p>
-                    <p class="role-tag">Data Science</p>
+                    <p class="role-tag">Student Admin</p>
                     <div class="card-links">
                         <a href="https://github.com/adindaadeliafutri6-gif" target="_blank"><i
                                 class="fab fa-github"></i></a>
-                        <a href="https://rpubs.com/futri0055" target="_blank"><i class="fas fa-chart-bar"></i></a>
+                        <span class="link-disabled" title="LinkedIn belum tersedia"><i class="fab fa-linkedin-in"></i></span>
                     </div>
                 </div>
             </div>
@@ -1158,15 +1168,21 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             {% for category, message in messages %}
-            Swal.fire({
-                icon: '{{ category }}' === 'error' ? 'error' : '{{ category }}' === 'info' ? 'info' : 'success',
-                title: '{{ category }}' === 'error' ? 'Oops...' : '{{ category }}' === 'info' ? '📂 Dataset Found' : '✅ Success!',
-                text: `{{ message }}`,
-                confirmButtonColor: '#4318ff',
-                timer: 4000,
-                timerProgressBar: true,
-                showConfirmButton: '{{ category }}' === 'error' ? true : false
-            });
+            (function() {
+                var cat  = {{ category | tojson }};
+                var msg  = {{ message  | tojson }};
+                var icon = (cat === 'error') ? 'error' : (cat === 'info' ? 'info' : 'success');
+                var title= (cat === 'error') ? 'Oops...' : (cat === 'info' ? '📂 Dataset Found' : '✅ Success!');
+                Swal.fire({
+                    icon: icon,
+                    title: title,
+                    text: msg,
+                    confirmButtonColor: '#4318ff',
+                    timer: 4000,
+                    timerProgressBar: true,
+                    showConfirmButton: (cat === 'error')
+                });
+            })();
             {% endfor %}
         });
     </script>

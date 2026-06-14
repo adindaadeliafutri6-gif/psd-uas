@@ -35,6 +35,7 @@ function switchTab(tabName) {
         visualizations: 'menu-visualizations',
         timeseries  : 'menu-timeseries',
         insights    : 'menu-insights',
+        report      : 'menu-report',
         ai          : 'menu-ai',
     };
     var menuId = menuMap[tabName];
@@ -82,7 +83,17 @@ function initThemeToggle() {
     if (!btn) return;
 
     var saved = localStorage.getItem('ds-theme');
-    if (saved === 'dark') applyDark(true, icon);
+    if (!saved) {
+        // default: respect user preference
+        try {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyDark(true, icon);
+                localStorage.setItem('ds-theme', 'dark');
+            }
+        } catch (e) {}
+    } else if (saved === 'dark') {
+        applyDark(true, icon);
+    }
 
     btn.addEventListener('click', function () {
         var isDark = document.body.getAttribute('data-theme') === 'dark';
@@ -93,24 +104,34 @@ function initThemeToggle() {
 
 function applyDark(dark, icon) {
     document.body.setAttribute('data-theme', dark ? 'dark' : 'light');
+
     if (!icon) icon = document.getElementById('theme-icon');
     if (icon) {
         icon.classList.toggle('fa-moon', !dark);
         icon.classList.toggle('fa-sun',   dark);
     }
+
+    // Update Plotly colors for readability
     setTimeout(function () {
         if (typeof Plotly === 'undefined') return;
-        document.querySelectorAll('[id^="plot-"],[id^="ov-"]').forEach(function (el) {
-            if (el._fullData) {
-                Plotly.relayout(el, {
-                    paper_bgcolor: 'rgba(0,0,0,0)',
-                    plot_bgcolor : 'rgba(0,0,0,0)',
-                    'font.color' : dark ? '#c8d8f0' : '#2b3674',
-                });
+        document.querySelectorAll('[id^="plot-"],[id^="ov-"],[id^="ts-"],[id="viz-master-plot"]').forEach(function (el) {
+            if (el && el._fullLayout) {
+                try {
+                    Plotly.relayout(el, {
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor : 'rgba(0,0,0,0)',
+                        'font.color' : dark ? '#c8d8f0' : '#2b3674',
+                    });
+                } catch (e) {}
             }
         });
     }, 80);
+
+
+    // Ensure tables reflow after theme change
+    setTimeout(adjustResponsiveTables, 120);
 }
+
 
 /* ─── TEAM MODAL ─────────────────────────────────────────────── */
 function initTeamModal() {
@@ -207,6 +228,34 @@ var TRANSLATIONS = {
         sdi_filename : 'File:',
         sdi_filesize : 'Size:',
         sdi_uploaded : 'Uploaded:',
+        /* Outlier badge */
+        outlier_badge_msg   : 'Data is valid — no missing values, duplicates, or inconsistencies.',
+        outlier_badge_suffix: 'detected (IQR). Data distribution is unique.',
+        outlier_badge_btn   : 'Handle Outlier',
+        /* Upload page */
+        upload_title        : 'Upload Dataset',
+        upload_subtitle     : 'Upload your data file to begin automatic exploratory analysis',
+        upload_select_title : 'Select Your File',
+        upload_select_desc  : 'Drag & drop or browse to upload. Max file size: 100 MB.',
+        upload_drop_title   : 'Drag & drop your file here',
+        upload_drop_desc    : 'Supported: .csv, .xlsx, .txt',
+        upload_browse       : 'Browse File',
+        upload_analyze      : 'Analyze Dataset',
+        upload_analyzing    : 'Analyzing…',
+        upload_secure       : 'Secure upload',
+        upload_fast         : 'Auto-EDA in seconds',
+        upload_max          : 'Max 100 MB',
+        upload_tip_title    : 'Pro tip:',
+        upload_tip_text     : 'For best results, ensure your CSV uses comma delimiters and the first row contains column headers. Datetime columns are auto-detected for time series analysis.',
+        upload_recent_title : 'Recent Datasets',
+        upload_recent_sub   : 'Click any previous dataset to instantly reload its analysis.',
+        upload_search_ph    : 'Search datasets...',
+        upload_empty_title  : 'No datasets yet',
+        upload_empty_desc   : 'Upload your first dataset to get started. It will appear here for quick access.',
+        upload_badge        : 'Analyzed',
+        upload_fi_name      : 'File Name',
+        upload_fi_size      : 'File Size',
+        upload_fi_format    : 'Format',
     },
     id: {
         /* Topbar */
@@ -282,6 +331,34 @@ var TRANSLATIONS = {
         sdi_filename : 'File:',
         sdi_filesize : 'Ukuran:',
         sdi_uploaded : 'Diunggah:',
+        /* Outlier badge */
+        outlier_badge_msg   : 'Data sudah valid — tidak ada missing, duplikat, atau inkonsistensi.',
+        outlier_badge_suffix: 'terdeteksi (IQR). Distribusi data bersifat unik.',
+        outlier_badge_btn   : 'Tangani Outlier',
+        /* Upload page */
+        upload_title        : 'Unggah Dataset',
+        upload_subtitle     : 'Unggah file data Anda untuk memulai analisis eksploratif otomatis',
+        upload_select_title : 'Pilih File Anda',
+        upload_select_desc  : 'Seret & lepas atau telusuri untuk mengunggah. Ukuran maks: 100 MB.',
+        upload_drop_title   : 'Seret & lepas file Anda di sini',
+        upload_drop_desc    : 'Didukung: .csv, .xlsx, .txt',
+        upload_browse       : 'Telusuri File',
+        upload_analyze      : 'Analisis Dataset',
+        upload_analyzing    : 'Menganalisis…',
+        upload_secure       : 'Unggah aman',
+        upload_fast         : 'Auto-EDA dalam hitungan detik',
+        upload_max          : 'Maks 100 MB',
+        upload_tip_title    : 'Tips pro:',
+        upload_tip_text     : 'Untuk hasil terbaik, pastikan CSV Anda menggunakan pemisah koma dan baris pertama berisi nama kolom. Kolom datetime akan terdeteksi otomatis untuk analisis deret waktu.',
+        upload_recent_title : 'Dataset Terbaru',
+        upload_recent_sub   : 'Klik dataset sebelumnya untuk memuat ulang analisisnya secara instan.',
+        upload_search_ph    : 'Cari dataset...',
+        upload_empty_title  : 'Belum ada dataset',
+        upload_empty_desc   : 'Unggah dataset pertama Anda untuk memulai. Dataset akan muncul di sini untuk akses cepat.',
+        upload_badge        : 'Dianalisis',
+        upload_fi_name      : 'Nama File',
+        upload_fi_size      : 'Ukuran File',
+        upload_fi_format    : 'Format',
     },
 };
 
@@ -293,6 +370,12 @@ function applyLanguage(lang) {
     document.querySelectorAll('[data-translate]').forEach(function (el) {
         var key = el.getAttribute('data-translate');
         if (t[key] !== undefined) el.textContent = t[key];
+    });
+
+    /* 1b. data-translate-placeholder for input placeholders */
+    document.querySelectorAll('[data-translate-placeholder]').forEach(function (el) {
+        var key = el.getAttribute('data-translate-placeholder');
+        if (t[key] !== undefined) el.setAttribute('placeholder', t[key]);
     });
 
     /* 2. Re-render insights in the selected language */
@@ -358,6 +441,10 @@ function applyLanguage(lang) {
     });
 
     localStorage.setItem('ds-lang', lang);
+
+    /* Keep selector in sync */
+    var sel = document.getElementById('lang-selector');
+    if (sel) sel.value = lang;
 }
 
 function initLanguageSelector() {
@@ -390,6 +477,11 @@ function initDataTables() {
                     { extend:'pdfHtml5',   text:'<i class="fas fa-file-pdf"></i> PDF',   className:'dt-btn',
                       orientation:'landscape', pageSize:'A4' },
                 ],
+                autoWidth  : false,
+                deferRender: true,
+                drawCallback: function () {
+                    this.api().columns.adjust();
+                },
                 language: {
                     search: '<i class="fas fa-search"></i>',
                     searchPlaceholder: 'Filter data...',
@@ -400,6 +492,19 @@ function initDataTables() {
             });
         }
     });
+    adjustResponsiveTables();
+}
+
+function adjustResponsiveTables() {
+    document.querySelectorAll('.table-scroll-wrapper table, table.data-table, table.simple-table').forEach(function (table) {
+        table.style.tableLayout = 'auto';
+        table.style.width = 'max-content';
+        table.style.minWidth = '100%';
+    });
+
+    if (typeof $ !== 'undefined' && $.fn && $.fn.DataTable) {
+        $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+    }
 }
 
 /* ─── AI CHAT ────────────────────────────────────────────────── */
@@ -524,7 +629,13 @@ document.addEventListener('DOMContentLoaded', function () {
     /* Trigger visible chart renders after DOM settles */
     setTimeout(function () {
         if (typeof renderVisibleCharts === 'function') renderVisibleCharts();
+        adjustResponsiveTables();
     }, 400);
+});
+
+window.addEventListener('resize', function () {
+    clearTimeout(window.__dsTableResizeTimer);
+    window.__dsTableResizeTimer = setTimeout(adjustResponsiveTables, 160);
 });
 
 /**

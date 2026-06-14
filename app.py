@@ -323,7 +323,7 @@ def _get_dashboard_context(filename):
     quality_report = analyze_quality(df)
 
     # ── Column detection ──────────────────────────────────────────────────────
-    num_cols, cat_cols = detect_data_types(df)
+    num_cols, cat_cols, ts_cols = detect_data_types(df)
 
     # ── GLOBAL DATA SANITIZATION ──────────────────────────────────────────────
     df_stats = sanitize_df_numeric_cols(df, num_cols)
@@ -337,8 +337,9 @@ def _get_dashboard_context(filename):
     # ── Advanced stats ────────────────────────────────────────────────────────
     advanced = get_advanced_stats(df_stats, num_cols, cat_cols)
 
-    # ── Time Series detection ─────────────────────────────────────────────────
-    dt_cols = detect_datetime_cols(df)
+    # ── Time Series detection (merge preprocessing ts_cols + legacy detector) ─
+    dt_cols_legacy = detect_datetime_cols(df)
+    dt_cols = list(set(ts_cols + dt_cols_legacy))
 
     # ── Dashboard overview ────────────────────────────────────────────────────
     overview = generate_overview_dashboard(
@@ -441,6 +442,84 @@ def _get_dashboard_context(filename):
         'cap_outliers'           : False,
     }
 
+    # ── Auto-generated recommendations for the Report tab ───────────────────
+    recommendations = []
+    # Based on data quality
+    if quality_report and hasattr(quality_report, 'get'):
+        warnings = quality_report.get('warnings', []) if isinstance(quality_report, dict) else []
+        if warnings:
+            recommendations.append({
+                'icon': 'fa-broom',
+                'title': 'Lakukan Data Cleaning',
+                'desc': f'Dataset memiliki {len(warnings)} warning kualitas data. '
+                        'Disarankan melakukan cleaning terlebih dahulu untuk hasil analisis yang lebih akurat.',
+                'priority': 'high',
+            })
+    # Based on missing data
+    total_missing = int(df.isna().sum().sum())
+    if total_missing > 0:
+        recommendations.append({
+            'icon': 'fa-exclamation-triangle',
+            'title': 'Tangani Missing Values',
+            'desc': f'Terdapat {total_missing:,} missing values pada dataset. '
+                    'Pertimbangkan untuk melakukan imputasi atau penghapusan baris yang tidak lengkap.',
+            'priority': 'high',
+        })
+    # Based on column types
+    if len(num_cols) >= 2:
+        recommendations.append({
+            'icon': 'fa-chart-line',
+            'title': 'Eksplorasi Analisis Bivariate',
+            'desc': f'Dataset memiliki {len(num_cols)} kolom numerik. '
+                    'Gunakan visualisasi Bivariate (Scatter, Heatmap) untuk menemukan pola korelasi antar variabel.',
+            'priority': 'medium',
+        })
+    if len(cat_cols) > 0 and len(num_cols) > 0:
+        recommendations.append({
+            'icon': 'fa-shuffle',
+            'title': 'Analisis Perbandingan Kelompok',
+            'desc': 'Kombinasi kolom kategorik dan numerik memungkinkan analisis Cat vs Num '
+                    '(Boxplot by Category, Violin, Grouped Bar) untuk membandingkan distribusi antar kelompok.',
+            'priority': 'medium',
+        })
+    if dt_cols:
+        recommendations.append({
+            'icon': 'fa-clock',
+            'title': 'Analisis Tren Waktu',
+            'desc': f'Kolom time series terdeteksi ({", ".join(dt_cols[:3])}). '
+                    'Manfaatkan menu Time Series untuk melihat tren, pola musiman, dan moving average.',
+            'priority': 'medium',
+        })
+    if not recommendations:
+        recommendations.append({
+            'icon': 'fa-check-circle',
+            'title': 'Data Siap Dianalisis',
+            'desc': 'Dataset dalam kondisi baik. Jelajahi berbagai menu visualisasi dan statistik untuk mendapatkan insight.',
+            'priority': 'low',
+        })
+
+    # ── Team members for the Report tab ──────────────────────────────────────
+    team_members = [
+        {'name': 'Carol Dupino Pereira',   'nim': '52250051', 'role': 'Data Science',
+         'photo': 'https://raw.githubusercontent.com/caroldupinopereira-cmyk/carol/main/carol_1-removebg-preview.png',
+         'github': 'https://github.com/caroldupinopereira-cmyk'},
+        {'name': 'Refantanur Husnul Haqib', 'nim': '52250052', 'role': 'Data Science',
+         'photo': 'https://raw.githubusercontent.com/adindaadeliafutri6-gif/refan/main/Foto_refan-removebg-preview.png',
+         'github': 'https://github.com/refantanjung23-wq'},
+        {'name': 'Cahaya Medina Semidang',  'nim': '52250053', 'role': 'Data Science',
+         'photo': 'https://raw.githubusercontent.com/cahayasemidang-max/foto/cfc8d91ef344fb1beba4eadb93e4be67168bc2b8/FotoCahaya.png',
+         'github': 'https://github.com/cahayasemidang-max'},
+        {'name': 'Raihania Syah Putri',     'nim': '52250054', 'role': 'Data Science',
+         'photo': 'https://raw.githubusercontent.com/raihaniasyahputri/Foto_lulu/696dc3e134536210f870e9d5230b8fbeaad40e0d/IMG-20251129-WA0001.png',
+         'github': 'https://github.com/raihaniasyahputri'},
+        {'name': 'Cloise Shafira',          'nim': '52250044', 'role': 'Data Science',
+         'photo': 'https://raw.githubusercontent.com/cahayasemidang-max/foto/b7534990c32ff093c6cb2faefc6282f5f6079296/FotoCloise.png',
+         'github': 'https://github.com/xcoliyyyzz1/cloi'},
+        {'name': 'Adinda Adelia Futri',     'nim': '52250055', 'role': 'Student Admin',
+         'photo': 'https://raw.githubusercontent.com/caroldupinopereira-cmyk/adinda/main/adinda_baru-removebg-preview.png',
+         'github': 'https://github.com/adindaadeliafutri6-gif'},
+    ]
+
     return {
         'filename'          : safe_name,
         'data_status'       : data_status,
@@ -469,6 +548,8 @@ def _get_dashboard_context(filename):
         'has_ts'            : bool(dt_cols),
         'dt_cols'           : dt_cols,
         'ts_meta'           : ts_meta,
+        'recommendations'   : recommendations,
+        'team_members'      : team_members,
     }
 
 
@@ -511,16 +592,17 @@ def download_report_pdf(filename):
     from backend.report_generator import generate_pdf_report
     try:
         generate_pdf_report(
-            temp_pdf_path,
-            safe_name,
-            df,
-            ctx['quality_report'],
-            ctx['metrics'],
-            ctx['num_stats'],
-            ctx['cat_stats'],
-            ctx['insights'],
-            ctx['cleaning_history'],
-            ctx['cleaning_summary']
+            dest_path=temp_pdf_path,
+            filename=safe_name,
+            df=df,
+            quality_full=ctx['quality_full'],
+            metrics=ctx['metrics'],
+            num_stats=ctx['num_stats'],
+            cat_stats=ctx['cat_stats'],
+            auto_insights=ctx['insights'],
+            cleaning_history=ctx['cleaning_history'],
+            cleaning_summary=ctx['cleaning_summary'],
+            image_paths=None
         )
         from flask import send_file
         return send_file(
@@ -881,8 +963,9 @@ def _load_analysis_df(filename):
             return None, None, None, None
         df, _ = clean_dataset(df_raw, {})
 
-    num_cols, cat_cols = detect_data_types(df)
-    dt_cols = detect_datetime_cols(df)
+    num_cols, cat_cols, ts_cols = detect_data_types(df)
+    dt_cols_legacy = detect_datetime_cols(df)
+    dt_cols = list(set(ts_cols + dt_cols_legacy))
     return df, num_cols, cat_cols, dt_cols
 
 

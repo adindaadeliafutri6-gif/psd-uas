@@ -6,6 +6,7 @@
   <title>Login - DS Generator</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <style>
     body {
@@ -148,40 +149,55 @@
       font-size: .78rem;
       line-height: 1.55;
     }
+
+    .login-lang-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 14px;
+    }
+    .login-lang-row select {
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: .82rem;
+      font-weight: 700;
+      cursor: pointer;
+      outline: none;
+    }
   </style>
 </head>
 <body>
   <div class="login-bg"></div>
   <main class="login-shell">
+    <!-- Language selector -->
+    <div class="login-lang-row">
+      <select id="lang-selector-standalone">
+        <option value="en">🌐 EN</option>
+        <option value="id">🇮🇩 ID</option>
+      </select>
+    </div>
+
     <div class="login-brand">
       <div class="login-brand-icon"><i class="fas fa-chart-simple"></i></div>
       <div>
-        <h1>Login DS Generator</h1>
-        <p>Masuk dulu agar dataset dan recent file tetap milik user masing-masing.</p>
+        <h1 data-i18n="login.title">Login DS Generator</h1>
+        <p data-i18n="login.subtitle">Masuk dulu agar dataset dan recent file tetap milik user masing-masing.</p>
       </div>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-      <div style="margin-bottom:14px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;font-size:.84rem;">
-        {{ message }}
-      </div>
-      {% endfor %}
-    {% endif %}
-    {% endwith %}
-
     <form class="login-form" method="POST" action="{{ url_for('login', next=next_url) }}">
       <div class="login-field">
-        <label for="name">Nama User</label>
+        <label for="name" data-i18n="login.name_label">Nama User</label>
         <div class="login-input-wrap">
           <i class="fas fa-user"></i>
-          <input id="name" name="name" type="text" placeholder="Contoh: Carol" required autofocus>
+          <input id="name" name="name" type="text" data-i18n-placeholder="login.name_ph" placeholder="Contoh: Carol" required autofocus>
         </div>
       </div>
 
       <div class="login-field">
-        <label for="role">Role</label>
+        <label for="role" data-i18n="login.role_label">Role</label>
         <div class="login-input-wrap">
           <i class="fas fa-briefcase"></i>
           <input id="role" name="role" type="text" value="Data Analyst">
@@ -189,12 +205,46 @@
       </div>
 
       <div class="login-actions">
-        <a class="login-btn secondary" href="{{ url_for('index') }}"><i class="fas fa-arrow-left"></i></a>
-        <button class="login-btn" type="submit"><i class="fas fa-right-to-bracket"></i> Login</button>
+        <a class="login-btn secondary" href="{{ url_for('index') }}" title="Back">
+          <i class="fas fa-arrow-left"></i>
+        </a>
+        <button class="login-btn" type="submit">
+          <i class="fas fa-right-to-bracket"></i>
+          <span data-i18n="login.btn_submit">Login</span>
+        </button>
       </div>
     </form>
 
-    <p class="login-note">Setiap user mendapat folder upload sendiri, jadi recent dataset dan session cleaning tidak akan tercampur.</p>
+    <p class="login-note" data-i18n="login.note">Setiap user mendapat folder upload sendiri, jadi recent dataset dan session cleaning tidak akan tercampur.</p>
   </main>
+
+  <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+
+  <!-- Flash messages via SweetAlert2 (no raw HTML entities) -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      {% for category, message in messages %}
+      (function() {
+        var cat  = {{ category | tojson }};
+        var msg  = {{ message  | tojson }};
+        var icon = (cat === 'error') ? 'error' : (cat === 'info' ? 'info' : 'success');
+        var title= (cat === 'error') ? 'Oops...' : (cat === 'info' ? 'ℹ️ Info' : '✅ Success!');
+        Swal.fire({
+          icon: icon,
+          title: title,
+          text: msg,
+          confirmButtonColor: '#4318ff',
+          timer: 4000,
+          timerProgressBar: true,
+          showConfirmButton: (cat === 'error')
+        });
+      })();
+      {% endfor %}
+    });
+  </script>
+  {% endif %}
+  {% endwith %}
 </body>
 </html>

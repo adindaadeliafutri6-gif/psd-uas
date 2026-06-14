@@ -7,7 +7,8 @@ Logika deteksi:
   2. Kolom numerik tapi isinya kode/kategori (< threshold unique ratio) → masuk cat_cols
   3. Kolom object tapi isinya angka semua → dicoba convert ke numerik
   4. Boolean → masuk cat_cols
-  5. Datetime → dikeluarkan dari keduanya (ditangani time_series.py)
+  5. Datetime / Time Series → dikeluarkan dari num_cols & cat_cols (ditangani time_series.py)
+     Deteksi: nama kolom mengandung keyword waktu + >80% nilai berhasil pd.to_datetime()
 """
 
 import pandas as pd
@@ -42,8 +43,21 @@ FORCE_NUM_PATTERNS = re.compile(
     r'|percent|pct|persen|suhu|temperature|temp|lat|lon|latitude|longitude'
     r'|distance|jarak|duration|durasi|time|waktu|hour|jam|minute|menit'
     r'|second|detik|speed|kecepatan|volume|kapasitas|capacity)(\b|_)',
+)
+
+# ── Pola keyword Time Series / Datetime ──────────────────────────────────────
+# Digunakan untuk mendeteksi kolom yang berpotensi berisi data waktu/tanggal.
+TS_KEYWORDS = re.compile(
+    r'(date|time|datetime|timestamp|day|month|year'
+    r'|tgl|tanggal|bulan|hari|waktu|jam|menit|detik'
+    r'|created|updated|modified|registered|joined'
+    r'|deadline|due_date|start_date|end_date'
+    r'|tanggal_|_date|_time|_at)',
     re.IGNORECASE
 )
+
+# Threshold minimal keberhasilan konversi pd.to_datetime (80%)
+TS_CONVERSION_THRESHOLD = 0.80
 
 
 def _is_id_column(series, col_name):
@@ -115,22 +129,63 @@ def _try_numeric_conversion(series):
     return None
 
 
+def _is_time_series_column(series, col_name):
+    """
+    Deteksi apakah kolom ini adalah Time Series / Datetime.
+
+    Syarat deteksi (keduanya harus terpenuhi):
+      1. Nama kolom mengandung keyword waktu (date, time, tgl, dsb.)
+      2. Nilai dalam kolom berhasil dikonversi ke pd.to_datetime()
+         dengan tingkat keberhasilan > 80%.
+
+    Kolom yang sudah bertipe datetime64 otomatis lolos tanpa syarat nama.
+
+    Returns:
+        bool: True jika kolom terdeteksi sebagai Time Series
+    """
+    # Sudah datetime dtype → langsung True
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return True
+
+    col_lower = col_name.lower()
+
+    # ── Syarat 1: Nama kolom mengandung keyword waktu ──────────────────────
+    has_ts_keyword = bool(TS_KEYWORDS.search(col_lower))
+
+    if not has_ts_keyword:
+        return False
+
+    # ── Syarat 2: >80% nilai berhasil dikonversi ke datetime ────────────────
+    sample = series.dropna()
+    if sample.empty:
+        return False
+
+    try:
+        parsed = pd.to_datetime(sample, errors='coerce', infer_datetime_format=True)
+        success_rate = parsed.notna().sum() / max(len(sample), 1)
+        return success_rate >= TS_CONVERSION_THRESHOLD
+    except Exception:
+        return False
+
+
 def detect_data_types(df):
     """
-    Klasifikasi kolom menjadi numerik dan kategorik secara cerdas.
+    Klasifikasi kolom menjadi numerik, kategorik, dan time series secara cerdas.
     
     Returns:
         num_cols (list): Kolom yang bermakna untuk analisis numerik/statistik
         cat_cols (list): Kolom kategorik (termasuk numerik yang bersifat kategorik)
+        ts_cols  (list): Kolom time series / datetime (untuk menu Time Series saja)
     
-    Kolom yang dikeluarkan dari keduanya:
-        - Kolom datetime (ditangani time_series.py)
+    Kolom yang dikeluarkan dari num_cols & cat_cols:
+        - Kolom datetime/time series (ditangani time_series.py)
         - Kolom ID/index murni
         - Kolom dengan semua nilai kosong
     """
     n_rows   = len(df)
     num_cols = []
     cat_cols = []
+    ts_cols  = []
 
     for col in df.columns:
         series = df[col]
@@ -139,8 +194,9 @@ def detect_data_types(df):
         if series.isna().all():
             continue
 
-        # ── Skip kolom datetime ───────────────────────────────────────────────
-        if pd.api.types.is_datetime64_any_dtype(series):
+        # ── Cek Time Series (datetime64 atau keyword + konversi) ─────────────
+        if _is_time_series_column(series, col):
+            ts_cols.append(col)
             continue
 
         # ── Skip kolom boolean → masuk cat ───────────────────────────────────
@@ -191,4 +247,4 @@ def detect_data_types(df):
         if hasattr(series, 'cat'):
             cat_cols.append(col)
 
-    return num_cols, cat_cols
+    return num_cols, cat_cols, ts_cols

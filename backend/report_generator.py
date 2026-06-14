@@ -1,18 +1,56 @@
+"""
+backend/report_generator.py
+─────────────────────────────────────────────────────────────────────────────
+Comprehensive PDF Report Generator — Auto-EDA Dashboard (Kelompok 2 ITSB)
+
+Sections (ordered):
+  1. Deskripsi Web   — Penjelasan fungsionalitas dashboard
+  2. Member          — Daftar anggota Kelompok 2 ITSB
+  3. Deskripsi Data  — Ringkasan statistik (dimensi, tipe, status cleaning)
+  4. Visual          — Histogram & Heatmap dari viz_engine / matplotlib
+  5. Insight         — Analisis singkat (tren, korelasi, distribusi)
+  6. Rekomendasi     — Saran strategis berbasis insight
+
+Fixes:
+  - TypeError 'list indices must be integers or slices, not str'
+    → uses quality_full (dict from get_quality_report) instead of
+      quality_report (list from analyze_quality)
+  - Every section wrapped in try-except → graceful N/A fallback
+  - Watermark 'CONFIDENTIAL - Kelompok 2 ITSB' on every page
+
+Dependencies: reportlab, matplotlib (optional fallback for images)
+─────────────────────────────────────────────────────────────────────────────
+"""
+
 import os
+import io
 import datetime
+import traceback
+
 import pandas as pd
 import numpy as np
+
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Image as RLImage, KeepTogether,
+)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfgen import canvas
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NumberedCanvas — two-pass pattern for 'Page X of Y' + header/footer
+# ─────────────────────────────────────────────────────────────────────────────
+
 class NumberedCanvas(canvas.Canvas):
     """
-    Two-pass canvas pattern to compute total page count dynamically.
-    Adds headers, footers, page lines, and page numbers 'Page X of Y'.
+    Two-pass canvas that counts total pages and draws header/footer/watermark.
+    Watermark: 'CONFIDENTIAL - Kelompok 2 ITSB' — transparent, diagonal.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states = []
@@ -25,567 +63,770 @@ class NumberedCanvas(canvas.Canvas):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
-            self.draw_page_decorations(num_pages)
+            self._draw_decorations(num_pages)
             super().showPage()
         super().save()
 
-    def draw_page_decorations(self, page_count):
+    def _draw_decorations(self, page_count):
         self.saveState()
+
+        # ── Watermark (every page, behind content) ──────────────────────────
+        self.setFont('Helvetica-Bold', 52)
+        self.setFillColor(colors.Color(0.75, 0.75, 0.80, alpha=0.10))
+        self.translate(306, 396)
+        self.rotate(38)
+        self.drawCentredString(0, 0, "CONFIDENTIAL")
+        self.setFont('Helvetica', 14)
+        self.setFillColor(colors.Color(0.75, 0.75, 0.80, alpha=0.12))
+        self.drawCentredString(0, -42, "Kelompok 2 ITSB")
+        self.rotate(-38)
+        self.translate(-306, -396)
+
+        # ── Header (pages 2+) ────────────────────────────────────────────────
         self.setFont("Helvetica", 8)
         self.setFillColor(colors.HexColor("#a3aed0"))
-        
-        # Header (on pages after the first page)
         if self._pageNumber > 1:
-            self.drawString(54, 750, "Data Science Generator Report — Kelompok 2")
+            self.drawString(54, 750, "Auto-EDA Dashboard Report  —  Kelompok 2 ITSB")
             self.setStrokeColor(colors.HexColor("#e0e5f2"))
             self.setLineWidth(0.5)
             self.line(54, 742, 558, 742)
-            
-        # Footer
+
+        # ── Footer ───────────────────────────────────────────────────────────
         page_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(558, 40, page_text)
-        self.drawString(54, 40, f"Descriptive Statistics & Quality Report | Generated: {datetime.datetime.now().strftime('%d %b %Y')}")
+        self.drawString(
+            54, 40,
+            f"Auto-EDA Report | Generated: {datetime.datetime.now().strftime('%d %b %Y %H:%M')}"
+        )
         self.setStrokeColor(colors.HexColor("#e0e5f2"))
         self.setLineWidth(0.5)
         self.line(54, 52, 558, 52)
-        
+
         self.restoreState()
 
 
-def draw_watermark(canvas_obj, doc):
-    """
-    Draws a transparent diagonal watermark 'CONFIDENTIAL' behind the content.
-    Called as template callback before flowables are drawn.
-    """
-    canvas_obj.saveState()
-    canvas_obj.setFont('Helvetica-Bold', 55)
-    canvas_obj.setFillColor(colors.HexColor('#e0e5f2'), alpha=0.12)
-    canvas_obj.translate(300, 400)
-    canvas_obj.rotate(42)
-    canvas_obj.drawCentredString(0, 0, "CONFIDENTIAL")
-    canvas_obj.setFont('Helvetica', 16)
-    canvas_obj.drawCentredString(0, -45, "DS GENERATOR - ITSB KELOMPOK 2")
-    canvas_obj.restoreState()
+# ─────────────────────────────────────────────────────────────────────────────
+# Defensive access helpers — never crash on missing/wrong-type keys
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _safe_get(obj, key, default=None):
+    """Safely get a key from a dict-like object."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return default
 
 
-def generate_pdf_report(dest_path, filename, df, quality_report, metrics, num_stats, cat_stats, auto_insights, cleaning_history, cleaning_summary):
+def _safe_summary(quality_full):
+    """Return the 'summary' sub-dict from quality_full, or empty dict."""
+    return _safe_get(quality_full, 'summary', {})
+
+
+def _safe_columns(quality_full):
+    """Return the 'columns' list from quality_full, or empty list."""
+    cols = _safe_get(quality_full, 'columns', [])
+    return cols if isinstance(cols, list) else []
+
+
+def _safe_warnings(quality_full):
+    """Return the 'warnings' list from quality_full, or empty list."""
+    warns = _safe_get(quality_full, 'warnings', [])
+    return warns if isinstance(warns, list) else []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Image helpers — load from path or generate with matplotlib fallback
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _try_load_image(image_path, max_width=500, max_height=300):
     """
-    Generates a comprehensive PDF data quality, cleaning alur, and descriptive statistics report.
+    Load an image file and return a ReportLab Image flowable,
+    scaled proportionally to fit within max_width x max_height.
+    Returns None on failure.
     """
-    # 1. Setup Document
+    if not image_path or not os.path.isfile(image_path):
+        return None
+    try:
+        from PIL import Image as PILImage
+        pil_img = PILImage.open(image_path)
+        w, h = pil_img.size
+        if w == 0 or h == 0:
+            return None
+        scale = min(max_width / w, max_height / h, 1.0)
+        return RLImage(image_path, width=w * scale, height=h * scale)
+    except Exception:
+        return None
+
+
+def _generate_histogram_image(df, num_cols):
+    """Generate a histogram PNG in memory using matplotlib; return BytesIO or None."""
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+
+        col = num_cols[0] if num_cols else None
+        if not col or col not in df.columns:
+            return None
+
+        series = pd.to_numeric(df[col], errors='coerce').dropna()
+        if series.empty:
+            return None
+
+        fig, ax = plt.subplots(figsize=(6, 3.5), dpi=100)
+        ax.hist(series, bins=25, color='#4ECDC4', edgecolor='white', alpha=0.85)
+        ax.set_title(f'Histogram: {col}', fontsize=10, color='#1b254b')
+        ax.set_xlabel(col, fontsize=8)
+        ax.set_ylabel('Frequency', fontsize=8)
+        ax.tick_params(labelsize=7)
+        fig.tight_layout()
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+    except Exception:
+        return None
+
+
+def _generate_heatmap_image(df, num_cols):
+    """Generate a correlation heatmap PNG in memory; return BytesIO or None."""
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+
+        valid = [c for c in num_cols[:10] if c in df.columns]
+        if len(valid) < 2:
+            return None
+
+        df_num = df[valid].apply(pd.to_numeric, errors='coerce').dropna()
+        if df_num.empty or df_num.shape[1] < 2:
+            return None
+
+        corr = df_num.corr()
+        fig, ax = plt.subplots(figsize=(6, 4.5), dpi=100)
+        im = ax.imshow(corr.values, cmap='RdBu_r', vmin=-1, vmax=1, aspect='auto')
+        ax.set_xticks(range(len(corr.columns)))
+        ax.set_yticks(range(len(corr.columns)))
+        ax.set_xticklabels(corr.columns, rotation=45, ha='right', fontsize=7)
+        ax.set_yticklabels(corr.columns, fontsize=7)
+        ax.set_title('Correlation Heatmap', fontsize=10, color='#1b254b')
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        fig.tight_layout()
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+    except Exception:
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Styles
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_styles():
+    """Build and return all ParagraphStyle objects used in the report."""
+    base = getSampleStyleSheet()
+
+    def _make(name, **kw):
+        return ParagraphStyle(name, parent=base['Normal'], **kw)
+
+    return {
+        'title': _make(
+            'CoverTitle',
+            fontName='Helvetica-Bold', fontSize=20, leading=24,
+            textColor=colors.HexColor('#1b254b'), spaceAfter=6,
+        ),
+        'subtitle': _make(
+            'CoverSubtitle',
+            fontName='Helvetica', fontSize=11, leading=15,
+            textColor=colors.HexColor('#4318ff'), spaceAfter=15,
+        ),
+        'h1': _make(
+            'H1',
+            fontName='Helvetica-Bold', fontSize=12, leading=15,
+            textColor=colors.HexColor('#1b254b'), spaceBefore=14,
+            spaceAfter=8, keepWithNext=True,
+        ),
+        'h2': _make(
+            'H2',
+            fontName='Helvetica-Bold', fontSize=10, leading=13,
+            textColor=colors.HexColor('#4318ff'), spaceBefore=10,
+            spaceAfter=5, keepWithNext=True,
+        ),
+        'body': _make(
+            'Body',
+            fontName='Helvetica', fontSize=8.5, leading=12,
+            textColor=colors.HexColor('#4a5568'), spaceAfter=6,
+        ),
+        'th': _make(
+            'TH',
+            fontName='Helvetica-Bold', fontSize=8, leading=10,
+            textColor=colors.white,
+        ),
+        'td': _make(
+            'TD',
+            fontName='Helvetica', fontSize=7.5, leading=9,
+            textColor=colors.HexColor('#1b254b'),
+        ),
+        'warn': _make(
+            'Warn',
+            fontName='Helvetica', fontSize=8, leading=10,
+            textColor=colors.HexColor('#856404'),
+        ),
+        'na': _make(
+            'NA',
+            fontName='Helvetica-Oblique', fontSize=8.5, leading=11,
+            textColor=colors.HexColor('#a0aec0'), spaceAfter=4,
+        ),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Table style presets
+# ─────────────────────────────────────────────────────────────────────────────
+
+HEADER_BG  = colors.HexColor('#111c44')
+ALT_ROW    = [colors.white, colors.HexColor('#f8f9fa')]
+GRID_COLOR = colors.HexColor('#e2e8f0')
+
+
+def _header_table_style():
+    return TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0), HEADER_BG),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING',    (0, 0), (-1, -1), 4),
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), ALT_ROW),
+        ('GRID',          (0, 0), (-1, -1), 0.5, GRID_COLOR),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+    ])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main entry point
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_pdf_report(
+    dest_path,
+    filename,
+    df,
+    quality_full,
+    metrics,
+    num_stats,
+    cat_stats,
+    auto_insights,
+    cleaning_history,
+    cleaning_summary,
+    image_paths=None,
+):
+    """
+    Generates a comprehensive PDF report with the following sections:
+      1. Deskripsi Web    2. Member    3. Deskripsi Data
+      4. Visual           5. Insight   6. Rekomendasi
+
+    Parameters
+    ----------
+    dest_path      : str   — absolute output PDF path
+    filename       : str   — dataset filename (for display)
+    df             : pd.DataFrame — current (cleaned or raw) DataFrame
+    quality_full   : dict  — from get_quality_report(); keys: summary, columns, warnings
+    metrics        : dict  — from get_summary_metrics()
+    num_stats      : list  — descriptive stats for numeric columns
+    cat_stats      : list  — descriptive stats for categorical columns
+    auto_insights  : list  — from generate_auto_insights()
+    cleaning_history : list — cleaning pipeline labels
+    cleaning_summary : dict — before/after cleaning metrics
+    image_paths    : dict  — optional {'histogram': path, 'heatmap': path}
+    """
+
+    # ── Document setup ───────────────────────────────────────────────────────
     doc = SimpleDocTemplate(
         dest_path,
         pagesize=letter,
-        leftMargin=54,
-        rightMargin=54,
-        topMargin=72,
-        bottomMargin=72
-    )
-    
-    styles = getSampleStyleSheet()
-    
-    # Define custom styles
-    title_style = ParagraphStyle(
-        'CoverTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=20,
-        leading=24,
-        textColor=colors.HexColor('#1b254b'),
-        spaceAfter=6
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'CoverSubtitle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=11,
-        leading=15,
-        textColor=colors.HexColor('#4318ff'),
-        spaceAfter=15
-    )
-    
-    h1_style = ParagraphStyle(
-        'Header1',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=15,
-        textColor=colors.HexColor('#1b254b'),
-        spaceBefore=14,
-        spaceAfter=8,
-        keepWithNext=True
-    )
-    
-    h2_style = ParagraphStyle(
-        'Header2',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=10,
-        leading=13,
-        textColor=colors.HexColor('#4318ff'),
-        spaceBefore=10,
-        spaceAfter=5,
-        keepWithNext=True
-    )
-    
-    body_style = ParagraphStyle(
-        'BodyTextCustom',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8.5,
-        leading=12,
-        textColor=colors.HexColor('#4a5568'),
-        spaceAfter=6
-    )
-    
-    th_style = ParagraphStyle(
-        'TableHeader',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=8,
-        leading=10,
-        textColor=colors.white
-    )
-    
-    td_style = ParagraphStyle(
-        'TableCell',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7.5,
-        leading=9,
-        textColor=colors.HexColor('#1b254b')
-    )
-    
-    warning_style = ParagraphStyle(
-        'WarningText',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor('#856404')
+        leftMargin=54, rightMargin=54,
+        topMargin=72,  bottomMargin=72,
     )
 
+    S = _build_styles()
     story = []
-    
-    # ─── COVER PAGE ───
-    # Top Decorative Banner
-    banner_data = [[Paragraph("DATA SCIENCE GENERATOR SYSTEM", ParagraphStyle('B', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white, leading=12))]]
-    banner_table = Table(banner_data, colWidths=[504])
-    banner_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#4318ff')),
-        ('TOPPADDING', (0,0), (-1,-1), 10),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-    ]))
-    story.append(banner_table)
-    story.append(Spacer(1, 15))
-    
-    story.append(Paragraph("Dataset Quality & Descriptive Statistics Report", title_style))
-    story.append(Paragraph(f"Analysis and decision-support report for: {filename}", subtitle_style))
-    story.append(Spacer(1, 8))
-    
-    # 1. Deskripsi Web Kita
-    story.append(Paragraph("1. TENTANG DS GENERATOR", h1_style))
-    desc_web = (
-        "<b>DS Generator (Descriptive Statistics Generator)</b> adalah sebuah platform analisis data "
-        "otomatis berbasis web yang dirancang khusus oleh <b>Kelompok 2 Data Science ITSB</b>. "
-        "Aplikasi ini membantu HR, analis data, dan pengambil keputusan bisnis dalam mengunggah dataset, "
-        "menganalisis kesehatan data (quality audit), membersihkan data yang kotor (data cleaning), "
-        "menghitung statistik deskriptif tingkat lanjut, memvisualisasikan temuan secara interaktif, "
-        "serta merumuskan rekomendasi keputusan strategis berbasis data secara real-time."
-    )
-    story.append(Paragraph(desc_web, body_style))
-    story.append(Spacer(1, 8))
-    
-    # 2. Member (Kelompok 2)
-    story.append(Paragraph("2. ANGGOTA TIM PENGEMBANG (KELOMPOK 2)", h1_style))
-    member_data = [
-        [Paragraph("<b>Nama Lengkap</b>", th_style), Paragraph("<b>NIM</b>", th_style), Paragraph("<b>Peran / Fokus Analisis</b>", th_style)],
-        [Paragraph("Carol Dupino Pereira", td_style), Paragraph("52250051", td_style), Paragraph("Descriptive & Advanced Statistics Engine", td_style)],
-        [Paragraph("Refantanur Husnul Haqib", td_style), Paragraph("52250052", td_style), Paragraph("Visualizations & Dynamic Plotly Dashboard", td_style)],
-        [Paragraph("Cahaya Medina Semidang", td_style), Paragraph("52250053", td_style), Paragraph("Data Preprocessing & Sanitizer Module", td_style)],
-        [Paragraph("Raihania Syah Putri", td_style), Paragraph("52250054", td_style), Paragraph("Time Series Forecasting & Trends Panel", td_style)],
-        [Paragraph("Cloise Shafira", td_style), Paragraph("52250044", td_style), Paragraph("Smart Insights Generation Algorithm", td_style)],
-        [Paragraph("Adinda Adelia Futri", td_style), Paragraph("52250055", td_style), Paragraph("Reporting System PDF/Excel & Security Sanitization", td_style)]
-    ]
-    member_table = Table(member_data, colWidths=[180, 100, 224])
-    member_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111c44')),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-    ]))
-    story.append(member_table)
-    story.append(PageBreak())
-    
-    # 3. Deskripsi Data
-    story.append(Paragraph("3. DESKRIPSI DATA & RINGKASAN EKSEKUTIF", h1_style))
-    
-    status_label = "RAW DATA (Perlu Pembersihan)" if quality_report['summary']['needs_cleaning'] else "CLEAN DATA (Bersih)"
-    status_color = "#e53e3e" if quality_report['summary']['needs_cleaning'] else "#38a169"
-    
-    # Metadata info table
-    meta_info = [
-        [Paragraph("<b>Nama File Dataset:</b>", body_style), Paragraph(filename, body_style)],
-        [Paragraph("<b>Waktu Analisis:</b>", body_style), Paragraph(datetime.datetime.now().strftime('%d %B %Y, %H:%M:%S'), body_style)],
-        [Paragraph("<b>Status Kebersihan:</b>", body_style), Paragraph(f"<font color='{status_color}'><b>{status_label}</b></font>", body_style)],
-        [Paragraph("<b>Total Baris (Observasi):</b>", body_style), Paragraph(str(metrics.get('total_rows', len(df))), body_style)],
-        [Paragraph("<b>Total Kolom (Variabel):</b>", body_style), Paragraph(str(metrics.get('total_columns', len(df.columns))), body_style)],
-        [Paragraph("<b>Variabel Numerik:</b>", body_style), Paragraph(str(metrics.get('num_count', 0)), body_style)],
-        [Paragraph("<b>Variabel Kategorikal:</b>", body_style), Paragraph(str(metrics.get('cat_count', 0)), body_style)]
-    ]
-    meta_table = Table(meta_info, colWidths=[150, 354])
-    meta_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-    ]))
-    story.append(meta_table)
-    story.append(Spacer(1, 10))
-    
-    # KPI Box
-    kpis = [
-        [
-            Paragraph("<b>Missing Cells (Sel Kosong)</b>", ParagraphStyle('H', parent=body_style, fontName='Helvetica-Bold')),
-            Paragraph("<b>Duplicate Rows (Baris Duplikat)</b>", ParagraphStyle('H', parent=body_style, fontName='Helvetica-Bold')),
-            Paragraph("<b>IQR Outliers (Nilai Ekstrem)</b>", ParagraphStyle('H', parent=body_style, fontName='Helvetica-Bold'))
-        ],
-        [
-            Paragraph(f"<font size=11 color='#2d3748'><b>{quality_report['summary']['missing_cells']}</b></font><br/><font size=7 color='#718096'>({quality_report['summary']['missing_pct']}%)</font>", body_style),
-            Paragraph(f"<font size=11 color='#2d3748'><b>{quality_report['summary']['duplicate_rows']}</b></font>", body_style),
-            Paragraph(f"<font size=11 color='#2d3748'><b>{quality_report['summary']['total_outliers']}</b></font>", body_style)
+
+    # ── Cover banner ─────────────────────────────────────────────────────────
+    try:
+        banner_data = [[Paragraph(
+            "AUTO-EDA DASHBOARD  ·  DATA SCIENCE GENERATOR SYSTEM",
+            ParagraphStyle('Banner', fontName='Helvetica-Bold',
+                           fontSize=10, textColor=colors.white, leading=12),
+        )]]
+        banner = Table(banner_data, colWidths=[504])
+        banner.setStyle(TableStyle([
+            ('BACKGROUND',    (0, 0), (-1, -1), colors.HexColor('#4318ff')),
+            ('TOPPADDING',    (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
+        ]))
+        story.append(banner)
+        story.append(Spacer(1, 15))
+    except Exception:
+        pass
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 1 · DESKRIPSI WEB
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("1. TENTANG AUTO-EDA DASHBOARD", S['h1']))
+        desc_web = (
+            "<b>Auto-EDA Dashboard (DS Generator)</b> adalah platform analisis data otomatis "
+            "berbasis web yang dikembangkan oleh <b>Kelompok 2 Data Science ITSB</b>. "
+            "Aplikasi ini dirancang untuk membantu analis data, manajer, dan pengambil keputusan "
+            "bisnis dalam melakukan: (1) unggah dan validasi dataset, (2) audit kesehatan data "
+            "(quality audit), (3) pembersihan data interaktif (data cleaning), (4) perhitungan "
+            "statistik deskriptif dan lanjutan, (5) visualisasi pola data secara interaktif, "
+            "serta (6) perumusan insight dan rekomendasi strategis berbasis data secara otomatis "
+            "dan real-time."
+        )
+        story.append(Paragraph(desc_web, S['body']))
+        story.append(Spacer(1, 8))
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Deskripsi Web tidak dapat dimuat]</i>", S['na']))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 2 · MEMBER
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("2. ANGGOTA TIM PENGEMBANG (KELOMPOK 2 ITSB)", S['h1']))
+        members = [
+            [Paragraph("<b>Nama Lengkap</b>",            S['th']),
+             Paragraph("<b>NIM</b>",                      S['th']),
+             Paragraph("<b>Peran / Fokus Analisis</b>",   S['th'])],
+            [Paragraph("Carol Dupino Pereira",           S['td']),
+             Paragraph("52250051",                        S['td']),
+             Paragraph("Descriptive & Advanced Statistics Engine", S['td'])],
+            [Paragraph("Refantanur Husnul Haqib",        S['td']),
+             Paragraph("52250052",                        S['td']),
+             Paragraph("Visualizations & Dynamic Plotly Dashboard", S['td'])],
+            [Paragraph("Cahaya Medina Semidang",         S['td']),
+             Paragraph("52250053",                        S['td']),
+             Paragraph("Data Preprocessing & Sanitizer Module", S['td'])],
+            [Paragraph("Raihania Syah Putri",            S['td']),
+             Paragraph("52250054",                        S['td']),
+             Paragraph("Time Series Forecasting & Trends Panel", S['td'])],
+            [Paragraph("Cloise Shafira",                 S['td']),
+             Paragraph("52250044",                        S['td']),
+             Paragraph("Smart Insights Generation Algorithm", S['td'])],
+            [Paragraph("Adinda Adelia Futri",            S['td']),
+             Paragraph("52250055",                        S['td']),
+             Paragraph("Reporting System PDF/Excel & Security Sanitization", S['td'])],
         ]
-    ]
-    kpi_table = Table(kpis, colWidths=[168, 168, 168])
-    kpi_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f7fafc')),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e0')),
-        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e0')),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-    ]))
-    story.append(kpi_table)
-    story.append(Spacer(1, 10))
-    
-    # Quality warnings listed dynamically
-    if quality_report['warnings']:
-        story.append(Paragraph("Identifikasi Masalah Kualitas Data:", ParagraphStyle('Sub', parent=h1_style, fontSize=9, leading=11)))
-        warnings_box = []
-        for w in quality_report['warnings']:
-            warnings_box.append([Paragraph("•", warning_style), Paragraph(w, warning_style)])
-        
-        warn_table = Table(warnings_box, colWidths=[15, 489])
-        warn_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#fff3cd')),
-            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#ffeeba')),
-            ('TOPPADDING', (0,0), (-1,-1), 3),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ]))
-        story.append(warn_table)
-        
-    story.append(PageBreak())
-    
-    # 8. Alur Proses Data Cleaning
-    story.append(Paragraph("8. ALUR PROSES DATA CLEANING (DATA PIPELINE)", h1_style))
-    flow_desc = (
-        "Untuk memastikan integritas analisis statistik, dataset diproses melalui 5 tahapan alur data cleaning "
-        "berikut di backend engine DS Generator:<br/><br/>"
-        "<b>1. Audit Kesehatan (Data Profiling):</b> Memindai dataset untuk mendeteksi sel kosong (NaN), "
-        "baris duplikat, inkonsistensi penulisan teks, dan nilai outlier numerik melalui metode IQR.<br/>"
-        "<b>2. Standarisasi Teks (Text Normalization):</b> Menghilangkan spasi berlebih (whitespace stripping) "
-        "dan menyeragamkan bentuk penulisan huruf (Mixed/Title/Lower/Upper Case).<br/>"
-        "<b>3. Penanganan Data Hilang (Imputation):</b> Mengisi sel kosong menggunakan nilai statistik deskriptif "
-        "seperti mean (numerik terdistribusi normal), median (numerik miring/outliers), modus (kategorikal), "
-        "atau menghapus baris bersangkutan jika tingkat kerusakan ekstrim.<br/>"
-        "<b>4. Pembersihan Outlier (Anomaly Capping):</b> Menetralkan dampak nilai ekstrim menggunakan pembatasan "
-        "batas atas/bawah IQR (capping) atau memfilter data di luar distribusi normal.<br/>"
-        "<b>5. Penyaringan Kolom Tidak Relevan (Irrelevant Drop):</b> Mengabaikan atau menghapus kolom dengan "
-        "variansi nol (konstan) atau rasio keunikan terlalu tinggi (seperti ID atau teks acak) yang mengaburkan pola bisnis."
-    )
-    story.append(Paragraph(flow_desc, body_style))
-    story.append(Spacer(1, 10))
-    
-    # 9. Penjelasan Perbedaan Data After dan Before Cleaning
-    story.append(Paragraph("9. PERBANDINGAN METRIK SEBELUM & SESUDAH CLEANING", h1_style))
-    
-    # Pull before/after from cleaning_summary
-    sb = cleaning_summary
-    rows_b = sb.get('rows_before', len(df))
-    rows_a = sb.get('rows_after', len(df))
-    cols_b = sb.get('cols_before', len(df.columns))
-    cols_a = sb.get('cols_after', len(df.columns))
-    miss_b = sb.get('missing_before', 0)
-    miss_a = sb.get('missing_after', 0)
-    miss_p_b = sb.get('missing_pct_before', 0.0)
-    miss_p_a = sb.get('missing_pct_after', 0.0)
-    dups_rem = sb.get('duplicates_removed', 0)
-    
-    diff_data = [
-        [Paragraph("<b>Metrik Kesehatan Data</b>", th_style), Paragraph("<b>Sebelum (Raw)</b>", th_style), Paragraph("<b>Sesudah (Cleaned)</b>", th_style), Paragraph("<b>Perubahan / Dampak</b>", th_style)],
-        [Paragraph("Jumlah Baris Data (Observasi)", td_style), Paragraph(str(rows_b), td_style), Paragraph(str(rows_a), td_style), Paragraph(f"Dihapus: {rows_b - rows_a} baris (duplikat/kosong)", td_style)],
-        [Paragraph("Jumlah Kolom Data (Variabel)", td_style), Paragraph(str(cols_b), td_style), Paragraph(str(cols_a), td_style), Paragraph(f"Dihapus: {cols_b - cols_a} kolom tidak relevan", td_style)],
-        [Paragraph("Jumlah Sel Kosong (Missing)", td_style), Paragraph(f"{miss_b} ({miss_p_b}%)", td_style), Paragraph(f"{miss_a} ({miss_p_a}%)", td_style), Paragraph(f"Berhasil diisi/dibersihkan: {miss_b - miss_a} sel", td_style)],
-        [Paragraph("Baris Duplikat Terhapus", td_style), Paragraph(str(dups_rem + (rows_b - rows_a if dups_rem==0 else 0)), td_style), Paragraph("0", td_style), Paragraph("Redundansi data 100% dihilangkan", td_style)]
-    ]
-    diff_table = Table(diff_data, colWidths=[174, 100, 100, 130])
-    diff_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111c44')),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-    ]))
-    story.append(diff_table)
-    story.append(Spacer(1, 10))
+        mt = Table(members, colWidths=[180, 100, 224])
+        mt.setStyle(_header_table_style())
+        story.append(mt)
+        story.append(PageBreak())
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Member tidak dapat dimuat]</i>", S['na']))
 
-    # 10. Penjelasan Setiap Kolom yang di Cleaning (Log Aksi)
-    story.append(Paragraph("10. LOG TINDAKAN PEMBERSIHAN DETIL PER KOLOM", h1_style))
-    cleaning_logs = sb.get('log', [])
-    if cleaning_logs:
-        log_rows = [[Paragraph("<b>Keterangan Modifikasi Data Kolom</b>", th_style)]]
-        for l in cleaning_logs:
-            log_rows.append([Paragraph(f"• {l}", td_style)])
-        log_table = Table(log_rows, colWidths=[504])
-        log_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4a5568')),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e0')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ]))
-        story.append(log_table)
-    else:
-        story.append(Paragraph("<i>Belum ada tindakan cleaning spesifik yang diterapkan pada kolom. Data saat ini masih dalam kondisi awal.</i>", body_style))
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 3 · DESKRIPSI DATA
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("3. DESKRIPSI DATA & RINGKASAN EKSEKUTIF", S['h1']))
 
-    story.append(PageBreak())
-    
-    # 3. Deskripsi Data (Health table)
-    story.append(Paragraph("1. Data Health & Column Details Table", h1_style))
-    col_headers = [
-        Paragraph("Column Name", th_style),
-        Paragraph("Type", th_style),
-        Paragraph("Missing (%)", th_style),
-        Paragraph("Unique", th_style),
-        Paragraph("Outliers", th_style),
-        Paragraph("Status / Issues", th_style)
-    ]
-    col_rows = [col_headers]
-    for c in quality_report['columns']:
-        status_text = c['issues']
-        if status_text == 'OK':
-            status_p = Paragraph("<font color='#38a169'><b>OK</b></font>", td_style)
+        summary  = _safe_summary(quality_full)
+        needs_cleaning = summary.get('needs_cleaning', True)
+        status_label = "RAW DATA (Perlu Pembersihan)" if needs_cleaning else "CLEAN DATA (Bersih)"
+        status_color = "#e53e3e" if needs_cleaning else "#38a169"
+
+        total_rows    = summary.get('total_rows',    _safe_get(metrics, 'total_rows',    len(df)))
+        total_cols    = summary.get('total_cols',
+                        summary.get('total_columns', _safe_get(metrics, 'total_columns', len(df.columns))))
+        missing_cells = summary.get('missing_cells', 0)
+        missing_pct   = summary.get('missing_pct',   0.0)
+        duplicate_rows= summary.get('duplicate_rows',0)
+        total_outliers= summary.get('total_outliers',0)
+
+        meta_info = [
+            [Paragraph("<b>Nama File Dataset:</b>",        S['body']),
+             Paragraph(filename,                            S['body'])],
+            [Paragraph("<b>Waktu Analisis:</b>",           S['body']),
+             Paragraph(datetime.datetime.now().strftime('%d %B %Y, %H:%M:%S'), S['body'])],
+            [Paragraph("<b>Status Kebersihan:</b>",        S['body']),
+             Paragraph(f"<font color='{status_color}'><b>{status_label}</b></font>", S['body'])],
+            [Paragraph("<b>Total Baris (Observasi):</b>",  S['body']),
+             Paragraph(str(total_rows),                     S['body'])],
+            [Paragraph("<b>Total Kolom (Variabel):</b>",   S['body']),
+             Paragraph(str(total_cols),                     S['body'])],
+            [Paragraph("<b>Variabel Numerik:</b>",         S['body']),
+             Paragraph(str(_safe_get(metrics, 'num_count', 0)), S['body'])],
+            [Paragraph("<b>Variabel Kategorikal:</b>",     S['body']),
+             Paragraph(str(_safe_get(metrics, 'cat_count', 0)), S['body'])],
+        ]
+        meta_table = Table(meta_info, colWidths=[150, 354])
+        meta_table.setStyle(TableStyle([
+            ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('TOPPADDING',    (0, 0), (-1, -1), 3),
+            ('LINEBELOW',     (0, 0), (-1, -1), 0.5, GRID_COLOR),
+        ]))
+        story.append(meta_table)
+        story.append(Spacer(1, 10))
+
+        # KPI Box
+        kpis = [
+            [Paragraph("<b>Missing Cells</b>",   S['th']),
+             Paragraph("<b>Duplicate Rows</b>",  S['th']),
+             Paragraph("<b>IQR Outliers</b>",    S['th'])],
+            [Paragraph(
+                f"<font size=11 color='#2d3748'><b>{missing_cells}</b></font>"
+                f"<br/><font size=7 color='#718096'>({missing_pct}%)</font>", S['body']),
+             Paragraph(f"<font size=11 color='#2d3748'><b>{duplicate_rows}</b></font>", S['body']),
+             Paragraph(f"<font size=11 color='#2d3748'><b>{total_outliers}</b></font>", S['body'])],
+        ]
+        kpi_table = Table(kpis, colWidths=[168, 168, 168])
+        kpi_table.setStyle(TableStyle([
+            ('BACKGROUND',    (0, 0), (-1, -1), colors.HexColor('#f7fafc')),
+            ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOX',           (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e0')),
+            ('INNERGRID',     (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e0')),
+            ('TOPPADDING',    (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(kpi_table)
+        story.append(Spacer(1, 10))
+
+        # Warnings
+        warnings = _safe_warnings(quality_full)
+        if warnings:
+            story.append(Paragraph("Identifikasi Masalah Kualitas Data:", S['h2']))
+            warn_rows = [[Paragraph("•", S['warn']), Paragraph(w, S['warn'])] for w in warnings]
+            wt = Table(warn_rows, colWidths=[15, 489])
+            wt.setStyle(TableStyle([
+                ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
+                ('BACKGROUND',    (0, 0), (-1, -1), colors.HexColor('#fff3cd')),
+                ('BOX',           (0, 0), (-1, -1), 0.5, colors.HexColor('#ffeeba')),
+                ('TOPPADDING',    (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ]))
+            story.append(wt)
+            story.append(Spacer(1, 8))
+
+        # Column health table
+        columns_info = _safe_columns(quality_full)
+        if columns_info:
+            story.append(Paragraph("Detail Kesehatan Per Kolom:", S['h2']))
+            col_rows = [[
+                Paragraph("Kolom",       S['th']),
+                Paragraph("Tipe",        S['th']),
+                Paragraph("Missing (%)", S['th']),
+                Paragraph("Unique",      S['th']),
+                Paragraph("Outliers",    S['th']),
+                Paragraph("Status",      S['th']),
+            ]]
+            for c in columns_info:
+                if not isinstance(c, dict):
+                    continue
+                issues    = c.get('issues', 'OK')
+                status_p  = (
+                    Paragraph("<font color='#38a169'><b>OK</b></font>", S['td'])
+                    if issues == 'OK' else
+                    Paragraph(f"<font color='#e53e3e'><b>{issues}</b></font>", S['td'])
+                )
+                col_rows.append([
+                    Paragraph(str(c.get('column', '')),                       S['td']),
+                    Paragraph(str(c.get('dtype', '')),                        S['td']),
+                    Paragraph(f"{c.get('missing', 0)} ({c.get('missing_pct', 0)}%)", S['td']),
+                    Paragraph(str(c.get('unique', 0)),                        S['td']),
+                    Paragraph(str(c.get('outliers', 0)),                      S['td']),
+                    status_p,
+                ])
+            ct = Table(col_rows, colWidths=[110, 65, 85, 50, 55, 139])
+            ct.setStyle(_header_table_style())
+            story.append(ct)
+
+        story.append(PageBreak())
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Deskripsi Data tidak dapat dimuat — N/A]</i>", S['na']))
+        story.append(PageBreak())
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 3b · DATA CLEANING PIPELINE & BEFORE/AFTER (kept from original)
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("3a. ALUR PROSES DATA CLEANING (PIPELINE)", S['h1']))
+        flow_desc = (
+            "Dataset diproses melalui 5 tahapan alur data cleaning di backend engine:<br/><br/>"
+            "<b>1. Audit Kesehatan (Data Profiling):</b> Mendeteksi sel kosong (NaN), "
+            "baris duplikat, inkonsistensi teks, dan outlier numerik (IQR).<br/>"
+            "<b>2. Standarisasi Teks:</b> Menghilangkan spasi berlebih dan menyeragamkan "
+            "bentuk huruf (Title/Lower/Upper Case).<br/>"
+            "<b>3. Imputasi Data Hilang:</b> Mengisi sel kosong dengan mean/median/modus "
+            "atau menghapus baris jika kerusakan ekstrem.<br/>"
+            "<b>4. Pembersihan Outlier (IQR Capping):</b> Menetralkan nilai ekstrim "
+            "menggunakan batas IQR.<br/>"
+            "<b>5. Drop Kolom Tidak Relevan:</b> Menghapus kolom variansi nol atau "
+            "rasio keunikan terlalu tinggi (ID/teks acak)."
+        )
+        story.append(Paragraph(flow_desc, S['body']))
+        story.append(Spacer(1, 10))
+
+        # Before / After table
+        if isinstance(cleaning_summary, dict):
+            sb     = cleaning_summary
+            rows_b = sb.get('rows_before',  len(df))
+            rows_a = sb.get('rows_after',   len(df))
+            cols_b = sb.get('cols_before',  len(df.columns))
+            cols_a = sb.get('cols_after',   len(df.columns))
+            miss_b = sb.get('missing_before', 0)
+            miss_a = sb.get('missing_after',  0)
+            mp_b   = sb.get('missing_pct_before', 0.0)
+            mp_a   = sb.get('missing_pct_after',  0.0)
+            dups   = sb.get('duplicates_removed', 0)
+
+            diff_data = [
+                [Paragraph("<b>Metrik</b>",             S['th']),
+                 Paragraph("<b>Sebelum (Raw)</b>",      S['th']),
+                 Paragraph("<b>Sesudah (Cleaned)</b>",  S['th']),
+                 Paragraph("<b>Perubahan</b>",          S['th'])],
+                [Paragraph("Baris Data",        S['td']),
+                 Paragraph(str(rows_b),         S['td']),
+                 Paragraph(str(rows_a),         S['td']),
+                 Paragraph(f"Dihapus: {rows_b - rows_a} baris", S['td'])],
+                [Paragraph("Kolom Data",        S['td']),
+                 Paragraph(str(cols_b),         S['td']),
+                 Paragraph(str(cols_a),         S['td']),
+                 Paragraph(f"Dihapus: {cols_b - cols_a} kolom", S['td'])],
+                [Paragraph("Sel Kosong",        S['td']),
+                 Paragraph(f"{miss_b} ({mp_b}%)", S['td']),
+                 Paragraph(f"{miss_a} ({mp_a}%)", S['td']),
+                 Paragraph(f"Dibersihkan: {miss_b - miss_a} sel", S['td'])],
+            ]
+            dt = Table(diff_data, colWidths=[130, 120, 120, 134])
+            dt.setStyle(_header_table_style())
+            story.append(dt)
+            story.append(Spacer(1, 8))
+
+            # Cleaning log
+            cleaning_logs = sb.get('log', [])
+            if cleaning_logs:
+                story.append(Paragraph("Log Tindakan Cleaning:", S['h2']))
+                log_rows = [[Paragraph(f"• {l}", S['td'])] for l in cleaning_logs]
+                lt = Table(log_rows, colWidths=[504])
+                lt.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a5568')),
+                    ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e0')),
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),
+                    ('BOTTOMPADDING',(0, 0), (-1, -1), 3),
+                ]))
+                story.append(lt)
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Cleaning Pipeline tidak dapat dimuat — N/A]</i>", S['na']))
+
+    # ── Descriptive stats: Numeric ────────────────────────────────────────────
+    try:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("3b. Statistik Deskriptif — Variabel Numerik", S['h2']))
+        if num_stats:
+            nh = [Paragraph(h, S['th']) for h in
+                  ["Kolom", "Mean", "Median", "Min", "Max", "Std Dev", "Skewness", "Normality"]]
+            n_rows = [nh]
+            for ns in num_stats:
+                if not isinstance(ns, dict):
+                    continue
+                n_rows.append([
+                    Paragraph(str(ns.get('Column', '')),    S['td']),
+                    Paragraph(str(ns.get('Mean', 'N/A')),   S['td']),
+                    Paragraph(str(ns.get('Median', 'N/A')), S['td']),
+                    Paragraph(str(ns.get('Min', 'N/A')),    S['td']),
+                    Paragraph(str(ns.get('Max', 'N/A')),    S['td']),
+                    Paragraph(str(ns.get('Std Dev', 'N/A')),S['td']),
+                    Paragraph(str(ns.get('Skewness', 'N/A')), S['td']),
+                    Paragraph(str(ns.get('Normality', 'N/A')),S['td']),
+                ])
+            nt = Table(n_rows, colWidths=[90, 55, 55, 48, 48, 55, 55, 98])
+            nt.setStyle(_header_table_style())
+            story.append(nt)
         else:
-            status_p = Paragraph(f"<font color='#e53e3e'><b>{status_text}</b></font>", td_style)
-            
-        col_rows.append([
-            Paragraph(c['column'], td_style),
-            Paragraph(c['dtype'], td_style),
-            Paragraph(f"{c['missing']} ({c['missing_pct']}%)", td_style),
-            Paragraph(str(c['unique']), td_style),
-            Paragraph(str(c['outliers']), td_style),
-            status_p
-        ])
-    col_table = Table(col_rows, colWidths=[120, 65, 80, 50, 55, 134])
-    col_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111c44')),
-        ('BOTTOMPADDING', (0,0), (-1,0), 5),
-        ('TOPPADDING', (0,0), (-1,0), 5),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 3),
-        ('TOPPADDING', (0,1), (-1,-1), 3),
-    ]))
-    story.append(col_table)
-    story.append(PageBreak())
-    
-    # 4. Statistik Deskriptif (Numerical)
-    story.append(Paragraph("2. Analisis Statistik Deskriptif Variabel Numerik", h1_style))
-    if num_stats:
-        num_headers = [
-            Paragraph("Column", th_style),
-            Paragraph("Mean", th_style),
-            Paragraph("Median", th_style),
-            Paragraph("Min", th_style),
-            Paragraph("Max", th_style),
-            Paragraph("Std Dev", th_style),
-            Paragraph("Mode", th_style),
-            Paragraph("Skewness", th_style),
-            Paragraph("Normality", th_style)
-        ]
-        num_rows = [num_headers]
-        for ns in num_stats:
-            num_rows.append([
-                Paragraph(ns['Column'], td_style),
-                Paragraph(str(ns['Mean']), td_style),
-                Paragraph(str(ns['Median']), td_style),
-                Paragraph(str(ns['Min']), td_style),
-                Paragraph(str(ns['Max']), td_style),
-                Paragraph(str(ns['Std Dev']), td_style),
-                Paragraph(str(ns['Mode']), td_style),
-                Paragraph(str(ns['Skewness']), td_style),
-                Paragraph(str(ns['Normality']), td_style)
-            ])
-        num_table = Table(num_rows, colWidths=[94, 52, 52, 48, 48, 52, 48, 55, 55])
-        num_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111c44')),
-            ('BOTTOMPADDING', (0,0), (-1,0), 5),
-            ('TOPPADDING', (0,0), (-1,0), 5),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')]),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,1), (-1,-1), 3),
-            ('TOPPADDING', (0,1), (-1,-1), 3),
-        ]))
-        story.append(num_table)
-    else:
-        story.append(Paragraph("<i>Tidak ada kolom numerik di dataset ini.</i>", body_style))
-        
-    story.append(Spacer(1, 10))
-    
-    # 4. Statistik Deskriptif (Categorical)
-    story.append(Paragraph("3. Analisis Statistik Deskriptif Variabel Kategorikal", h1_style))
-    if cat_stats:
-        cat_headers = [
-            Paragraph("Column", th_style),
-            Paragraph("Unique", th_style),
-            Paragraph("Mode (Most Freq)", th_style),
-            Paragraph("Mode Freq", th_style),
-            Paragraph("Mode %", th_style),
-            Paragraph("Missing Count", th_style),
-            Paragraph("Missing %", th_style)
-        ]
-        cat_rows = [cat_headers]
-        for cs in cat_stats:
-            cat_rows.append([
-                Paragraph(cs['Column'], td_style),
-                Paragraph(str(cs['Unique']), td_style),
-                Paragraph(str(cs['Mode']), td_style),
-                Paragraph(str(cs['Mode Freq']), td_style),
-                Paragraph(str(cs['Mode %']), td_style),
-                Paragraph(str(cs['Missing Count']), td_style),
-                Paragraph(str(cs['Missing %']), td_style)
-            ])
-        cat_table = Table(cat_rows, colWidths=[110, 50, 134, 60, 50, 50, 50])
-        cat_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111c44')),
-            ('BOTTOMPADDING', (0,0), (-1,0), 5),
-            ('TOPPADDING', (0,0), (-1,0), 5),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')]),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,1), (-1,-1), 3),
-            ('TOPPADDING', (0,1), (-1,-1), 3),
-        ]))
-        story.append(cat_table)
-    else:
-        story.append(Paragraph("<i>Tidak ada kolom kategorikal di dataset ini.</i>", body_style))
-        
-    story.append(PageBreak())
-    
-    # 4. Visual
-    story.append(Paragraph("4. ESTIMASI & INTERPRETASI VISUALISASI DASAR", h1_style))
-    visual_text = (
-        "Visualisasi grafis yang disajikan pada dashboard interaktif DS Generator mencakup beberapa representasi kunci "
-        "yang membantu mengekstrak pola dari data:<br/>"
-        "• <b>Histogram & Density Plot (Variabel Numerik):</b> Memberikan visualisasi penyebaran frekuensi nilai. "
-        "Membantu mendeteksi apakah data berdistribusi normal, memiliki pencilan (outliers), atau condong (skewed) ke arah tertentu.<br/>"
-        "• <b>Bar Chart & Pie Chart (Variabel Kategorikal):</b> Menampilkan frekuensi kemunculan kategori serta proporsi "
-        "persentase masing-masing grup terhadap populasi keseluruhan. Berguna untuk memahami sebaran kualitatif.<br/>"
-        "• <b>Bivariate & Multi-Variable Chart (Scatter/Correlation):</b> Plot titik hubungan silang antara dua kolom numerik. "
-        "Membantu HR dan manajemen mengidentifikasi korelasi linear/non-linear, densitas cluster, dan outlier dua arah.<br/>"
-        "• <b>Time Series Plot (Auto-Detected):</b> Jika kolom penanggalan/waktu teridentifikasi, plot tren, rolling mean, "
-        "dan garis rata-rata bergerak (moving average) akan menyimpulkan tren historis atau pola musiman bisnis."
-    )
-    story.append(Paragraph(visual_text, body_style))
-    story.append(Spacer(1, 10))
+            story.append(Paragraph("<i>Tidak ada kolom numerik.</i>", S['na']))
+    except Exception:
+        story.append(Paragraph("<i>[Statistik numerik tidak tersedia — N/A]</i>", S['na']))
 
-    # 5. Insight (Temuan Kunci)
-    story.append(Paragraph("5. TEMUAN KUNCI & INSIGHT OTOMATIS (DATA INSIGHTS)", h1_style))
-    if auto_insights:
-        for ins in auto_insights:
-            ins_title = ins.get('title', 'Temuan Data')
-            ins_desc = ins.get('desc', '')
-            ins_type = ins.get('type', 'info')
-            
-            # Format text color based on alert type
-            t_color = "#2b6cb0"
-            if ins_type == 'success': t_color = "#2f855a"
-            elif ins_type == 'warning': t_color = "#c05621"
-            elif ins_type == 'danger': t_color = "#c53030"
-            
-            story.append(Paragraph(f"<b><font color='{t_color}'>{ins_title}</font></b>", h2_style))
-            story.append(Paragraph(ins_desc, body_style))
-            story.append(Spacer(1, 3))
-    else:
-        story.append(Paragraph("<i>Belum ada insight otomatis yang dirumuskan untuk dataset ini.</i>", body_style))
-        
-    story.append(Spacer(1, 10))
+    # ── Descriptive stats: Categorical ────────────────────────────────────────
+    try:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("3c. Statistik Deskriptif — Variabel Kategorikal", S['h2']))
+        if cat_stats:
+            ch = [Paragraph(h, S['th']) for h in
+                  ["Kolom", "Unique", "Mode", "Mode Freq", "Mode %", "Missing", "Missing %"]]
+            c_rows = [ch]
+            for cs in cat_stats:
+                if not isinstance(cs, dict):
+                    continue
+                c_rows.append([
+                    Paragraph(str(cs.get('Column', '')),        S['td']),
+                    Paragraph(str(cs.get('Unique', 'N/A')),     S['td']),
+                    Paragraph(str(cs.get('Mode', 'N/A')),       S['td']),
+                    Paragraph(str(cs.get('Mode Freq', 'N/A')),  S['td']),
+                    Paragraph(str(cs.get('Mode %', 'N/A')),     S['td']),
+                    Paragraph(str(cs.get('Missing Count', 'N/A')), S['td']),
+                    Paragraph(str(cs.get('Missing %', 'N/A')),  S['td']),
+                ])
+            ct2 = Table(c_rows, colWidths=[100, 50, 124, 60, 55, 55, 60])
+            ct2.setStyle(_header_table_style())
+            story.append(ct2)
+        else:
+            story.append(Paragraph("<i>Tidak ada kolom kategorikal.</i>", S['na']))
+        story.append(PageBreak())
+    except Exception:
+        story.append(Paragraph("<i>[Statistik kategorikal tidak tersedia — N/A]</i>", S['na']))
+        story.append(PageBreak())
 
-    # 6. Rekomendasi Pengambilan Keputusan Bisnis
-    story.append(Paragraph("6. REKOMENDASI STRATEGIS PENGAMBILAN KEPUTUSAN", h1_style))
-    recoms = []
-    
-    # Generate intelligent recommendations based on stats
-    total_missing = quality_report['summary']['missing_cells']
-    total_outliers = quality_report['summary']['total_outliers']
-    total_dups = quality_report['summary']['duplicate_rows']
-    
-    if total_missing > 0:
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 4 · VISUAL (Histogram & Heatmap)
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("4. VISUALISASI KUNCI (HISTOGRAM & HEATMAP)", S['h1']))
+
+        image_paths = image_paths or {}
+        hist_path   = image_paths.get('histogram')
+        heat_path   = image_paths.get('heatmap')
+
+        # Detect numeric columns for fallback generation
+        num_cols_list = [
+            c for c in df.select_dtypes(include='number').columns
+            if c in df.columns
+        ]
+
+        # Histogram
+        story.append(Paragraph("4a. Histogram (Distribusi Variabel Numerik)", S['h2']))
+        hist_img = _try_load_image(hist_path) if hist_path else None
+        if hist_img is None:
+            hist_buf = _generate_histogram_image(df, num_cols_list)
+            if hist_buf is not None:
+                hist_img = RLImage(hist_buf, width=450, height=262)
+        if hist_img is not None:
+            story.append(hist_img)
+        else:
+            story.append(Paragraph("<i>[Histogram tidak dapat dihasilkan — data numerik tidak tersedia]</i>", S['na']))
+        story.append(Spacer(1, 10))
+
+        # Heatmap
+        story.append(Paragraph("4b. Heatmap Korelasi (Hubungan Antar Variabel)", S['h2']))
+        heat_img = _try_load_image(heat_path) if heat_path else None
+        if heat_img is None:
+            heat_buf = _generate_heatmap_image(df, num_cols_list)
+            if heat_buf is not None:
+                heat_img = RLImage(heat_buf, width=450, height=337)
+        if heat_img is not None:
+            story.append(heat_img)
+        else:
+            story.append(Paragraph(
+                "<i>[Heatmap tidak dapat dihasilkan — minimal 2 kolom numerik diperlukan]</i>", S['na']))
+
+        story.append(PageBreak())
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Visual tidak dapat dimuat — N/A]</i>", S['na']))
+        story.append(PageBreak())
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 5 · INSIGHT
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("5. TEMUAN KUNCI & INSIGHT OTOMATIS", S['h1']))
+        if auto_insights:
+            for ins in auto_insights:
+                if not isinstance(ins, dict):
+                    continue
+                ins_title = ins.get('title', 'Temuan Data')
+                ins_desc  = ins.get('desc', '') or ins.get('description', '')
+                ins_type  = ins.get('type', 'info')
+
+                t_color = {
+                    'success': '#2f855a', 'warning': '#c05621',
+                    'danger':  '#c53030',
+                }.get(ins_type, '#2b6cb0')
+
+                story.append(Paragraph(
+                    f"<b><font color='{t_color}'>{ins_title}</font></b>", S['h2']))
+                story.append(Paragraph(ins_desc, S['body']))
+                story.append(Spacer(1, 3))
+        else:
+            story.append(Paragraph(
+                "<i>Belum ada insight otomatis yang dirumuskan untuk dataset ini.</i>", S['na']))
+        story.append(Spacer(1, 10))
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Insight tidak dapat dimuat — N/A]</i>", S['na']))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SECTION 6 · REKOMENDASI
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        story.append(Paragraph("6. REKOMENDASI STRATEGIS PENGAMBILAN KEPUTUSAN", S['h1']))
+        recoms = []
+
+        summary      = _safe_summary(quality_full)
+        total_missing  = summary.get('missing_cells',  0)
+        total_outliers = summary.get('total_outliers', 0)
+        total_dups     = summary.get('duplicate_rows', 0)
+
+        if total_missing > 0:
+            recoms.append(
+                "<b>Penguatan Validasi Input Data:</b> Mengingat ditemukannya sel kosong "
+                "(missing cells) pada dataset, manajemen harus mengintegrasikan pengecekan "
+                "validitas (field validation) pada formulir pengisian data untuk memastikan "
+                "tidak ada field kritis yang dikirim dalam keadaan kosong."
+            )
+        if total_outliers > 0:
+            recoms.append(
+                "<b>Investigasi Nilai Anomali (Outliers):</b> Ditemukan data pencilan ekstrem. "
+                "Disarankan tim operasional memvalidasi apakah angka tersebut valid (fluktuasi "
+                "bisnis riil) atau human error. Lakukan capping/truncation sebelum pemodelan "
+                "prediktif lanjutan."
+            )
+        if total_dups > 0:
+            recoms.append(
+                "<b>Pencegahan Duplikasi Data:</b> Terdapat baris ganda. Tim IT disarankan "
+                "memvalidasi primary key atau unique constraint pada basis data transaksional "
+                "agar duplikasi tidak terulang."
+            )
+
+        # High skewness recommendation
+        high_skew_cols = []
+        for ns in (num_stats or []):
+            if not isinstance(ns, dict):
+                continue
+            try:
+                val = ns.get('Skewness', 'N/A')
+                if val != 'N/A' and abs(float(val)) > 1.0:
+                    high_skew_cols.append(ns.get('Column', ''))
+            except Exception:
+                continue
+
+        if high_skew_cols:
+            cols_str = ", ".join(filter(None, high_skew_cols))
+            recoms.append(
+                f"<b>Transformasi Skewness Data:</b> Kolom ({cols_str}) memiliki kemiringan "
+                "distribusi tinggi (skewed). Sebelum menerapkan algoritma berbasis distribusi "
+                "normal, lakukan transformasi logaritma atau Box-Cox untuk meminimalkan bias."
+            )
+
         recoms.append(
-            "<b>Penguatan Validasi Input Data:</b> Mengingat ditemukannya sel kosong (missing cells) pada dataset, "
-            "manajemen harus mengintegrasikan pengecekan validitas (field validation) pada formulir pengisian data "
-            "untuk memastikan tidak ada field kritis yang dikirimkan dalam keadaan kosong."
+            "<b>Pembersihan Berkala (Data Governance):</b> Jadwalkan proses pembersihan data "
+            "secara rutin menggunakan Auto-EDA Dashboard sebelum laporan akhir bulan diekspor "
+            "ke departemen eksekutif, guna menjamin keputusan dibuat berdasarkan data higienis."
         )
-    if total_outliers > 0:
-        recoms.append(
-            "<b>Investigasi Nilai Anomali (Outliers):</b> Ditemukan beberapa data pencilan ekstrem. "
-            "Disarankan bagi tim operasional untuk memvalidasi apakah angka tersebut valid karena fluktuasi riil bisnis "
-            "atau human error. Lakukan penanganan caps/truncation sebelum pemodelan prediktif lanjutan."
+
+        recoms_html = "".join(
+            f"<b>R{i+1}.</b> {rec}<br/><br/>" for i, rec in enumerate(recoms)
         )
-    if total_dups > 0:
-        recoms.append(
-            "<b>Pencegahan Duplikasi Data:</b> Terdapat entri baris ganda. Tim IT disarankan memvalidasi primary key "
-            "atau constraint keunikan pada basis data transaksional agar duplikasi tidak terjadi kembali."
-        )
-        
-    # High skewness check
-    high_skew_cols = []
-    for ns in num_stats:
-        try:
-            val = ns.get('Skewness', 'N/A')
-            if val != 'N/A' and abs(float(val)) > 1.0:
-                high_skew_cols.append(ns['Column'])
-        except Exception:
-            continue
-            
-    if high_skew_cols:
-        cols_str = ", ".join(high_skew_cols)
-        recoms.append(
-            f"<b>Transformasi Skewness Data:</b> Kolom ({cols_str}) memiliki kemiringan distribusi yang tinggi (skewed). "
-            "Sebelum menerapkan algoritma berbasis asumsi distribusi normal, lakukan transformasi logaritma atau Box-Cox "
-            "agar hasil prediksi memiliki bias yang minimal."
-        )
-        
-    recoms.append(
-        "<b>Pembersihan Berkala (Data Governance):</b> Jadwalkan proses pembersihan data secara rutin menggunakan DS Generator "
-        "sebelum laporan akhir bulan diekspor ke departemen eksekutif, guna menjamin keputusan dibuat berdasarkan data yang higienis."
+        story.append(Paragraph(recoms_html, S['body']))
+    except Exception:
+        story.append(Paragraph("<i>[Bagian Rekomendasi tidak dapat dimuat — N/A]</i>", S['na']))
+
+    # ── Build PDF ─────────────────────────────────────────────────────────────
+    doc.build(
+        story,
+        canvasmaker=NumberedCanvas,
     )
-    
-    recoms_html = ""
-    for idx, rec in enumerate(recoms):
-        recoms_html += f"<b>R{idx+1}.</b> {rec}<br/><br/>"
-        
-    story.append(Paragraph(recoms_html, body_style))
-    
-    # Build PDF
-    doc.build(story, canvasmaker=NumberedCanvas, onFirstPage=draw_watermark, onLaterPages=draw_watermark)

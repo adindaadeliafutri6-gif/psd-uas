@@ -429,10 +429,40 @@ var VizMaster = (function () {
     }
 
     // ── Placeholder / show chart ──────────────────────────────────────────────
-    function showPlaceholder(msg) {
+    function showPlaceholder(msg, needType) {
         var ph   = $$('viz-placeholder');
         var mc   = $$('viz-master-chart');
-        if (ph) { ph.style.display='flex'; var p=ph.querySelector('p'); if(p) p.textContent=msg||'Dataset tidak kompatibel.'; }
+        if (ph) {
+            ph.style.display='flex';
+            var inner = ph.querySelector('.viz-placeholder-inner');
+            if (inner) {
+                var iconEl = inner.querySelector('i');
+                var pEl    = inner.querySelector('p');
+                // Set appropriate icon based on needed type
+                if (iconEl) {
+                    if (needType === 'numerical') {
+                        iconEl.className = 'fas fa-hashtag';
+                        iconEl.style.color = 'rgba(255,206,32,.45)';
+                    } else if (needType === 'categorical') {
+                        iconEl.className = 'fas fa-font';
+                        iconEl.style.color = 'rgba(134,140,255,.45)';
+                    } else {
+                        iconEl.className = 'fas fa-chart-area';
+                        iconEl.style.color = 'rgba(126,169,255,.35)';
+                    }
+                }
+                if (pEl) {
+                    if (needType) {
+                        var typeLabel = needType === 'numerical' ? 'Numerik' : 'Kategorikal';
+                        pEl.innerHTML = '<strong style="display:block;margin-bottom:6px;color:var(--text);font-size:.95rem;">' +
+                            (msg || 'Tipe data tidak cocok') + '</strong>' +
+                            '<span style="color:var(--muted);">Silakan pilih variabel <strong style="color:var(--blue);">' + typeLabel + '</strong> yang sesuai untuk visualisasi ini.</span>';
+                    } else {
+                        pEl.textContent = msg || 'Dataset tidak kompatibel.';
+                    }
+                }
+            }
+        }
         if (mc) mc.style.display='none';
         var kr = $$('viz-kpi-row'); if (kr) kr.innerHTML='';
     }
@@ -470,7 +500,11 @@ var VizMaster = (function () {
                 catnum:'Gunakan dataset dengan kolom numerik dan kategorik.',
                 compare:'Gunakan dataset dengan minimal 2 kolom numerik.',
             };
-            showPlaceholder(MSGS[state.category]||'Dataset tidak kompatibel.');
+            var NEED = {
+                numerical:'numerical', categorical:'categorical',
+                bivariate:'numerical', catnum:'numerical', compare:'numerical',
+            };
+            showPlaceholder(MSGS[state.category]||'Dataset tidak kompatibel.', NEED[state.category]||null);
             return;
         }
 
@@ -505,7 +539,12 @@ var VizMaster = (function () {
             .then(function(r){ clearTimeout(tid); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
             .then(function(data) {
                 state.loading=false; _activeController=null;
-                if (!data.ok) { showPlaceholder(data.placeholder||'Grafik tidak tersedia.'); renderKpis(data.kpis||[]); return; }
+                if (!data.ok) {
+                    // Determine needed type for smart placeholder
+                    var catNeed = { numerical:'numerical', categorical:'categorical', bivariate:'numerical', catnum:'numerical', compare:'numerical' };
+                    showPlaceholder(data.placeholder||'Grafik tidak tersedia.', catNeed[state.category]||null);
+                    renderKpis(data.kpis||[]); return;
+                }
                 renderKpis(data.kpis||[]);
                 state.chartType  = data.chart_type  || state.chartType;
                 state.chartIndex = data.chart_index != null ? data.chart_index : state.chartIndex;
